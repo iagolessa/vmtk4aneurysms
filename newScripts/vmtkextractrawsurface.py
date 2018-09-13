@@ -31,21 +31,58 @@ class vmtkExtractRawSurface(pypes.pypeScript):
             self.PrintError('Error: No Image.')
         if self.Levels == []:
             self.PrintError('Error: No Levels')
+        
+        self.initializationImage = vmtkscripts.vmtkImageInitialization()
+        self.initializationImage.Image = self.Image
+        self.initializationImage.Method = 'isosurface'
+        self.initializationImage.IsoSurfaceValue = self.Levels[0]
+        self.initializationImage.Interactive = 0
+        self.initializationImage.Execute()
 
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+	# If image was generated from dicom above
+        self.imageLevelSets = vmtkscripts.vmtkLevelSetSegmentation()
+        
+        # Input image
+        self.imageLevelSets.Image = self.initializationImage.Image
+        self.imageLevelSets.InitialLevelSets = self.initializationImage.InitialLevelSets
+        self.imageLevelSets.NumberOfIterations  = 300
+        self.imageLevelSets.PropagationScaling  = 0.5
+        self.imageLevelSets.CurvatureScaling    = 0.1
+        self.imageLevelSets.AdvectionScaling    = 1.0
+        self.imageLevelSets.SmoothingIterations = 20
+        self.imageLevelSets.Execute()
+        
         self.marchingCubes = vmtkscripts.vmtkMarchingCubes()
-        self.marchingCubes.Image = self.Image
+        self.marchingCubes.Image = self.imageLevelSets.LevelSets
+#         self.marchingCubes.Level = 0.1
         self.marchingCubes.Connectivity = 1
+        self.marchingCubes.Execute()
+        
+        self.surfaceTriangle = vmtkscripts.vmtkSurfaceTriangle()
+        self.surfaceTriangle.Surface = self.marchingCubes.Surface
+        self.surfaceTriangle.Execute()
+        
+        # Extract largest connected surface
+#         self.surfaceConnected = vmtkscripts.vmtkSurfaceConnectivity()
+#         self.surfaceConnected.Surface = surfaceTriangle.Surface
+#         self.surfaceConnected.Execute()
+
         self.vmtkRenderer = vmtkscripts.vmtkRenderer()
         self.vmtkRenderer.Initialize()
-        self.SurfaceViewer = vmtkscripts.vmtkSurfaceViewer()
-        self.SurfaceViewer.vmtkRenderer = self.vmtkRenderer
-
-        for level in self.Levels:
-            self.marchingCubes.Level = level
-            self.marchingCubes.Execute()
-            self.Surface = self.marchingCubes.Surface
-            self.SurfaceViewer.Surface = self.Surface
-            self.SurfaceViewer.BuildView()
+        self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
+        self.surfaceViewer.vmtkRenderer = self.vmtkRenderer
+        
+        self.Surface = self.surfaceTriangle.Surface
+        self.surfaceViewer.Surface = self.Surface
+        self.surfaceViewer.BuildView()
+        
+#         for level in self.Levels:
+#             self.marchingCubes.Level = level
+#             self.marchingCubes.Execute()
+#             self.Surface = self.marchingCubes.Surface
+#             self.SurfaceViewer.Surface = self.Surface
+#             self.SurfaceViewer.BuildView()
 
 
 if __name__ == '__main__':
