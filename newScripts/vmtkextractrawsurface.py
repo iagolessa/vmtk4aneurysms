@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import sys
+import vtk
 
 from vmtk import pypes
 from vmtk import vmtkscripts
@@ -58,11 +59,15 @@ class vmtkExtractRawSurface(pypes.pypeScript):
 #         self.marchingCubes.Level = 0.1
         self.marchingCubes.Connectivity = 1
         self.marchingCubes.Execute()
-        
-        self.surfaceTriangle = vmtkscripts.vmtkSurfaceTriangle()
-        self.surfaceTriangle.Surface = self.marchingCubes.Surface
-        self.surfaceTriangle.Execute()
-        
+       
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(self.marchingCubes.Surface)
+        cleaner.Update()
+
+        triangleFilter = vtk.vtkTriangleFilter()
+        triangleFilter.SetInputConnection(cleaner.GetOutputPort())
+        triangleFilter.Update()
+
         # Extract largest connected surface
 #         self.surfaceConnected = vmtkscripts.vmtkSurfaceConnectivity()
 #         self.surfaceConnected.Surface = surfaceTriangle.Surface
@@ -73,7 +78,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
         self.surfaceViewer.vmtkRenderer = self.vmtkRenderer
         
-        self.Surface = self.surfaceTriangle.Surface
+        self.Surface = triangleFilter.GetOutput()
         self.surfaceViewer.Surface = self.Surface
         self.surfaceViewer.BuildView()
         
