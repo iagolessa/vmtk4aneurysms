@@ -30,7 +30,11 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.FillValue   = 1.0
 
         self.SetScriptName('vmtksurfacevesselfixer')
-        self.SetScriptDoc('correct a vessel netwrok surface using clipping and capping functions.')
+        self.SetScriptDoc("Function to interactively fix a surface of a"
+                          "vessel segment with holes and other weird"
+                          "artifacts. The function works internally with" 
+                          "the region drawing script and clipper with"
+                          "array")
 
         self.SetInputMembers([
             ['Surface',	'i', 'vtkPolyData', 1, '', 'the input surface', 'vmtksurfacereader'],
