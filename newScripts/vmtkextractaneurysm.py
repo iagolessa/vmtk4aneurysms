@@ -26,7 +26,6 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.ManualMode    = True
         self.vmtkRenderer  = None
         self.OwnRenderer   = 0
-        self.AneurysmSurface = None
         
         self.Actor = None
         self.InsideValue   = 0.0
@@ -55,7 +54,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         ])
         
         self.SetOutputMembers([
-            ['AneurysmSurface', 
+            ['Surface', 
              'o', 
              'vtkPolyData', 
              1, 
@@ -215,7 +214,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.Actor.Modified()
         
         # Get output
-        self.AneurysmSurface = self.clipper.GetClippedOutput()
+        self.Surface = self.clipper.GetClippedOutput()
         self.vmtkRenderer.RemoveKeyBinding('i')
         self.vmtkRenderer.RemoveKeyBinding('space')
         self.vmtkRenderer.RemoveKeyBinding('d')
@@ -315,13 +314,13 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         surfaceConnect.Surface = aneurysmClipper.Surface
         surfaceConnect.Execute()
         
-        self.AneurysmSurface = surfaceConnect.Surface
+        self.Surface = surfaceConnect.Surface
 
         
     def Volume(self):
         """Calculate volume and area of surface"""
         getProperties = vmtkscripts.vmtkSurfaceMassProperties()
-        getProperties.Surface = self.AneurysmSurface
+        getProperties.Surface = self.Surface
         getProperties.Execute()
         
         #aneurysmMassProperties.SurfaceArea)+' mm2')
@@ -331,7 +330,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
     def SurfaceArea(self):
         """Calculate volume and area of surface"""
         getProperties = vmtkscripts.vmtkSurfaceMassProperties()
-        getProperties.Surface = self.AneurysmSurface
+        getProperties.Surface = self.Surface
         getProperties.Execute()
         
         return getProperties.SurfaceArea
@@ -339,7 +338,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
     
     def ShowAneurysm(self):
         aneurysmViewer = vmtkscripts.vmtkSurfaceViewer()
-        aneurysmViewer.Surface = self.AneurysmSurface
+        aneurysmViewer.Surface = self.Surface
         aneurysmViewer.Execute()
     
     def Execute(self):
