@@ -15,7 +15,7 @@ def area_averaged_wss(case):
     # - wallShearComponent
     
 
-    case.CellArrays = ['wallShearComponent']
+    case.CellArrays  = ['wallShearComponent']
 
     # And select the surface where integration will be carried out
     case.MeshRegions = ['wall']
@@ -29,6 +29,7 @@ def area_averaged_wss(case):
     computeWallArea = pv.IntegrateVariables()
     computeWallArea.Input = case
     computeWallArea.UpdatePipeline()
+    
     # Get area of surface, in m2
     wallArea = computeWallArea.CellData.GetArray('Area').GetRange()[0]
 
@@ -110,7 +111,7 @@ def osi(ofCaseFile,
     # Multiplying WSS per density
     densityTimesWSS = pv.Calculator()
     densityTimesWSS.Input = case
-    densityTimesWSS.AttributeType = 'Cell Data'
+    densityTimesWSS.AttributeType   = 'Cell Data'
     densityTimesWSS.ResultArrayName = "WSS"
     densityTimesWSS.Function = str(density)+"*"+wssFieldName
     densityTimesWSS.UpdatePipeline()
@@ -118,7 +119,7 @@ def osi(ofCaseFile,
     # Calculating the magnitude of the wss vector
     calcMagWSS = pv.Calculator()
     calcMagWSS.Input = densityTimesWSS
-    calcMagWSS.AttributeType = 'Cell Data'
+    calcMagWSS.AttributeType   = 'Cell Data'
     calcMagWSS.ResultArrayName = densityTimesWSS.ResultArrayName+"_magnitude"
 
     ## Get WSS field name
@@ -166,8 +167,8 @@ def osi(ofCaseFile,
     calcRRT = pv.Calculator()
     calcRRT.Input = calcOSI
     calcRRT.ResultArrayName = 'RRT'
-    calcRRT.AttributeType = 'Cell Data'
-    calcRRT.Function = str(period)+"/mag("+avgVecWSS+")"
+    calcRRT.AttributeType   = 'Cell Data'
+    calcRRT.Function        = str(period)+"/mag("+avgVecWSS+")"
     calcRRT.UpdatePipeline()
 
     # Final processing of surface: merge blocks
@@ -215,3 +216,100 @@ def wss_statistics(timeAveragedSurface, aneurysmNeckArrayName, neckIsoValue=0.5)
     WSSmax = clipAneurysmNeck.CellData.GetArray("WSS_magnitude_average").GetRange()[1] # maximum value
 
     return [aneurysmArea, WSSav, WSSmax]
+
+
+def area_averaged_wss_aneurysm(ofCaseFile,aneurysmClipSurface,aneurysmNeckArrayName,density=1056.0):
+    """
+        Function to compute surface integrals of 
+        WSS over an aneurysm surface. It takes the 
+        OpenFOAM case file and an extra surface where 
+        it is stored a field with the aneurysm neck 
+        line loaded as a ParaView PolyData surface.
+        To my knowledge, it is important that the sur-
+        face with thye neck line array be the same as 
+        the wall surface of the OpenFOAM case, i.e.
+        they are the same mesh.
+    """
+
+    # Clip original aneurysm surface in the neck line
+    clipAneurysmNeck = pv.Clip()
+    clipAneurysmNeck.Input = aneurysmClipSurface
+    clipAneurysmNeck.ClipType = 'Scalar'
+    clipAneurysmNeck.Scalars  = [aneurysmNeckArrayName]
+    clipAneurysmNeck.Invert   = 1   # gets smaller portion
+    clipAneurysmNeck.Value    = 0.5  # based on the definition of field ContourScalars
+    clipAneurysmNeck.UpdatePipeline()
+    
+    integrateWSS = pv.IntegrateVariables()
+    integrateWSS.Input = clipAneurysmNeck
+    integrateWSS.UpdatePipeline()
+
+    # Get area of surface, in m2
+    aneurysmArea = integrateWSS.CellData.GetArray("Area").GetRange()[0]
+    
+    # Read OpenFOAM data and process the WSS
+    # to get its magnitude
+    ofData = pv.OpenFOAMReader(FileName=ofCaseFile)
+
+    # Update arrays to be used:
+    ofData.CellArrays = ['wallShearComponent']
+    ofData.SkipZeroTime = 1
+    # And select the surface where integration will be carried out
+    ofData.MeshRegions = ['wall']
+
+    # Get time-steps values
+    timeSteps = np.array(ofData.TimestepValues)
+
+    # Update time-step
+    ofData.UpdatePipeline()
+
+    # Triangulate data to coincide with
+    triangulate = pv.Triangulate()
+    triangulate.Input = ofData
+    triangulate.UpdatePipeline()
+
+    # Compute magnitude of WSS in each cell of the aneurysm surface
+    magWSS = pv.Calculator()
+    magWSS.Input = triangulate
+    magWSS.ResultArrayName = 'magWSS'
+    magWSS.Function = str(density)+'*mag('+triangulate.CellData.GetArray('wallShearComponent').Name+')'
+    magWSS.AttributeType = 'Cell Data'
+    magWSS.UpdatePipeline()
+
+    # Resample OpenFOAM data to clipped aneeurysm surface
+    resampleDataset = pv.ResampleWithDataset()
+    resampleDataset.Input  = magWSS
+    resampleDataset.Source = clipAneurysmNeck
+    resampleDataset.PassCellArrays  = 1
+    resampleDataset.PassPointArrays = 1
+    resampleDataset.UpdatePipeline()
+
+    # Since all fields in ResampleWithDataSet filter 
+    # are interpolated to points, therefore
+    # apply point data to cell data fielte
+    pointToCellData = pv.PointDatatoCellData()
+    pointToCellData.Input = resampleDataset
+    pointToCellData.UpdatePipeline()
+
+    areaAveragedWSSList = []
+
+    # # Iterate over time-steps to compute time dependent variables
+    # # only on the aneurysm surface: mag of WSS over time 
+    for timeStep in timeSteps[-100:-1]: # get last cycle only
+        # Integrate WSS on the wall
+        integrateWSS = pv.IntegrateVariables()
+        integrateWSS.Input = pointToCellData
+        integrateWSS.UpdatePipeline(time=timeStep)
+
+        # Instantiate calculater filter
+        areaAveragedWSS = pv.Calculator()
+        areaAveragedWSS.Input = integrateWSS
+        areaAveragedWSS.ResultArrayName = 'areaAveragedWSS'
+        areaAveragedWSS.Function = integrateWSS.CellData.GetArray('magWSS').Name+'/'+str(aneurysmArea)
+        areaAveragedWSS.AttributeType = 'Cell Data'
+        areaAveragedWSS.UpdatePipeline(time=timeStep)
+
+        areaAveragedWSSList.append([timeStep, 
+                                    areaAveragedWSS.CellData.GetArray('areaAveragedWSS').GetRange()[0]])
+
+    return np.asarray(areaAveragedWSSList)
