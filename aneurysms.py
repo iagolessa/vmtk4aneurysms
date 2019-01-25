@@ -2,7 +2,6 @@
 import paraview.simple as pv
 import numpy as np
 
-
 def area_averaged_wss(case):
     """ Function that calculates the area-averaged WSS
         for a surface where the wall shear stress field
@@ -225,7 +224,7 @@ def wss_statistics(timeAveragedSurface, aneurysmNeckArrayName, neckIsoValue=0.5)
 def area_averaged_wss_aneurysm(ofCaseFile,
                                aneurysmClipSurface,
                                aneurysmNeckArrayName,
-                               clipAneurysmNeck=0.5,
+                               neckIsoValue=0.5,
                                density=1056.0,
                                wssFieldName='wallShearComponent', 
                                patchName='wall'):
@@ -247,7 +246,7 @@ def area_averaged_wss_aneurysm(ofCaseFile,
     clipAneurysmNeck.ClipType = 'Scalar'
     clipAneurysmNeck.Scalars  = ['POINTS', aneurysmNeckArrayName]
     clipAneurysmNeck.Invert   = 1
-    clipAneurysmNeck.Value    = clipAneurysmNeck  # based on the definition of field ContourScalars
+    clipAneurysmNeck.Value    = neckIsoValue  # based on the definition of field ContourScalars
     clipAneurysmNeck.UpdatePipeline()
     
     integrateWSS = pv.IntegrateVariables()
@@ -328,7 +327,7 @@ def area_averaged_wss_aneurysm(ofCaseFile,
 def lsa_wss_av(timeAveragedSurface, 
                aneurysmNeckArrayName,
                lowWSSValue, 
-               clipAneurysmNeck=0.5):
+               neckIsoValue=0.5):
     """ 
     Calculates the LSA (low WSS area ratio) for aneurysms
     simulations performed in OpenFOAM. Thi input is a sur-
@@ -384,7 +383,7 @@ def lsa_instant(ofDataFile,
                aneurysmClipSurface,
                aneurysmNeckArrayName,
                lowWSSValue, 
-               clipAneurysmNeck=0.5,
+               neckIsoValue=0.5,
                density=1056.0,
                wssFieldName='wallShearComponent', 
                patchName='wall'):
@@ -408,7 +407,7 @@ def lsa_instant(ofDataFile,
     clipAneurysmNeck.ClipType = 'Scalar'
     clipAneurysmNeck.Scalars  = ['POINTS', aneurysmNeckArrayName]
     clipAneurysmNeck.Invert   = 1                   
-    clipAneurysmNeck.Value    = clipAneurysmNeck    # based on the definition of field ContourScalars
+    clipAneurysmNeck.Value    = neckIsoValue    # based on the definition of field ContourScalars
     clipAneurysmNeck.UpdatePipeline()
     
     integrateWSS = pv.IntegrateVariables()
