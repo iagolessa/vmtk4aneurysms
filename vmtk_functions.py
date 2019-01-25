@@ -376,3 +376,168 @@ def getPatchInfo(surface):
 #                 continue
 
     return capsGeometryArray
+
+
+def patchSurface(surface, outputDir, capped=True):
+    """ 
+    Function to patch a surface to be used 
+    in CFD by creating a mesh in snappyHexMesh.
+    The function also orient the surface putting
+    the inlet (selected by largest radius) center
+    on the origin of the system, with its outward
+    normal point to -z direction.
+    """
+
+    inletFileName  = 'inlet.stl'
+    outletFileName = 'outlet.stl'
+    wallFileName   = 'wall.stl'
+    CellEntityIdsArray   = 'CellEntityIds'
+    BoundaryRadiusArray  = 'BoundaryRadius'
+    BoundaryNormalsArray = 'BoundaryNormals'
+    
+    origin = [0, 0, 0]
+    orientation = [0, 0, -1]
+    
+    
+    # Check if patch dir exists
+    patchDir = outputDir+'patches/'
+    if not os.path.isdir(patchDir):
+        os.makedirs(patchDir)
+#         print(patchDir+' created.')
+    
+    
+    # Check cap condition
+    if capped == False:
+        surfaceCapper = vmtkscripts.vmtkSurfaceCapper()
+        surfaceCapper.Surface = surface
+        surfaceCapper.Method  = 'centerpoint'
+        surfaceCapper.Interactive = 0
+        surfaceCapper.Execute()
+        
+        surface = surfaceCapper.Surface
+
+        
+    # Surface boundary inspector
+    # Conveting surface to mesh to get cell entity ids
+    surfaceToMesh = vmtkscripts.vmtkSurfaceToMesh()
+    surfaceToMesh.Surface = surface
+    surfaceToMesh.Execute()
+
+    # Inspecting
+    surfaceBoundaryInspector = vmtkscripts.vmtkMeshBoundaryInspector()
+    surfaceBoundaryInspector.Mesh = surfaceToMesh.Mesh
+    surfaceBoundaryInspector.CellEntityIdsArrayName = CellEntityIdsArray
+    surfaceBoundaryInspector.Execute()
+
+    # Store patch info in python dictionary using vmtksurfacetonumpy
+    vmtkToNumpy = vmtkscripts.vmtkSurfaceToNumpy()
+    vmtkToNumpy.Surface = surfaceBoundaryInspector.ReferenceSystems
+    vmtkToNumpy.Execute()
+
+    dictPatchData = vmtkToNumpy.ArrayDict
+    
+
+    # Get inlet by maximum radius condition
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Get max radius and its index
+    maxRadius = max(dictPatchData['PointData'][BoundaryRadiusArray])
+    inletPos, = np.where( dictPatchData['PointData'][BoundaryRadiusArray] == maxRadius )
+
+    # Number of patches
+    nPatches  = len(dictPatchData['PointData'][CellEntityIdsArray])
+
+    # Update dictPatchData with patch info
+    dictPatchData['PatchType'] = np.array(nPatches*['outlet'])
+    dictPatchData['PatchType'][int(inletPos)] = 'inlet'
+#     dictPatchData
+
+    wallId  = 1
+    inletId = dictPatchData['PointData'][CellEntityIdsArray][int(inletPos)]
+
+    # Counting the number of inlets and outlets
+    # using the numpy.unique function: it returns an ndarray with the unique itens of the input array
+    # with the return_counts=True also returns the number of appearance of each item
+    patchTypes, numberOfPatches = np.unique(dictPatchData['PatchType'], return_counts=True)
+
+    
+    # Zip both patchTypes and numberOfPatches and convert to dictionary
+    # with number of inlets and outlets
+    patchCount = dict(zip(patchTypes, numberOfPatches))
+
+    # Surface reorientation
+    # The vmtksurfacereferencesystemtransform script takes a surface (the surfaceCapped above) 
+    # and rotates and translates it conforming one of its patches (in our case the inlet patch) 
+    # to a target reference system for that, it uses the output of the vtmkboundaryinspector
+    surfaceTransform = vmtkscripts.vmtkSurfaceReferenceSystemTransform()
+    surfaceTransform.Surface = surfaceToMesh.Surface
+
+    # Target reference system parameters
+    surfaceTransform.ReferenceOrigin  = origin  # translate to origin of system
+    surfaceTransform.ReferenceNormal1 = orientation # inlet normal will coincide with -z axis orientation
+    surfaceTransform.ReferenceNormal2 = orientation
+
+    # Surface reference system
+    surfaceTransform.ReferenceSystems = surfaceBoundaryInspector.ReferenceSystems
+    # to get the reference systems of inlet patch
+    # Note that, if there is more than one inlet, the inlet chose is the one with largest area
+    surfaceTransform.ReferenceSystemId = inletId
+    surfaceTransform.ReferenceSystemsIdArrayName      = CellEntityIdsArray
+    surfaceTransform.ReferenceSystemsNormal1ArrayName = BoundaryNormalsArray
+    surfaceTransform.ReferenceSystemsNormal2ArrayName = BoundaryNormalsArray
+    surfaceTransform.Execute()
+
+    
+    # Using vmtkThreshold script to extract patches for mesh generations in snappy
+    # Extracting first the wall
+    extractThreshold = vmtkscripts.vmtkThreshold()
+    extractThreshold.Surface = surfaceTransform.Surface
+    extractThreshold.LowThreshold  = wallId
+    extractThreshold.HighThreshold = wallId
+    extractThreshold.SurfaceOutputFileName = patchDir+wallFileName
+    extractThreshold.OutputText('Extracting surface with id '+str(wallId)+'\n')
+    extractThreshold.Execute()
+    extractThreshold.IOWrite()
+    extractThreshold.OutputText('Patch saved in '+extractThreshold.SurfaceOutputFileName+'\n')
+
+    # Outlet initial index (to increment) and to be used in output filename
+    outletIndex = 1
+    inletIndex  = 1
+
+    # Loop to extract inlet and outlet patches
+    for i in np.arange(nPatches):
+        # Instantiate vmtkthreshold
+        extractThreshold = vmtkscripts.vmtkThreshold()
+        extractThreshold.Surface       = surfaceTransform.Surface
+        extractThreshold.LowThreshold  = dictPatchData['PointData'][CellEntityIdsArray][i]
+        extractThreshold.HighThreshold = dictPatchData['PointData'][CellEntityIdsArray][i]
+        extractThreshold.OutputText('Extracting surface with id '+str(dictPatchData['PointData'][CellEntityIdsArray][i])+'\n')
+        
+        
+        # Defining output file names
+        if dictPatchData['PatchType'][i] == 'inlet':
+
+            if patchCount['inlet'] == 1:
+                inletFilePath = patchDir+inletFileName
+            else:
+                prefix = inletFileName[0:5]
+                suffix = inletFileName[5:9]
+                inletFilePath = patchDir + prefix + str(inletIndex) + suffix
+                inletIndex += 1
+                
+            extractThreshold.SurfaceOutputFileName = inletFilePath
+
+            
+        elif dictPatchData['PatchType'][i] == 'outlet':
+            if patchCount['outlet'] == 1:
+                outletFilePath = patchDir+outletFileName
+            else:
+                prefix = outletFileName[0:6]
+                suffix = outletFileName[6:10]
+                outletFilePath = patchDir + prefix + str(outletIndex) + suffix
+                outletIndex += 1
+
+            extractThreshold.SurfaceOutputFileName = outletFilePath
+
+        extractThreshold.Execute()
+        extractThreshold.OutputText('Patch saved in '+extractThreshold.SurfaceOutputFileName+'\n')
+        extractThreshold.IOWrite()
