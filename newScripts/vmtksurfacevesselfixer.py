@@ -21,6 +21,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.OwnRenderer  = 0
         self.Remesh = False
         self.Smooth = True
+        self.Clip = True
 
         self.Actor = None
         self.ContourWidget = None
@@ -41,6 +42,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             ['vmtkRenderer', 'renderer', 'vmtkRenderer', 1, '', 'external renderer'],
             ['Remesh' , 'remesh', 'bool', 1, '', 'to apply remeshing procedure after fixing it'],
             ['Smooth' , 'smooth','bool',1,'','if surface must be smoothed before fixing'],
+            ['Clip'   , 'clip'  ,'bool',1,'','to clip surface with a box before fixing it'],
         ])
 
         self.SetOutputMembers([
@@ -208,9 +210,20 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         triangleFilter = vtk.vtkTriangleFilter()
         triangleFilter.SetInputData(self.Surface)
         triangleFilter.Update()
+
+        self.Surface = triangleFilter.GetOutput()
         
+        # If clip is true, clip surface
+        if self.Clip == True:
+            surfaceClipper = vmtkscripts.vmtkSurfaceClipper()
+            surfaceClipper.Surface = self.Surface 
+            surfaceClipper.InsideOut = True
+            surfaceClipper.Execute()
+
+            self.Surface = surfaceClipper.Surface
+
         connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-        connectivityFilter.SetInputData(triangleFilter.GetOutput())
+        connectivityFilter.SetInputData(self.Surface)
         connectivityFilter.ColorRegionsOff()
         connectivityFilter.SetExtractionModeToLargestRegion()
         connectivityFilter.Update()
