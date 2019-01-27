@@ -3,7 +3,7 @@
 from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py2-3 COMPATIBILITY
 
 import sys
-
+import vtk
 from vmtk import vmtkscripts
 from vmtk import pypes
 
@@ -45,20 +45,6 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
-
-        # Filter input surface
-        triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInputData(self.Surface)
-        triangleFilter.Update()
-
-        connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-        connectivityFilter.SetInputData(triangleFilter.GetOutput())
-        connectivityFilter.ColorRegionsOff()
-        connectivityFilter.SetExtractionModeToLargestRegion()
-        connectivityFilter.Update()
-        
-        self.Surface = connectivityFilter.GetOutput()
-        
         # Creating resolution array 
         resolutionArrayCreator = vmtkscripts.vmtkSurfaceRegionDrawing()
         resolutionArrayCreator.Surface = self.Surface
@@ -75,14 +61,16 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         resolutionArraySmoothing.Connexity = 1
         resolutionArraySmoothing.Relaxation = 1.0
         resolutionArraySmoothing.Iterations = 15
+        resolutionArraySmoothing.OutputText("Smoothing resolution array...\n")
         resolutionArraySmoothing.Execute()
 
         # Remesh procedure
         surfaceRemesh = vmtkscripts.vmtkSurfaceRemeshing()
         surfaceRemesh.Surface = resolutionArraySmoothing.Surface 
         surfaceRemesh.ElementSizeMode = 'edgelengtharray'
-        surfaceRemesh.TargetEdgeLengthArrayName = resolutionArrayCreator.ContourScalarsArrayName
+        surfaceRemesh.TargetEdgeLengthArrayName = resolutionArraySmoothing.SurfaceArrayName
         surfaceRemesh.TargetEdgeLengthFactor = 1
+        surfaceRemesh.OutputText("Remeshing... \n")
         surfaceRemesh.Execute()
 
         self.Surface = surfaceRemesh.Surface
