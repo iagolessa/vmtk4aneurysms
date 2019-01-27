@@ -45,7 +45,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
              'vmtksurfacereader'],
             ['AneurysmType', 
              'type', 'str', 1, 
-             ['lateral', 'terminal'], 
+             '["lateral", "terminal"]', 
              'aneurysm type'],
             ['ManualMode', 
              'manual', 'bool', 1, 
