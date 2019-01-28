@@ -80,7 +80,14 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         surfaceFlowExtensions.Sigma = 1.0
         surfaceFlowExtensions.Execute()
 
-        self.Surface = surfaceFlowExtensions.Surface
+        # Capping surface
+        capper = vmtkscripts.vmtkSurfaceCapper()
+        capper.Surface = surfaceFlowExtensions.Surface
+        capper.Method = 'centerpoint'
+        capper.Interactive = 0
+        capper.Execute()
+
+        self.Surface = capper.Surface
 
 
 if __name__=='__main__':
