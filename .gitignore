@@ -2,7 +2,7 @@
 
 __pycache__
 .ipynb_checkpoints
-surfaceAnalysis/.ipynb_checkpoints
-surfaceExtract/.ipynb_checkpoints
-volumeMeshing/.ipynb_checkpoints
+surfaceAnalysis/
+surfaceExtract/
+volumeMeshing/
 *.ipynb
