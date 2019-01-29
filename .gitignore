@@ -5,4 +5,4 @@ __pycache__
 surfaceAnalysis/.ipynb_checkpoints
 surfaceExtract/.ipynb_checkpoints
 volumeMeshing/.ipynb_checkpoints
-
+*.ipynb
