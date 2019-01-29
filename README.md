@@ -2,19 +2,14 @@
 
 ### What is this repository for? ###
 
-Set of Jupyter Notebooks with procedures to automatically extract high quality 
-intracranial aneurysms surface for CFD simulations using the Vacular Modeling
-Toolkit framework (http://www.vmtk.org/). The repository also contains new
-VMTK's like scripts with this new procedures (currently under testing).
+Set of new Python scripts based on VMTK to automatically (or as automatically 
+as possible) extract high quality intracranial aneurysms surface for 
+CFD simulations using the Vacular Modeling Toolkit framework 
+(http://www.vmtk.org/).
 
 ### How do I get set up? ###
 
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
+Use VMTK's Python library.
 
 ### Contribution guidelines ###
 
