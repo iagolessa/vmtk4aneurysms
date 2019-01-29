@@ -60,6 +60,16 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         else:
             self.ContourWidget.SetEnabled(1)
 
+#     def SmoothArray(self):
+#         arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
+#         arraySmoother.Surface = self.Surface
+#         arraySmoother.SurfaceArrayName = self.ContourScalarsArrayName
+#         arraySmoother.Iterations = 5
+#         arraySmoother.Relaxation = 1.0 
+#         arraySmoother.Execute()
+# 
+#         self.Surface = arraySmoother.Surface
+        
 
     def Display(self):
         self.vmtkRenderer.Render()
@@ -73,11 +83,11 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         contourScalars.SetName(self.ContourScalarsArrayName)
         contourScalars.FillComponent(0,self.FillValue)
 
-		# Add array to surface
+	# Add array to surface
         self.Surface.GetPointData().AddArray(contourScalars)
         self.Surface.GetPointData().SetActiveScalars(self.ContourScalarsArrayName)
 
-		# Create mapper and actor to scene
+	# Create mapper and actor to scene
         self.mapper = vtk.vtkPolyDataMapper()
         self.mapper.SetInputData(self.Surface)
         self.mapper.ScalarVisibilityOn()
@@ -87,7 +97,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Actor.GetMapper().SetScalarRange(-1.0,0.0)
         self.vmtkRenderer.Renderer.AddActor(self.Actor)
 
-		# Create representation to draw contour
+	# Create representation to draw contour
         self.ContourWidget = vtk.vtkContourWidget()
         self.ContourWidget.SetInteractor(self.vmtkRenderer.RenderWindowInteractor)
 
@@ -113,7 +123,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
     def FixMarkedRegion(self, obj):
         rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(self.ContourWidget.GetRepresentation())
 		
-		# Get contour point of closed path
+	# Get contour point of closed path
         pointIds = vtk.vtkIdList()
         self.Interpolator.GetContourPointIds(rep,pointIds)
 
@@ -125,7 +135,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             point = self.Surface.GetPoint(pointId)
             points.SetPoint(i,point)
 
-		# Create array on closed contour 
+	# Create array on closed contour 
         selectionFilter = vtk.vtkSelectPolyData()
         selectionFilter.SetInputData(self.Surface)
         selectionFilter.SetLoop(points)
@@ -133,13 +143,13 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         selectionFilter.SetSelectionModeToSmallestRegion() # AHA! smallest region!
         selectionFilter.Update()
 
-		# Get scalars from selection filter
+	# Get scalars from selection filter
         selectionScalars = selectionFilter.GetOutput().GetPointData().GetScalars()
 
-		# Get scalars defined on surface
+	# Get scalars defined on surface
         contourScalars = self.Surface.GetPointData().GetArray(self.ContourScalarsArrayName)
 
-		# Update field on surface to include closed region with InsideValue
+	# Update field on surface to include closed region with InsideValue
         for i in range(contourScalars.GetNumberOfTuples()):
             selectionValue = selectionScalars.GetTuple1(i)
 
@@ -149,7 +159,6 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Actor.GetMapper().SetScalarRange(contourScalars.GetRange(0))
         self.Surface.Modified()
 
-        
 	# Clip surface on ContourScalars field
         self.clipper = vtk.vtkClipPolyData()
         self.clipper.SetInputData(self.Surface)
