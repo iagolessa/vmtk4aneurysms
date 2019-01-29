@@ -149,7 +149,8 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Actor.GetMapper().SetScalarRange(contourScalars.GetRange(0))
         self.Surface.Modified()
 
-		# Clip surface on ContourScalars field
+        
+	# Clip surface on ContourScalars field
         self.clipper = vtk.vtkClipPolyData()
         self.clipper.SetInputData(self.Surface)
         self.clipper.GenerateClippedOutputOn()
@@ -158,7 +159,8 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
         self.clipper.GenerateClipScalarsOff()
 
-		# Clip value for generated field (mid value)
+        
+        # Clip value for generated field (mid value)
         clipValue = 0.5*(self.FillValue + self.InsideValue)
         self.clipper.SetValue(clipValue)
         self.clipper.Update()
@@ -167,8 +169,8 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         surfaceFixer = vmtkscripts.vmtkSurfaceCapper()
         surfaceFixer.Surface = self.clipper.GetOutput()
         surfaceFixer.Method = 'smooth'
-        surfaceFixer.ConstraintFactor = 0.5
-        surfaceFixer.NumberOfRings = 6
+        surfaceFixer.ConstraintFactor = 1.2
+        surfaceFixer.NumberOfRings = 20
         surfaceFixer.Interactive = 0
         surfaceFixer.Execute()
         
@@ -227,8 +229,26 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         connectivityFilter.ColorRegionsOff()
         connectivityFilter.SetExtractionModeToLargestRegion()
         connectivityFilter.Update()
-        
+
         self.Surface = connectivityFilter.GetOutput()
+        
+        # Smooth and subdivide before fixing
+        if self.Smooth:
+            smoother = vmtkscripts.vmtkSurfaceSmoothing()
+            smoother.Surface  = self.Surface
+            smoother.Method   = 'taubin'
+            smoother.PassBand = 0.1
+            smoother.NumberOfIterations = 30
+            smoother.Execute()
+            
+            subdivider = vmtkscripts.vmtkSurfaceSubdivision()
+            subdivider.Surface = smoother.Surface
+            subdivider.Method  = 'butterfly'
+#           subdivider.NumberOfSubdivisions = 2
+            subdivider.Execute()
+            
+            self.Surface = subdivider.Surface
+
         
         # Start representation
         self.Representation()        
@@ -238,7 +258,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             remesher = vmtkscripts.vmtkSurfaceRemeshing()
             remesher.Surface = self.Surface 
             remesher.ElementSizeMode = "edgelength"
-            remesher.TargetEdgeLength = 0.15
+            remesher.TargetEdgeLength = 0.20
             remesher.OutputText("Remeshing procedure ...")
             remesher.Execute()
 
