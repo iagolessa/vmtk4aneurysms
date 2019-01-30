@@ -1,4 +1,12 @@
+"""
+Python library of functions to calculate morphological and hemodynamic 
+parameters related to aneurysms geometry and hemodynamics using ParaView 
+filters.
 
+The library works with the paraview.simple module. 
+"""
+
+import sys
 import paraview.simple as pv
 import numpy as np
 
@@ -476,3 +484,13 @@ def lsa_instant(ofDataFile,
         LSAt.append(lsaArea/aneurysmArea)
     
     return LSAt
+
+
+if __name__ == '__main__':
+    if sys.argv[1] == 'osi':
+        foamFile   = sys.argv[3]
+        timeRange  = [sys.argv[4], sys.argv[5]]
+        outputFile = sys.argv[6]
+        foamCasePath = sys.argv[7]
+
+        osi(foamCasePath+foamFile, timeRange, foamCasePath+outputFile)
