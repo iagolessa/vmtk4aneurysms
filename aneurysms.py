@@ -242,6 +242,190 @@ def osi(ofCaseFile,
     del triangulate
     
     
+def wss_time_stats(ofCaseFile, 
+                   timeIndexRange,
+                   peakSystole,
+                   outputFileName,
+                   timeStep=0.01,
+                   density=1056.0, # kg/m3
+                   wssFieldName='wallShearComponent', 
+                   patchName='wall'):
+    
+    """ 
+        Get time statistics of wall shear stress field defined on 
+        a surface S over time for a cardiac cycle, generated with
+        OpenFOAM. Outputs a surface with: time-averaged and peak 
+        time (peak systole) WSS magnitude, with also the surface
+        field parameters that depends on this (such as OSI and RRT,
+        if desired). The OSI field is defined as:
+        
+            OSI = 0.5*( 1 - norm2(int WSS dt) / int norm2(WSS) dt)
+            
+        where "int" implies the integral over time between two
+        instants t1 and t2 (usually for a cardiac cycle, therefore 
+        [t1, t2] = [Ti, Tf]) and norm2 is the L2 norm of an Eucli-
+        dean vector field; WSS is the wall shear stress defined on 
+        the input surface. Since this function use OpenFOAM data, 
+        please specify the density considered.
+        
+        Input args:
+        - OpenFOAM case file (str): name of OpenFOAM .foam case;
+        - wssFieldName (str, optional): string containing the name 
+            of the wall shear stress field (default="wallShearComp-
+            onent");
+        - patchName (str, optional): patch name where to calculate 
+            the OSI (default="wall");
+        - timeIndexRange (list): list of initial and final time-
+            steps indices limits of the integral [Ti, Tf];
+        - outputFileName (str): file name for the output file with 
+            osi field (must be a .vtp file).
+        - blood density (float, optional): default 1056.0 kg/m3
+    """
+    
+    wssArrayName = 'WSS'
+    osiArrayName = 'OSI'
+    rrtArrayName = 'RRT'
+    systoleWSSArrayName = 'WSS_peak_systole'
+    
+    case = pv.OpenFOAMReader(FileName=ofCaseFile)
+
+    # First we define only the field that are going to be used: the WSS on the aneurysm wall
+    case.CellArrays = [wssFieldName]
+    case.MeshRegions = [patchName]
+    case.Createcelltopointfiltereddata = 0
+    case.SkipZeroTime = 1
+    case.UpdatePipeline()
+    
+    mergeBlocks = pv.MergeBlocks()
+    mergeBlocks.Input = case
+    mergeBlocks.UpdatePipeline()
+    
+    extractSurface = pv.ExtractSurface()
+    extractSurface.Input = mergeBlocks
+    extractSurface.UpdatePipeline()
+
+    triangulate = pv.Triangulate()
+    triangulate.Input = extractSurface
+    triangulate.UpdatePipeline()   
+    
+    # Multiplying WSS per density
+    densityTimesWSS = pv.Calculator()
+    densityTimesWSS.Input = triangulate
+    densityTimesWSS.AttributeType   = 'Cell Data'
+    densityTimesWSS.ResultArrayName = wssArrayName
+    densityTimesWSS.Function = str(density) + '*' + wssFieldName
+    densityTimesWSS.UpdatePipeline()
+
+    # Delete foam case
+    pv.Delete(case)
+    del case
+    
+    # Delete mergeBlocks
+    pv.Delete(mergeBlocks)
+    del mergeBlocks
+    
+    # Delete extractSurface
+    pv.Delete(extractSurface)
+    del extractSurface
+    
+    # Delete triangulate
+    pv.Delete(triangulate)
+    del triangulate
+
+    # Calculating the magnitude of the wss vector
+    calcMagWSS = pv.Calculator()
+    calcMagWSS.Input = densityTimesWSS
+    calcMagWSS.AttributeType   = 'Cell Data'
+    calcMagWSS.ResultArrayName = wssArrayName + '_magnitude'
+
+    ## Get WSS field name
+#     wss = densityTimesWSS.ResultArrayName
+    calcMagWSS.Function = 'mag(' + wssArrayName + ')'
+    calcMagWSS.UpdatePipeline()
+
+    # Delete densityTimesWSS
+    pv.Delete(densityTimesWSS)
+    del densityTimesWSS
+    
+    # Extract desired time range
+    timeInterval = pv.ExtractTimeSteps()
+    timeInterval.Input = calcMagWSS
+    timeInterval.SelectionMode = "Select Time Range"
+    timeInterval.TimeStepRange = timeIndexRange #[99, 199] # range in index
+    timeInterval.UpdatePipeline()
+
+    # Period given by time-steps
+    period = (timeInterval.TimeStepRange[1] - timeInterval.TimeStepRange[0])*timeStep
+
+    # Now compute the temporal statistics
+    # filter computes the average values of all fields
+    calcAvgWSS = pv.TemporalStatistics()
+    calcAvgWSS.Input = timeInterval
+    calcAvgWSS.ComputeAverage = 1
+    calcAvgWSS.ComputeMinimum = 0
+    calcAvgWSS.ComputeMaximum = 0
+    calcAvgWSS.ComputeStandardDeviation = 0
+    calcAvgWSS.UpdatePipeline()
+
+    # Calculates OSI
+    calcOSI = pv.Calculator()
+    calcOSI.Input = calcAvgWSS
+    calcOSI.ResultArrayName = osiArrayName
+    calcOSI.AttributeType = 'Cell Data'
+
+    # Getting fields:
+    # - Get the average of the vector WSS field
+    avgVecWSS = calcAvgWSS.CellData.GetArray(wssArrayName + '_average').GetName()
+    # - Get the average of the magnitude of the WSS field 
+    avgMagWSS = calcAvgWSS.CellData.GetArray(calcMagWSS.ResultArrayName + '_average').GetName()
+
+    calcOSI.Function = '0.5*( 1 - ( mag( '+avgVecWSS+' ) )/'+avgMagWSS+' )'
+    calcOSI.UpdatePipeline()
+
+    # Compute Relative Residance Time
+    calcRRT = pv.Calculator()
+    calcRRT.Input = calcOSI
+    calcRRT.Function        = str(period)+"/mag("+avgVecWSS+")"
+    calcRRT.AttributeType   = 'Cell Data'
+    calcRRT.ResultArrayName = rrtArrayName
+    calcRRT.UpdatePipeline()
+
+    peakSystoleWSS = pv.Calculator()
+    peakSystoleWSS.Input = calcMagWSS
+    peakSystoleWSS.Function        = wssArrayName
+    peakSystoleWSS.AttributeType   = 'Cell Data'
+    peakSystoleWSS.ResultArrayName = systoleWSSArrayName
+    peakSystoleWSS.UpdatePipeline(time=peakSystole)
+    
+    merge = pv.AppendAttributes()
+    merge.Input = [calcRRT, peakSystoleWSS]
+    merge.UpdatePipeline()
+    
+    pv.SaveData(outputFileName,merge)
+    
+    # Delete other fields
+    # This is some sort of redudancy, but it was
+    # the only way I found to isolate the resulting field
+    surface = pv.XMLPolyDataReader(FileName=outputFileName)
+    surface.CellArrayStatus  = [osiArrayName,
+                                rrtArrayName,
+                                systoleWSSArrayName,
+                                wssArrayName + '_average',
+                                wssArrayName + '_magnitude' + '_average']
+    
+    pv.SaveData(outputFileName,proxy=surface)
+    
+    # Delete pv objects
+    pv.Delete(calcAvgWSS)
+    del calcAvgWSS
+    
+    pv.Delete(peakSystoleWSS)
+    del peakSystoleWSS
+    
+    pv.Delete(merge)
+    del merge
+    
+    
 # Implemented this function separately because the
 # procedure to interpolate the peak systole to a 
 # surface with the time-averaged data would introduce
@@ -354,7 +538,7 @@ def wss_stats_aneurysm(timeAveragedSurface,
     clipAneurysmNeck = pv.Clip()
     clipAneurysmNeck.Input    = timeAveragedSurface
     clipAneurysmNeck.ClipType = 'Scalar'
-    clipAneurysmNeck.Scalars  = [aneurysmNeckArrayName]
+    clipAneurysmNeck.Scalars  = ['POINTS', aneurysmNeckArrayName]
     clipAneurysmNeck.Invert   = 1   # gets portion outside the clip function (values smaller than the clip value)
     clipAneurysmNeck.Value    = neckIsoValue  # based on the definition of field ContourScalars
     clipAneurysmNeck.UpdatePipeline()
@@ -396,7 +580,7 @@ def osi_stats_aneurysm(timeAveragedSurface,
     clipAneurysmNeck = pv.Clip()
     clipAneurysmNeck.Input = timeAveragedSurface
     clipAneurysmNeck.ClipType = 'Scalar'
-    clipAneurysmNeck.Scalars  = [aneurysmNeckArrayName]
+    clipAneurysmNeck.Scalars  = ['POINTS', aneurysmNeckArrayName]
     clipAneurysmNeck.Invert   = 1
     clipAneurysmNeck.Value    = neckIsoValue  # based on the definition of field ContourScalars
     clipAneurysmNeck.UpdatePipeline()
@@ -729,7 +913,7 @@ def wss_parent_vessel(parentVesselSurface,
     integrateOverArtery.Input = clipParentArtery
     integrateOverArtery.UpdatePipeline()
 
-    parentArteryArea = integrateOverArtery.CellData.GetArray("Area").GetRange()[0] # aneurysm area
+    parentArteryArea = integrateOverArtery.CellData.GetArray("Area").GetRange()[0]
 
     return integrateOverArtery.CellData.GetArray("WSS_magnitude_average").GetRange()[0]/parentArteryArea
 
