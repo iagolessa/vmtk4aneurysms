@@ -140,6 +140,7 @@ def osi(ofCaseFile,
     # First we define only the field that are going to be used: the WSS on the aneurysm wall
     case.CellArrays = [wssFieldName]
     case.MeshRegions = [patchName]
+    case.SkipZeroTime = 1
     case.Createcelltopointfiltereddata = 0
 
     # Multiplying WSS per density
@@ -699,7 +700,7 @@ def area_averaged_wss_aneurysm(ofCaseFile,
     
     # # Iterate over time-steps to compute time dependent variables
     # # only on the aneurysm surface: mag of WSS over time 
-    for timeStep in timeSteps[-100:-1]: # get last cycle only
+    for timeStep in timeSteps:
         # Integrate WSS on the wall
         integrateWSS = pv.IntegrateVariables()
         integrateWSS.Input = pointToCellData
@@ -721,11 +722,11 @@ def area_averaged_wss_aneurysm(ofCaseFile,
 
 
 
-def lsa_wss_av(timeAveragedSurface, 
-               aneurysmNeckArrayName,
-               lowWSSValue, 
-               neckIsoValue=0.5,
-               averageMagWSSArrayName='WSS_magnitude_average'):
+def lsa_wss_avg(timeAveragedSurface, 
+                aneurysmNeckArrayName,
+                lowWSSValue, 
+                neckIsoValue=0.5,
+                averageMagWSSArrayName='WSS_magnitude_average'):
     """ 
     Calculates the LSA (low WSS area ratio) for aneurysms
     simulations performed in OpenFOAM. Thi input is a sur-
@@ -868,7 +869,7 @@ def lsa_instant(ofDataFile,
     clipLSA.UpdatePipeline()
 
     LSAt = []
-    for instant in timeSteps[-100:-1]:                 # get always last cycle
+    for instant in timeSteps:
         
         # Integrate to get area of lowWSSValue
         integrateOverLSA = pv.IntegrateVariables()
