@@ -144,10 +144,14 @@ def wss_surf_avg(ofCaseFile,
         extractSurface = pv.ExtractSurface()
         extractSurface.Input = pointToCell
         extractSurface.UpdatePipeline()
-    
+        
+        pv.Delete(clipAneurysm)
+        del clipAneurysm
+        
         pv.Delete(resample)
         del resample
     
+    # Delete pv objects
     pv.Delete(magWSS)
     del magWSS  
     
@@ -173,7 +177,7 @@ def wss_surf_avg(ofCaseFile,
 
         averagedWSS = surfAvgWSS.CellData.GetArray(_WSS_surf_avg).GetRange()[0]
         surfAvgWSSList.append(averagedWSS)
-
+    
     return surfAvgWSSList
 
 
@@ -440,7 +444,20 @@ def lsa_instant(ofDataFile,
     clipLSA.Scalars  = ['POINTS', _WSSmag]
     clipLSA.Invert   = 1   # gets portion smaller than the value
     clipLSA.UpdatePipeline()
-
+    
+    # Delete objects
+    pv.Delete(ofData)
+    del ofData
+    
+    pv.Delete(triangulate)
+    del triangulate
+    
+    pv.Delete(magWSS)
+    del magWSS 
+    
+    pv.Delete(resample)
+    del resample 
+    
     LSAt = []
     for instant in timeSteps:
         
@@ -456,6 +473,13 @@ def lsa_instant(ofDataFile,
             lsaArea = integrateOverLSA.CellData.GetArray(_Area).GetRange()[0]
 
         LSAt.append(lsaArea/aneurysmArea)
+    
+    # Delete objects
+    pv.Delete(clipLSA)
+    del clipLSA 
+    
+    pv.Delete(integrateOverLSA)
+    del integrateOverLSA 
     
     return LSAt
 
@@ -667,6 +691,13 @@ def wss_parent_vessel(parentArterySurface,
 
     parentArteryArea = integrateOverArtery.CellData.GetArray(_Area).GetRange()[0]
     parentArteryWSS  = integrateOverArtery.CellData.GetArray(_WSSmag+'_average').GetRange()[0]
+
+    # Delete pv objects
+    pv.Delete(clipParentArtery)
+    del clipParentArtery
+
+    pv.Delete(integrateOverArtery)
+    del integrateOverArtery
     
     return parentArteryWSS/parentArteryArea
 
