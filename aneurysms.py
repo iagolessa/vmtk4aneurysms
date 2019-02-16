@@ -176,6 +176,7 @@ def wss_surf_avg(ofCaseFile,
         surfAvgWSS.UpdatePipeline(time=timeStep)
 
         averagedWSS = surfAvgWSS.CellData.GetArray(_WSS_surf_avg).GetRange()[0]
+
         surfAvgWSSList.append(averagedWSS)
     
     return surfAvgWSSList
