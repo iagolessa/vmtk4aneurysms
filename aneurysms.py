@@ -55,7 +55,7 @@ def aneurysm_area(neckSurface,
 
 
 
-def wss_surf_avg(ofCaseFile,
+def wss_surf_avg(foamCase,
                  neckSurface=None,
                  neckArrayName=None,
                  neckIsoValue=0.5,
@@ -74,9 +74,14 @@ def wss_surf_avg(ofCaseFile,
         OpenFOAM case, i.e. they are the same mesh.
     """
     
+    try:
+        # Try to read if file name is given
+        ofData = pv.OpenFOAMReader(FileName=foamCase)
+    except:
+        ofData = foamCase
+    
     # Read OpenFOAM data and process the WSS
     # to get its magnitude
-    ofData = pv.OpenFOAMReader(FileName=ofCaseFile)
     ofData.CellArrays   = [field]
     ofData.MeshRegions  = [patch]
     ofData.SkipZeroTime = 1
@@ -176,14 +181,13 @@ def wss_surf_avg(ofCaseFile,
         surfAvgWSS.UpdatePipeline(time=timeStep)
 
         averagedWSS = surfAvgWSS.CellData.GetArray(_WSS_surf_avg).GetRange()[0]
-
         surfAvgWSSList.append(averagedWSS)
     
     return surfAvgWSSList
 
 
 
-def wss_time_stats(ofCaseFile, 
+def wss_time_stats(foamCase, 
                    timeIndexRange,
                    peakSystole,
                    outputFile,
@@ -222,8 +226,11 @@ def wss_time_stats(ofCaseFile,
             osi field (must be a .vtp file).
         - blood density (float, optional): default 1056.0 kg/m3
     """
-    
-    ofData = pv.OpenFOAMReader(FileName=ofCaseFile)
+    try:
+        # Try to read if file name is given
+        ofData = pv.OpenFOAMReader(FileName=foamCase)
+    except:
+        ofData = foamCase
 
     # First we define only the field that are going 
     # to be used: the WSS on the aneurysm wall
@@ -360,7 +367,7 @@ def wss_time_stats(ofCaseFile,
     del peakSystoleWSS
 
     
-def lsa_instant(ofDataFile, 
+def lsa_instant(foamCase, 
                 neckSurface,
                 neckArrayName,
                 lowWSS, 
@@ -404,8 +411,13 @@ def lsa_instant(ofDataFile,
     # Get area of surface, in m2
     aneurysmArea = integrateWSS.CellData.GetArray(_Area).GetRange()[0]
 
-    # Read OpenFOAM data
-    ofData = pv.OpenFOAMReader(FileName=ofDataFile)
+    # Read openfoam data
+    try:
+        # Try to read if file name is given
+        ofData = pv.OpenFOAMReader(FileName=foamCase)
+    except:
+        ofData = foamCase
+        
     ofData.CellArrays   = [field]
     ofData.MeshRegions  = [patch]
     ofData.SkipZeroTime = 1
