@@ -14,6 +14,7 @@ import paraview.simple as pv
 _WSS = 'WSS'
 _OSI = 'OSI'
 _RRT = 'RRT'
+_AFI = 'AFI'
 _WSSpst = 'WSS_peak_systole'
 _WSSmag = 'WSS_magnitude'
 _WSS_surf_avg = 'WSS_surf_avg'
@@ -714,7 +715,143 @@ def wss_parent_vessel(parentArterySurface,
     
     return parentArteryWSS/parentArteryArea
 
+def afi(foamCase, 
+        timeIndexRange,
+        instant,
+        outputFile,
+        density=1056.0, # kg/m3
+        field=_foamWSS, 
+        patch=_wallPatch):
+    
+    try:
+        # Try to read if file name is given
+        ofData = pv.OpenFOAMReader(FileName=foamCase)
+    except:
+        ofData = foamCase
 
+    # First we define only the field that are going 
+    # to be used: the WSS on the aneurysm wall
+    ofData.CellArrays  = [field]
+    ofData.MeshRegions = [patch]
+    ofData.Createcelltopointfiltereddata = 0
+    ofData.SkipZeroTime = 1
+    ofData.UpdatePipeline()
+    
+    mergeBlocks = pv.MergeBlocks()
+    mergeBlocks.Input = ofData
+    mergeBlocks.UpdatePipeline()
+    
+    extractSurface = pv.ExtractSurface()
+    extractSurface.Input = mergeBlocks
+    extractSurface.UpdatePipeline()
+    
+    triangulate = pv.Triangulate()
+    triangulate.Input = extractSurface
+    triangulate.UpdatePipeline()    
+    
+    # Multiplying WSS per density
+    calcWSS = pv.Calculator()
+    calcWSS.Input = triangulate
+    calcWSS.AttributeType   = 'Cell Data'
+    calcWSS.ResultArrayName = _WSS
+    calcWSS.Function = str(density) +'*'+ field
+    calcWSS.UpdatePipeline()
+
+    # Calculating the magnitude of the wss vector
+    calcMagWSS = pv.Calculator()
+    calcMagWSS.Input = calcWSS
+    calcMagWSS.AttributeType   = 'Cell Data'
+    calcMagWSS.ResultArrayName = _WSSmag
+    calcMagWSS.Function = 'mag(' + _WSS + ')'
+    calcMagWSS.UpdatePipeline()
+    
+    timeData = pv.ExtractSurface()
+    timeData.Input = calcMagWSS
+    timeData.UpdatePipeline()
+    
+    # Delete objects
+    pv.Delete(ofData)
+    del ofData
+    
+    pv.Delete(mergeBlocks)
+    del mergeBlocks
+    
+    pv.Delete(extractSurface)
+    del extractSurface 
+    
+    pv.Delete(calcWSS)
+    del calcWSS 
+    
+    # Extract desired time range
+    timeInterval = pv.ExtractTimeSteps()
+    timeInterval.Input = calcMagWSS
+    timeInterval.SelectionMode = 'Select Time Range'
+    timeInterval.TimeStepRange = timeIndexRange
+    timeInterval.UpdatePipeline()
+
+    # Now compute the temporal statistics
+    # filter computes the average values of all fields
+    calcTimeStats = pv.TemporalStatistics()
+    calcTimeStats.Input = timeInterval
+    calcTimeStats.ComputeAverage = 1
+    calcTimeStats.ComputeMinimum = 0
+    calcTimeStats.ComputeMaximum = 0
+    calcTimeStats.ComputeStandardDeviation = 0
+    calcTimeStats.UpdatePipeline()
+
+    timeStats = pv.ExtractSurface()
+    timeStats.Input = calcTimeStats
+    timeStats.UpdatePipeline()    
+    
+    # Resample OpenFOAM data to clipped aneeurysm surface
+    resample = pv.ResampleWithDataset()
+    resample.Input  = timeStats
+    resample.Source = timeData
+    resample.PassCellArrays  = 1
+    resample.PassCellArrays  = 1
+    resample.UpdatePipeline()
+    
+    pointToCell = pv.PointDatatoCellData()
+    pointToCell.Input = resample
+    pointToCell.UpdatePipeline()
+    
+    # Calculates OSI
+    calcAFI = pv.Calculator()
+    calcAFI.Input = pointToCell
+    calcAFI.AttributeType = 'Cell Data'
+    calcAFI.ResultArrayName = _AFI
+    
+    # AFI calculation
+    # AFI = (vecWSSt dot meanVecWSS)/(magWSSt dot magMeanVecWSS)
+    calcAFI.Function = '('+ _WSS+'_X * '+_WSS+'_average_X +' + \
+                            _WSS+'_Y * '+_WSS+'_average_Y +' + \
+                            _WSS+'_Z * '+_WSS+'_average_Z)/' + \
+                            '(mag('+_WSS+') * mag('+_WSS+'_average))'
+    
+    calcAFI.UpdatePipeline(time=instant)
+    
+    pv.SaveData(outputFile,proxy=calcAFI)
+    
+    # Delete other fields
+    # This is some sort of redudancy, but it was
+    # the only way I found to isolate the resulting field
+    surface = pv.XMLPolyDataReader(FileName=outputFile)
+    surface.CellArrayStatus  = [_WSS,
+                                _WSSmag,
+                                _WSS + '_average',
+                                _AFI]
+    
+    pv.SaveData(outputFile,proxy=surface)
+    
+    # Delete objects
+    pv.Delete(calcAFI)
+    del calcAFI
+    
+    pv.Delete(timeInterval)
+    del timeInterval
+
+    pv.Delete(resample)
+    del resample
 
 if __name__ == '__main__':
     if sys.argv[1] == 'osi':
