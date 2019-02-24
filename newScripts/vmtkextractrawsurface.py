@@ -22,6 +22,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         self.Inflation = None
 #         self.vmtkRenderer = None
         self.OwnRenderer = 0
+        self.ShowOutput = False
         
         self.SetScriptName('vmtkextractrawsurface')
         self.SetScriptDoc('Extract raw surface from image.')
@@ -29,6 +30,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
             ['Image','i','vtkImageData',1,'','the input image','vmtkimagereader'],
             ['Levels','levels','float',-1,'','graylevels to generate the isosurface at'],
             ['Inflation','inflation','float',1,'','inflation parameters of the Marching Cubes algorithm'],
+            ['ShowOutput','showoutput','bool',1,'','whether to see the final surface with image'],
 #             ['vmtkRenderer','renderer','vmtkRenderer',1,'','external renderer']
         ])
 
@@ -96,26 +98,27 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         # Get final surface
         self.Surface = triangleFilter.GetOutput()
 
-        # Initialize renderer = surface + image
-        self.vmtkRenderer = vmtkscripts.vmtkRenderer()
-        self.vmtkRenderer.AddKeyBinding('space', 'Show input image', self.ShowInputImage)
-        self.vmtkRenderer.Initialize()
-        
-        self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
-        self.surfaceViewer.vmtkRenderer = self.vmtkRenderer
-        self.surfaceViewer.Surface = self.Surface
-        self.surfaceViewer.Opacity = 0.5
-        self.surfaceViewer.BuildView()
-        
+        if self.ShowOutput:
+            # Initialize renderer = surface + image
+            self.vmtkRenderer = vmtkscripts.vmtkRenderer()
+            self.vmtkRenderer.AddKeyBinding('space', 'Show input image', self.ShowInputImage)
+            self.vmtkRenderer.Initialize()
+            
+            self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
+            self.surfaceViewer.vmtkRenderer = self.vmtkRenderer
+            self.surfaceViewer.Surface = self.Surface
+            self.surfaceViewer.Opacity = 0.5
+            self.surfaceViewer.BuildView()
+            
 
-#         for level in self.Levels:
-#             self.marchingCubes.Level = level
-#             self.marchingCubes.Execute()
-#             self.Surface = self.marchingCubes.Surface
-#             self.SurfaceViewer.Surface = self.Surface
-#             self.SurfaceViewer.BuildView()
-#         if self.OwnRenderer:
-        self.vmtkRenderer.Deallocate()
+#             for level in self.Levels:
+#                 self.marchingCubes.Level = level
+#                 self.marchingCubes.Execute()
+#                 self.Surface = self.marchingCubes.Surface
+#                 self.SurfaceViewer.Surface = self.Surface
+#                 self.SurfaceViewer.BuildView()
+#             if self.OwnRenderer:
+            self.vmtkRenderer.Deallocate()
 
 
 if __name__ == '__main__':
