@@ -1,5 +1,6 @@
 from vmtk import vmtkscripts
 import numpy as np
+import os
 
 # Default File Names
 # images
@@ -380,11 +381,9 @@ def patchSurface(surface, outputDir, capped=True):
     
     
     # Check if patch dir exists
-    patchDir = outputDir+'patches/'
+    patchDir = outputDir#+'patches/'
     if not os.path.isdir(patchDir):
-        os.makedirs(patchDir)
-#         print(patchDir+' created.')
-    
+        os.makedirs(patchDir)    
     
     # Check cap condition
     if capped == False:
