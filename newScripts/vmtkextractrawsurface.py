@@ -18,8 +18,8 @@ class vmtkExtractRawSurface(pypes.pypeScript):
 
         self.Image   = None
         self.Surface = None
-        self.Inflation = None
-        self.Level = None
+        self.Inflation = 0.0
+        self.Level = 0.0
 #         self.vmtkRenderer = None
         self.OwnRenderer = 0
         self.ShowOutput = False
