@@ -18,8 +18,8 @@ class vmtkExtractRawSurface(pypes.pypeScript):
 
         self.Image   = None
         self.Surface = None
-        self.Levels  = []
         self.Inflation = None
+        self.Level = None
 #         self.vmtkRenderer = None
         self.OwnRenderer = 0
         self.ShowOutput = False
@@ -28,7 +28,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         self.SetScriptDoc('Extract raw surface from image.')
         self.SetInputMembers([
             ['Image','i','vtkImageData',1,'','the input image','vmtkimagereader'],
-            ['Levels','levels','float',-1,'','graylevels to generate the isosurface at'],
+            ['Level','level','float',1,'','graylevels to generate the isosurface at'],
             ['Inflation','inflation','float',1,'','inflation parameters of the Marching Cubes algorithm'],
             ['ShowOutput','showoutput','bool',1,'','whether to see the final surface with image'],
 #             ['vmtkRenderer','renderer','vmtkRenderer',1,'','external renderer']
@@ -52,8 +52,8 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         if self.Image == None:
             self.PrintError('Error: No Image.')
                 
-        if self.Levels == []:
-            self.PrintError('Error: No Levels')
+        if not self.Level:
+            self.PrintError('Error: No Level')
         
 #         if not self.vmtkRenderer:
 #             self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
@@ -63,7 +63,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         self.initializationImage = vmtkscripts.vmtkImageInitialization()
         self.initializationImage.Image = self.Image
         self.initializationImage.Method = 'isosurface'
-        self.initializationImage.IsoSurfaceValue = self.Levels[0]
+        self.initializationImage.IsoSurfaceValue = self.Level
         self.initializationImage.Interactive = 0
         self.initializationImage.Execute()
 
