@@ -359,7 +359,7 @@ def getPatchInfo(surface):
     return capsGeometryArray
 
 
-def patchSurface(surface, outputDir, capped=True):
+def patchSurface(surfaceObject, outputDir, capped=True, orientSurface=False):
     """ 
     Function to patch a surface to be used 
     in CFD by creating a mesh in snappyHexMesh.
@@ -379,9 +379,14 @@ def patchSurface(surface, outputDir, capped=True):
     origin = [0, 0, 0]
     orientation = [0, 0, -1]
     
-    
+    try:
+        surface = readSurface(surfaceObject)
+    except:
+        surface = surfaceObject
+
+
     # Check if patch dir exists
-    patchDir = outputDir#+'patches/'
+    patchDir = outputDir
     if not os.path.isdir(patchDir):
         os.makedirs(patchDir)    
     
@@ -442,33 +447,39 @@ def patchSurface(surface, outputDir, capped=True):
     # with number of inlets and outlets
     patchCount = dict(zip(patchTypes, numberOfPatches))
 
+    surface = surfaceToMesh.Surface
+
     # Surface reorientation
-    # The vmtksurfacereferencesystemtransform script takes a surface (the surfaceCapped above) 
-    # and rotates and translates it conforming one of its patches (in our case the inlet patch) 
-    # to a target reference system for that, it uses the output of the vtmkboundaryinspector
-    surfaceTransform = vmtkscripts.vmtkSurfaceReferenceSystemTransform()
-    surfaceTransform.Surface = surfaceToMesh.Surface
+    if orientSurface:
 
-    # Target reference system parameters
-    surfaceTransform.ReferenceOrigin  = origin  # translate to origin of system
-    surfaceTransform.ReferenceNormal1 = orientation # inlet normal will coincide with -z axis orientation
-    surfaceTransform.ReferenceNormal2 = orientation
+        # The vmtksurfacereferencesystemtransform script takes a surface (the surfaceCapped above) 
+        # and rotates and translates it conforming one of its patches (in our case the inlet patch) 
+        # to a target reference system for that, it uses the output of the vtmkboundaryinspector
+        surfaceTransform = vmtkscripts.vmtkSurfaceReferenceSystemTransform()
+        surfaceTransform.Surface = surfaceToMesh.Surface
 
-    # Surface reference system
-    surfaceTransform.ReferenceSystems = surfaceBoundaryInspector.ReferenceSystems
-    # to get the reference systems of inlet patch
-    # Note that, if there is more than one inlet, the inlet chose is the one with largest area
-    surfaceTransform.ReferenceSystemId = inletId
-    surfaceTransform.ReferenceSystemsIdArrayName      = CellEntityIdsArray
-    surfaceTransform.ReferenceSystemsNormal1ArrayName = BoundaryNormalsArray
-    surfaceTransform.ReferenceSystemsNormal2ArrayName = BoundaryNormalsArray
-    surfaceTransform.Execute()
+        # Target reference system parameters
+        surfaceTransform.ReferenceOrigin  = origin  # translate to origin of system
+        surfaceTransform.ReferenceNormal1 = orientation # inlet normal will coincide with -z axis orientation
+        surfaceTransform.ReferenceNormal2 = orientation
 
-    
+        # Surface reference system
+        surfaceTransform.ReferenceSystems = surfaceBoundaryInspector.ReferenceSystems
+        # to get the reference systems of inlet patch
+        # Note that, if there is more than one inlet, the inlet chose is the one with largest area
+        surfaceTransform.ReferenceSystemId = inletId
+        surfaceTransform.ReferenceSystemsIdArrayName      = CellEntityIdsArray
+        surfaceTransform.ReferenceSystemsNormal1ArrayName = BoundaryNormalsArray
+        surfaceTransform.ReferenceSystemsNormal2ArrayName = BoundaryNormalsArray
+        surfaceTransform.Execute()
+        
+        surface = surfaceTransform.Surface
+
+
     # Using vmtkThreshold script to extract patches for mesh generations in snappy
     # Extracting first the wall
     extractThreshold = vmtkscripts.vmtkThreshold()
-    extractThreshold.Surface = surfaceTransform.Surface
+    extractThreshold.Surface = surface
     extractThreshold.LowThreshold  = wallId
     extractThreshold.HighThreshold = wallId
     extractThreshold.SurfaceOutputFileName = patchDir+wallFileName
@@ -485,7 +496,7 @@ def patchSurface(surface, outputDir, capped=True):
     for i in np.arange(nPatches):
         # Instantiate vmtkthreshold
         extractThreshold = vmtkscripts.vmtkThreshold()
-        extractThreshold.Surface       = surfaceTransform.Surface
+        extractThreshold.Surface       = surface
         extractThreshold.LowThreshold  = dictPatchData['PointData'][CellEntityIdsArray][i]
         extractThreshold.HighThreshold = dictPatchData['PointData'][CellEntityIdsArray][i]
         extractThreshold.OutputText('Extracting surface with id '+str(dictPatchData['PointData'][CellEntityIdsArray][i])+'\n')
