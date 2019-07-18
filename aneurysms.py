@@ -17,14 +17,34 @@ _RRT = 'RRT'
 _AFI = 'AFI'
 _WSSpst = 'WSS_peak_systole'
 _WSSmag = 'WSS_magnitude'
+_WSSPI  = 'WSSPI'
+_TAWSSG = 'TAWSSG'
+_WSSGrad = 'WSSGradient'
 _WSS_surf_avg = 'WSS_surf_avg'
+_transWSS = 'transWSS'
 _Area = 'Area'
+
+# Local coordinate system
+_pHat = 'pHat'
+_qHat = 'qHat'
+_normals = 'Normals'
 
 # Other attributes
 _foamWSS = 'wallShearComponent'
 _wallPatch = 'wall'
 _aneurysmArray = 'AneurysmNeckArray'
 _parentArteryArray = 'ParentArteryArray'
+
+# ParaView auxiliary variables
+_xAxis = '_X'
+_yAxis = '_Y'
+_zAxis = '_Z'
+_avg = '_average'
+_min = '_minimum'
+_max = '_maximum'
+
+_cellDataMode  = 'Cell Data'
+_pointDataMode = 'Point Data'
 
 
 def aneurysm_area(neckSurface, 
@@ -256,7 +276,7 @@ def wss_time_stats(foamCase,
     # Multiplying WSS per density
     calcWSS = pv.Calculator()
     calcWSS.Input = triangulate
-    calcWSS.AttributeType   = 'Cell Data'
+    calcWSS.AttributeType   = _cellDataMode
     calcWSS.ResultArrayName = _WSS
     calcWSS.Function = str(density) +'*'+ field
     calcWSS.UpdatePipeline()
@@ -264,7 +284,7 @@ def wss_time_stats(foamCase,
     # Calculating the magnitude of the wss vector
     calcMagWSS = pv.Calculator()
     calcMagWSS.Input = calcWSS
-    calcMagWSS.AttributeType   = 'Cell Data'
+    calcMagWSS.AttributeType   = _cellDataMode
     calcMagWSS.ResultArrayName = _WSSmag
     calcMagWSS.Function = 'mag(' + _WSS + ')'
     calcMagWSS.UpdatePipeline()
@@ -297,22 +317,32 @@ def wss_time_stats(foamCase,
     calcAvgWSS = pv.TemporalStatistics()
     calcAvgWSS.Input = timeInterval
     calcAvgWSS.ComputeAverage = 1
-    calcAvgWSS.ComputeMinimum = 0
-    calcAvgWSS.ComputeMaximum = 0
+    calcAvgWSS.ComputeMinimum = 1
+    calcAvgWSS.ComputeMaximum = 1
     calcAvgWSS.ComputeStandardDeviation = 0
     calcAvgWSS.UpdatePipeline()
-
+     
     # Getting fields:
     # - Get the average of the vector WSS field
-    avgVecWSS = calcAvgWSS.CellData.GetArray(_WSS + '_average').GetName()
+    avgVecWSS = calcAvgWSS.CellData.GetArray(_WSS + _avg).GetName()
     
-    # - Get the average of the magnitude of the WSS field 
-    avgMagWSS = calcAvgWSS.CellData.GetArray(calcMagWSS.ResultArrayName + '_average').GetName()
+    # - Get the stats of the magnitude of the WSS field 
+    avgMagWSS = calcAvgWSS.CellData.GetArray(calcMagWSS.ResultArrayName + _avg).GetName()
+    minMagWSS = calcAvgWSS.CellData.GetArray(calcMagWSS.ResultArrayName + _min).GetName()
+    maxMagWSS = calcAvgWSS.CellData.GetArray(calcMagWSS.ResultArrayName + _max).GetName()
+    
+    # Calculates WSSPI
+    calcWSSPI = pv.Calculator()
+    calcWSSPI.Input = calcAvgWSS
+    calcWSSPI.AttributeType = _cellDataMode
+    calcWSSPI.ResultArrayName = _WSSPI     
+    calcWSSPI.Function = '(' + maxMagWSS + '-' + minMagWSS + ')/' + avgMagWSS
+    calcWSSPI.UpdatePipeline()       
     
     # Calculates OSI
     calcOSI = pv.Calculator()
-    calcOSI.Input = calcAvgWSS
-    calcOSI.AttributeType = 'Cell Data'
+    calcOSI.Input = calcWSSPI
+    calcOSI.AttributeType = _cellDataMode
     calcOSI.ResultArrayName = _OSI    
     calcOSI.Function = '0.5*( 1 - ( mag( '+ avgVecWSS +') )/'+ avgMagWSS +')'
     calcOSI.UpdatePipeline()
@@ -321,20 +351,83 @@ def wss_time_stats(foamCase,
     calcRRT = pv.Calculator()
     calcRRT.Input = calcOSI
     calcRRT.Function        = str(period) + '/mag('+ avgVecWSS +')'
-    calcRRT.AttributeType   = 'Cell Data'
+    calcRRT.AttributeType   = _cellDataMode
     calcRRT.ResultArrayName = _RRT
     calcRRT.UpdatePipeline()
 
+    # Compute surface normals
+    normals = pv.GenerateSurfaceNormals()
+    normals.Input = calcRRT
+    normals.ComputeCellNormals = True
+    normals.UpdatePipeline()
+    
+    # Calculate local flow surface coordinate system
+    calcPHat = pv.Calculator()
+    calcPHat.Input = normals
+    calcPHat.AttributeType = _cellDataMode
+    calcPHat.ResultArrayName = _pHat    
+    calcPHat.Function = avgVecWSS+'/mag('+ avgVecWSS+')'
+    calcPHat.UpdatePipeline()       
+
+    calcQHat = pv.Calculator()
+    calcQHat.Input = calcPHat
+    calcQHat.AttributeType = _cellDataMode
+    calcQHat.ResultArrayName = _qHat    
+    calcQHat.Function = '(' + _pHat+_yAxis + '*' + _normals+_zAxis +' - '+ _pHat+_zAxis + '*' + _normals+_yAxis + ')*iHat +' + \
+                        '(' + _pHat+_zAxis + '*' + _normals+_xAxis +' - '+ _pHat+_xAxis + '*' + _normals+_zAxis + ')*jHat +' + \
+                        '(' + _pHat+_xAxis + '*' + _normals+_yAxis +' - '+ _pHat+_yAxis + '*' + _normals+_xAxis + ')*kHat'
+    
+    calcQHat.UpdatePipeline()    
+    
+    # Computing spatial gradient
+    gradient = pv.GradientOfUnstructuredDataSet()
+    gradient.Input = calcQHat
+    gradient.ScalarArray = _WSSmag + _avg
+    gradient.ResultArrayName = _WSSGrad
+    gradient.UpdatePipeline()
+    
+    # Project gradient to normal 
+    projGradToNormalName = 'nDotWSSGradient'   
+    surfaceGradientName  = 'surfaceWSSGradient' 
+    
+    nDotWSSGradient = pv.Calculator()
+    nDotWSSGradient.Input = gradient
+    nDotWSSGradient.AttributeType   = _cellDataMode
+    nDotWSSGradient.ResultArrayName = projGradToNormalName    
+    nDotWSSGradient.Function = _normals+_xAxis + '*' + _WSSGrad+_xAxis+ '+' + \
+                               _normals+_yAxis + '*' + _WSSGrad+_yAxis+ '+' + \
+                               _normals+_zAxis + '*' + _WSSGrad+_zAxis
+    
+    nDotWSSGradient.UpdatePipeline()        
+    
+    # Compute surface gradient
+    surfaceGrad = pv.Calculator()
+    surfaceGrad.Input = nDotWSSGradient
+    surfaceGrad.AttributeType = _cellDataMode
+    surfaceGrad.ResultArrayName = surfaceGradientName   
+    surfaceGrad.Function = _WSSGrad + '-(' + projGradToNormalName + '*' + _normals + ')'
+    surfaceGrad.UpdatePipeline() 
+
+    calcTAWSSG = pv.Calculator()
+    calcTAWSSG.Input = surfaceGrad
+    calcTAWSSG.AttributeType = _cellDataMode
+    calcTAWSSG.ResultArrayName = _TAWSSG   
+    calcTAWSSG.Function = surfaceGradientName+_xAxis + '*' + _pHat+_xAxis + '+' + \
+                          surfaceGradientName+_yAxis + '*' + _pHat+_yAxis + '+' + \
+                          surfaceGradientName+_zAxis + '*' + _pHat+_zAxis
+    calcTAWSSG.UpdatePipeline() 
+    
+    
     # Get peak systole WSS
     peakSystoleWSS = pv.Calculator()
     peakSystoleWSS.Input = calcMagWSS
     peakSystoleWSS.Function        = _WSS
-    peakSystoleWSS.AttributeType   = 'Cell Data'
+    peakSystoleWSS.AttributeType   = _cellDataMode
     peakSystoleWSS.ResultArrayName = _WSSpst
     peakSystoleWSS.UpdatePipeline(time=peakSystole)
     
     merge = pv.AppendAttributes()
-    merge.Input = [calcRRT, peakSystoleWSS]
+    merge.Input = [calcTAWSSG, peakSystoleWSS]
     merge.UpdatePipeline()
     
     pv.SaveData(outputFile,merge)
@@ -345,9 +438,14 @@ def wss_time_stats(foamCase,
     surface = pv.XMLPolyDataReader(FileName=outputFile)
     surface.CellArrayStatus  = [_OSI,
                                 _RRT,
+                                _WSSPI,
+                                _TAWSSG,
+                                _pHat,
+                                _qHat,
+                                _normals,
                                 _WSSpst,
-                                _WSS + '_average',
-                                _WSSmag + '_average']
+                                _WSS+_avg,
+                                _WSSmag+_avg]
     
     pv.SaveData(outputFile,proxy=surface)
     
@@ -366,7 +464,8 @@ def wss_time_stats(foamCase,
     
     pv.Delete(peakSystoleWSS)
     del peakSystoleWSS
-
+    
+    
     
 def lsa_instant(foamCase, 
                 neckSurface,
