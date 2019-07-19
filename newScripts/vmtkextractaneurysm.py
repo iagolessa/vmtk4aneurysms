@@ -67,9 +67,14 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         ])
     
     def SmoothArray(self):
+        # Clean poly data, as suggested by Kurt Sansom
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(self.Surface)
+        cleaner.Update()
+
         # Change it here to get it local
         arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
-        arraySmoother.Surface = self.Surface
+        arraySmoother.Surface = cleaner.GetOutput()
         arraySmoother.SurfaceArrayName = self.AneurysmNeckArrayName
         
         # General options
