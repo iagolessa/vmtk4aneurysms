@@ -11,18 +11,19 @@ import numpy as np
 import paraview.simple as pv
 
 # Attribute array names
+_Area = 'Area'
 _WSS = 'WSS'
 _OSI = 'OSI'
 _RRT = 'RRT'
 _AFI = 'AFI'
-_WSSpst = 'WSS_peak_systole'
-_WSSmag = 'WSS_magnitude'
 _WSSPI  = 'WSSPI'
 _TAWSSG = 'TAWSSG'
-_WSSGrad = 'WSSGradient'
-_WSS_surf_avg = 'WSS_surf_avg'
+_WSSpst = 'WSS_peak_systole'
+_WSSldt = 'WSS_low_diastole'
+_WSSmag = 'WSS_magnitude'
+_WSSGrad  = 'WSSGradient'
 _transWSS = 'transWSS'
-_Area = 'Area'
+_WSS_surf_avg = 'WSS_surf_avg'
 
 # Local coordinate system
 _pHat = 'pHat'
@@ -30,8 +31,8 @@ _qHat = 'qHat'
 _normals = 'Normals'
 
 # Other attributes
-_foamWSS = 'wallShearComponent'
-_wallPatch = 'wall'
+_foamWSS  = 'wallShearComponent'
+_wallPatch  = 'wall'
 _aneurysmArray = 'AneurysmNeckArray'
 _parentArteryArray = 'ParentArteryArray'
 
@@ -211,6 +212,7 @@ def wss_surf_avg(foamCase,
 def wss_time_stats(foamCase, 
                    timeIndexRange,
                    peakSystole,
+                   lowDiastole,
                    outputFile,
                    timeStep=0.01,
                    density=1056.0, # kg/m3
@@ -321,7 +323,7 @@ def wss_time_stats(foamCase,
     calcAvgWSS.ComputeMaximum = 1
     calcAvgWSS.ComputeStandardDeviation = 0
     calcAvgWSS.UpdatePipeline()
-     
+ 
     # Getting fields:
     # - Get the average of the vector WSS field
     avgVecWSS = calcAvgWSS.CellData.GetArray(_WSS + _avg).GetName()
@@ -426,8 +428,16 @@ def wss_time_stats(foamCase,
     peakSystoleWSS.ResultArrayName = _WSSpst
     peakSystoleWSS.UpdatePipeline(time=peakSystole)
     
+    # Get low diastole WSS
+    lowDiastoleWSS = pv.Calculator()
+    lowDiastoleWSS.Input = calcMagWSS
+    lowDiastoleWSS.Function        = _WSS
+    lowDiastoleWSS.AttributeType   = _cellDataMode
+    lowDiastoleWSS.ResultArrayName = _WSSldt
+    lowDiastoleWSS.UpdatePipeline(time=lowDiastole)
+    
     merge = pv.AppendAttributes()
-    merge.Input = [calcTAWSSG, peakSystoleWSS]
+    merge.Input = [calcTAWSSG, peakSystoleWSS,lowDiastoleWSS]
     merge.UpdatePipeline()
     
     pv.SaveData(outputFile,merge)
@@ -444,6 +454,7 @@ def wss_time_stats(foamCase,
                                 _qHat,
                                 _normals,
                                 _WSSpst,
+                                _WSSldt,
                                 _WSS+_avg,
                                 _WSSmag+_avg]
     
@@ -465,6 +476,8 @@ def wss_time_stats(foamCase,
     pv.Delete(peakSystoleWSS)
     del peakSystoleWSS
     
+    pv.Delete(lowDiastoleWSS)
+    del lowDiastoleWSS
     
     
 def lsa_instant(foamCase, 
