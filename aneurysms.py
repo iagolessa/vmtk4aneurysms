@@ -5,9 +5,9 @@ import numpy as np
 from vmtk import vmtkscripts
 from vmtk import vtkvmtk
 from scipy import interpolate
+from scipy.spatial import ConvexHull
 
 from vtk.numpy_interface import dataset_adapter as dsa
-from scipy.spatial import ConvexHull
 
 import vmtkfunctions as vf
 
@@ -40,7 +40,7 @@ degToRad = np.pi/180.0
 
 def _id_min_dist_to_point(point, array):
     """ 
-        Function to get the id of a point in an
+        Get the id of a point in an
         array which is the closest from a point
         given by the user that does not necessarely
         belongs to the array.
@@ -56,9 +56,15 @@ def _id_min_dist_to_point(point, array):
 
 
 def _vtk_vertices_to_numpy(polydata):
-    """
-        Convert a vtkPolyData object vertices 
-        to a numpy array of dimensionality 3.
+    """Convert vtkPolyData object to Numpy nd-array.
+    
+    Return the point coordinates of a vtkPolyData
+    object as a n-dimensional Numpy nd-array. It 
+    only extracts its points, ignoring any array 
+    or field in the vtkPolyData.
+    
+    Arguments:
+    polydata -- the vtkPolyData
     """
     vertices = []
     nPoints  = polydata.GetNumberOfPoints()
@@ -71,9 +77,7 @@ def _vtk_vertices_to_numpy(polydata):
 
 
 def _rotate3d_matrix(tilt, azim):
-    """ 
-        Generic 3D rotation matrix traformation for a vector.
-    """
+    """Rotation matrix traformation for a vector in 3D space."""
     return np.array([[             np.cos(azim),             -np.sin(azim),      _intZero],
                      [np.sin(azim)*np.cos(tilt), np.cos(azim)*np.cos(tilt), -np.sin(tilt)],
                      [np.sin(azim)*np.sin(tilt), np.cos(azim)*np.sin(tilt),  np.cos(tilt)]])
@@ -81,15 +85,11 @@ def _rotate3d_matrix(tilt, azim):
 
 
 def _read_surface(file_name):
-    """ Function to read surface VTK object from disk.
-        The function returns a surface VTK object. 
-        
-        Input arguments: 
-        - surfaceFileName (str): string containing the
-                                 surface filename with full path;
-        
-        Output: vtkPolyData object 
-     """
+    """Read surface file to VTK object.
+               
+    Arguments: 
+    file_name -- complete path with file name
+    """
     reader = vmtkscripts.vmtkSurfaceReader()
     reader.InputFileName = file_name
     reader.Execute()
@@ -99,12 +99,10 @@ def _read_surface(file_name):
 
 # Viewing surface
 def _view_surface(surface):
-    """ Function for visualize VTK surface objects.
+    """View surface vtkPolyData objects.
     
-        Input arguments:
-        - vtkPolyData: the surface to be displayed.
-    
-        Output: renderer displaying vtkPolyData.
+    Arguments:
+    surface -- the surface to be displayed.
     """
     viewer = vmtkscripts.vmtkSurfaceViewer()
     viewer.Surface = surface
@@ -113,16 +111,14 @@ def _view_surface(surface):
     
 # Writing a surface
 def _write_surface(surface, file_name, mode='binary'):
-    """ Function that writes a surface to disk,
-        given the vtkPolyData and an output file name. 
+    """Write surface vtkPolyData. 
         
-        Input arguments:
-        - vtkPolyData: poly data object containing the 
-                       surface to be written.
-        - fileName (str): a string containing the file name.
-        - mode (ascii,binary): mode to be written.
-        
-        Output: file stored at fileName.
+    Arguments:
+    surface -- surface vtkPolyData object
+    file_name -- output file name with full path
+    
+    Optional arguments:
+    mode -- mode to write file (ASCII or binary, default binary)
     """
     writer = vmtkscripts.vmtkSurfaceWriter()
     writer.Surface = surface
@@ -132,16 +128,7 @@ def _write_surface(surface, file_name, mode='binary'):
 
 
 def _smooth_surface(surface):
-    """ 
-        Surface smoother based on Taubin or Laplace algorithm.
-        
-        Input arguments:
-        - vtkPolyData: the surface object to be smoothed;
-        
-        Output: vtkPolyData
-    """
-    
-    # Smoothing with optimum parameters
+    """Smooth surface based on Taubin's algorithm."""
     smoother = vmtkscripts.vmtkSurfaceSmoothing()
     smoother.Surface = surface
     smoother.Method  = 'taubin'
@@ -153,9 +140,7 @@ def _smooth_surface(surface):
 
 
 def _connected_region(regions,method,closest_point=None):
-    """
-        Wrap function around vmtksurfaceconnectivity.
-    """
+    """Extract the largest or closest to point patch of a disconnected domain."""
     triangulator = vmtkscripts.vmtkSurfaceTriangle()
     triangulator.Surface = regions
     triangulator.Execute()
@@ -174,7 +159,7 @@ def _connected_region(regions,method,closest_point=None):
 
 
 def _compute_Voronoi(surface_model):
-    # Compute Voronoi diagram
+    """Compute Voronoi diagram of a vascular surface."""
     voronoiDiagram = vmtkscripts.vmtkDelaunayVoronoi()
     voronoiDiagram.Surface = surface_model
     voronoiDiagram.CheckNonManifold = True
@@ -183,32 +168,10 @@ def _compute_Voronoi(surface_model):
     return voronoiDiagram.Surface
 
 
-def _generate_centerline(surface,write=False,filename=None):
-    """
-        To compute centerlines and resampling for parent vessel reconstruction
-    """
-    # Computing centerlines in forward direction
-    centerlines = vmtkscripts.vmtkCenterlines()
-    centerlines.Surface = surface
-    centerlines.Execute()
-
-    # Resampling
-    centerlineResampling = vmtkscripts.vmtkCenterlineResampling()
-    centerlineResampling.Centerlines = centerlines.Centerlines
-    centerlineResampling.Length      = _intOne/_intTen
-    centerlineResampling.Execute()
-    
-    if write:
-        centerlineResampling.CenterlinesOutputFileName = filename
-        centerlineResampling.IOWrite()
-    
-    return centerlineResampling.Centerlines
-
-
 def _clip_with_plane(surface, plane_center, plane_normal, inside_out=False):
     """
-        Clip a surface with a plane defined with
-        a point and its normal.
+    Clip a surface with a plane defined with
+    a point and its normal.
     """
     cutPlane = vtk.vtkPlane()
     cutPlane.SetOrigin(plane_center)
@@ -229,21 +192,25 @@ def _clip_with_plane(surface, plane_center, plane_normal, inside_out=False):
 
 
 def _contour_is_closed(contour):
-    """
-        Check if contour as vtkPolyData is closed
-        by comparing the number of edges and points.
-    """
+    """Check if contour as vtkPolyData is closed."""
     nVertices = contour.GetNumberOfPoints()
     nEdges    = contour.GetNumberOfCells()
     
     return nVertices == nEdges
 
 
-def _tube_surface(centerline, debug=False, smooth=True, write=False, filename=None):
-    """
-        Reconstruct tube surface of a given vascular surface.
-        The tube surface is the maximum tubular structure ins-
-        cribed in the vasculature. 
+def _tube_surface(centerline, smooth=True):
+    """Reconstruct tube surface of a given vascular surface.
+    
+    The tube surface is the maximum tubular structure ins-
+    cribed in the vasculature. 
+    
+    Arguents:
+    centerline -- the centerline to compute the tube surface
+                  with the radius array.
+    
+    Keyword arguments:
+    smooth -- to smooth tube surface (default True)
     """
     # List to collect objects 
     objects = []
@@ -267,22 +234,25 @@ def _tube_surface(centerline, debug=False, smooth=True, write=False, filename=No
     
     tube = _connected_region(tubeSurface.Surface,'largest')
     
-    if debug:
+    if _debug:
         for obj in objects:
             obj.PrintInputMembers()
             obj.PrintOutputMembers()
             
-    if write:
-        _write_surface(tube,filename)
-        
-    return tube
+    if _inspect:
+        _view_surface(tube)
+    
+    if smooth:
+        return _smooth_surface(tube)
+    else:
+        return tube
 
 
 def _compute_surfaces_distance(isurface, rsurface, array_name='DistanceArray', signed_array=True):
     """
-        Internal function to compute distance between a reference
-        surface, rsurface, and an input surface, isurface, with 
-        the resulting array written in the isurface. 
+    Internal function to compute distance between a reference
+    surface, rsurface, and an input surface, isurface, with 
+    the resulting array written in the isurface. 
     """
     
     surfaceDistance = vmtkscripts.vmtkSurfaceDistance()
@@ -300,10 +270,10 @@ def _compute_surfaces_distance(isurface, rsurface, array_name='DistanceArray', s
     return surfaceDistance.Surface
 
 
-def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface, debug=False, write=False, filename=None):
+def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     """
-        Procedure to clip the voronoi diagram only of 
-        the aneurysm portion of the original surface.
+    Procedure to clip the voronoi diagram only of 
+    the aneurysm portion of the original surface.
     """
 
     # Compute distance between complete Voronoi and the parent vessel tube surface 
@@ -321,19 +291,14 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface, debug=False, write=False
 
     aneurysmVoronoi = _connected_region(VoronoiClipper.Surface,'largest')
     
-    if debug:
-        pass
-    
-    if write:
-        _write_surface(aneurysmVoronoi,filename)
+    if _inspect:
+        _view_surface(aneurysmVoronoi)
         
     return aneurysmVoronoi
 
 
-def _Voronoi_envelope(Voronoi, debug=False, write=False, filename=None):
-    """
-        Returns the envelope surface of a Voronoi diagram.
-    """
+def _Voronoi_envelope(Voronoi):
+    """Compute the envelope surface of a Voronoi diagram."""
     # List to collect objects 
     objects = []
     
@@ -356,23 +321,28 @@ def _Voronoi_envelope(Voronoi, debug=False, write=False, filename=None):
 
     envelope = _connected_region(envelopeSurface.Surface,'largest')
     
-    if debug:
+    if _debug:
         for obj in objects:
             obj.PrintInputMembers()
             obj.PrintOutputMembers()
             
-    if write:
-        _write_surface(envelope,filename)
+    if _inspect:
+        _view_surface(envelope)
         
     return envelope
 
 
 def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
-    """
-        Clip an initial aneurysm surface from the original vascular model
-        using the aneurysm envelope and parent vasculature tube function
-        by computing the distance between the latter two and the original
-        surface model with the aneurysm sac.
+    """Clip initial aneurysm surface from the original vascular model.
+    
+    Compute distance between the aneurysm envelope and parent vasculature 
+    tube function from the original vascular surface model. Clip the surface
+    at the zero value of the difference between these two fields.
+    
+    Arguments:
+    surface_model --  the original vascular surface
+    aneuysm_envelope -- the aneurysm surface computed from its Voronoi
+    parent_tube -- tube surface of the parent vessel
     """
 
     # Array names
@@ -414,11 +384,7 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     return aneurysm
 
 def _clip_tube(parent_tube, parent_centerline, clipping_points):
-    """
-        Procedure to clip the tube surface portion between clipping points
-        defined in the parent artery reconstruction procedure.
-        
-    """
+    """Clip the tube surface portion between clipping points."""
     # Get parent centerline points 
     vertices = _vtk_vertices_to_numpy(parent_centerline)
 
@@ -461,7 +427,6 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
                                     'closest',
                                     clipPointsBarycenter)
     
-    
     if _inspect:
         _view_surface(clippedTube)
         
@@ -484,16 +449,17 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
 
 
 def _sac_centerline(aneurysm_sac,distance_array):
-    """
-        Definition of a spline that travels alongs the
-        aneurysm sac from the intersection with the pa-
-        rent vessel tube. Its points are defined by the
-        geometric place of the barycenters of iso-
-        contours of a distance_array defined on the 
-        aneurysm surface.
-        
-        The function returns the spline vertices in a
-        Numpy nd-array.
+    """Compute aneurysm sac centerline.
+    
+    Compute spline that travels alongs the 
+    aneurysm sac from the intersection with the pa-
+    rent vessel tube. Its points are defined by the
+    geometric place of the barycenters of iso-
+    contours of a distance_array defined on the 
+    aneurysm surface.
+
+    The function returns the spline vertices in a
+    Numpy nd-array.
     """
     
     # Get wrapper object of vtk numpy interface
@@ -505,7 +471,7 @@ def _sac_centerline(aneurysm_sac,distance_array):
     
     # Build spline along with to perform the neck search
     
-    nPoints       = _intTwo * _intHundred   # number of points to perform search  
+    nPoints       = _intTwo * _intHundred   # number of points to perform search: 200
     barycenters   = []                      # barycenter's list    
     
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
@@ -542,21 +508,22 @@ def _sac_centerline(aneurysm_sac,distance_array):
 
 
 def _search_neck_plane(anerysm_sac,centers,normals):
-    """
-        This function effectively searches for the aneurysm neck
-        plane: it interactively cuts the aneurysm surface with
-        planes defined by the vertices and normals to a spline
-        travelling through the aneurysm sac. 
-        
-        The cut plane is further precessed by a tilt and azimuth
-        angle and the minimum search between them, as originally
-        proposed by Piccinelli et al. (2009).
-        
-        It returns the local minimum solution: the neck plane as 
-        a vtkPlane object.
+    """Search neck plane of aneurysm
+    
+    This function effectively searches for the aneurysm neck
+    plane: it interactively cuts the aneurysm surface with
+    planes defined by the vertices and normals to a spline
+    travelling through the aneurysm sac. 
+
+    The cut plane is further precessed by a tilt and azimuth
+    angle and the minimum search between them, as originally
+    proposed by Piccinelli et al. (2009).
+
+    It returns the local minimum solution: the neck plane as 
+    a vtkPlane object.
     """
     # Rotation angles 
-    tiltIncr = _intTwo
+    tiltIncr = _intOne
     azimIncr = _intTen
     tiltMax  = 32
     azimMax  = 360
@@ -648,19 +615,34 @@ def _search_neck_plane(anerysm_sac,centers,normals):
     return sectionInfo[minimumId,_intOne]
 
 
-def aneurysmNeckPlane(surface_model,parent_centerlines,clipping_points):
-    """
-        Extracts the aneurysm neck plane based on Piccinelli's 
-        procedure, which is based on the surface model with the
-        aneurysm and its parent vasculature reconstruction.
-        
-        It returns the clipped aneurysm surface from the original
-        vasculature, and not the plane surface itself.
-    """
+def generateCenterline(surface):
+    """Compute centerline and resampling it."""
+    centerlines = vmtkscripts.vmtkCenterlines()
+    centerlines.Surface = surface
+    centerlines.Execute()
+
+    # Resampling
+    centerlineResampling = vmtkscripts.vmtkCenterlineResampling()
+    centerlineResampling.Centerlines = centerlines.Centerlines
+    centerlineResampling.Length      = _intOne/_intTen
+    centerlineResampling.Execute()
     
-#     parentTubeFileName   = writeDir + caseId+'_parentvessel_tube_function.vtp'
-#     aneurysmVoronoiFile  = writeDir + caseId+'_voronoi_aneurysm.vtp'
-#     aneurysmEnvelopeFile = writeDir + caseId+'_aneurysm_envelope.vtp'    
+    if _inspect:
+        _view_surface(centerlineResampling.Centerlines)
+    
+    return centerlineResampling.Centerlines
+
+
+def aneurysmNeckPlane(surface_model,parent_centerlines,clipping_points):
+    """Extracts the aneurysm neck plane.
+    
+    Procedure based on Piccinelli's pipeline, which is based on 
+    the surface model with the aneurysm and its parent vasculature 
+    reconstruction.
+
+    It returns the clipped aneurysm surface from the original
+    vasculature, and not the plane surface itself.
+    """ 
     
     
     VoronoiDiagram   = _compute_Voronoi(surface_model)
@@ -727,14 +709,14 @@ def aneurysmNeckPlane(surface_model,parent_centerlines,clipping_points):
 
 
 class Aneurysm:  
-    """
-        Class representing saccular intracranial aneurysms.
-        Made internal use of VTK and VMTK's classes for 
-        vtkPolyData manipulations. Its main input is the
-        aneurysm sac as a vtkPolyData object.
+    """Class representing saccular intracranial aneurysms.
         
-        The surface must be open for correct computation of
-        its surface area.
+    Made internal use of VTK and VMTK's classes for 
+    vtkPolyData manipulations. Its main input is the
+    aneurysm sac as a vtkPolyData object.
+        
+    The surface must be open for correct computation of
+    its surface area.
     """
     
     # Constructor
@@ -854,10 +836,10 @@ class Aneurysm:
 
         for cellId in aneurysmHull.simplices:
             if type(cellId) is np.ndarray:
-                cellDataArray.InsertNextCell(mkVtkIdList(cellId))
+                cellDataArray.InsertNextCell(self._make_vtk_id_list(cellId))
             else:
                 for cell in cellId:
-                    cellDataArray.InsertNextCell(mkVtkIdList(cell)) 
+                    cellDataArray.InsertNextCell(self._make_vtk_id_list(cell)) 
 
         polyData.SetPolys(cellDataArray)         
 
@@ -1179,6 +1161,7 @@ class Aneurysm:
         """
         
         return _intOne - self.volume/self.hullVolume
+
 
 
 if __name__ == '__main__':
