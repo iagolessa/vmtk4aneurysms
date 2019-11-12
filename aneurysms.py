@@ -23,6 +23,8 @@ _intTwo   = 2
 _intThree = 3
 _intFour  = 4
 _intFive  = 5
+_intSix   = 6
+_intSeven = 7
 
 _intTen = 10
 _intHundred = 100
@@ -38,21 +40,21 @@ _zComp = _intThree
 degToRad = np.pi/180.0
 
 
-def _id_min_dist_to_point(point, array):
-    """ 
-        Get the id of a point in an
+def _id_min_dist_to_point(point, polydata):
+    """ Get the id of a point in an
         array which is the closest from a point
         given by the user that does not necessarely
         belongs to the array.
     """
     
     # Computes distance vector array between point and array
-    arrDistToPoint = array - point
-    arrDistance    = np.linalg.norm(arrDistToPoint, axis=1)
-
-    minIds = np.where(arrDistance == min(arrDistance))
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(polydata)
+    locator.BuildLocator()    
     
-    return minIds[_intZero][_intZero]      # to get first of tuple and the first of list in case of equispaced points
+    pointID = locator.FindClosestPoint(point)    
+    
+    return pointID
 
 
 def _vtk_vertices_to_numpy(polydata):
@@ -90,14 +92,13 @@ def _read_surface(file_name):
     Arguments: 
     file_name -- complete path with file name
     """
-    reader = vmtkscripts.vmtkSurfaceReader()
-    reader.InputFileName = file_name
-    reader.Execute()
+    reader = vtk.vtkXMLPolyDataReader()
+    reader.SetFileName(file_name)
+    reader.Update()
     
-    return reader.Surface
+    return reader.GetOutput()
 
 
-# Viewing surface
 def _view_surface(surface):
     """View surface vtkPolyData objects.
     
@@ -109,7 +110,6 @@ def _view_surface(surface):
     viewer.Execute()
 
     
-# Writing a surface
 def _write_surface(surface, file_name, mode='binary'):
     """Write surface vtkPolyData. 
         
@@ -120,11 +120,16 @@ def _write_surface(surface, file_name, mode='binary'):
     Optional arguments:
     mode -- mode to write file (ASCII or binary, default binary)
     """
-    writer = vmtkscripts.vmtkSurfaceWriter()
-    writer.Surface = surface
-    writer.Mode    = mode
-    writer.OutputFileName = file_name
-    writer.Execute()
+    writer = vtk.vtkXMLPolyDataWriter()
+    writer.SetFileName(file_name)
+    writer.SetInputData(surface)
+    
+    if mode == 'binary':
+        writer.SetDataModeToBinary()
+    elif mode == 'ascii':
+        writer.SetDataModeToAscii()
+        
+    writer.Write()
 
 
 def _smooth_surface(surface):
@@ -140,22 +145,32 @@ def _smooth_surface(surface):
 
 
 def _connected_region(regions,method,closest_point=None):
-    """Extract the largest or closest to point patch of a disconnected domain."""
-    triangulator = vmtkscripts.vmtkSurfaceTriangle()
-    triangulator.Surface = regions
-    triangulator.Execute()
+    """Extract the largest or closest to point patch of a disconnected domain. 
     
-    connectivity = vmtkscripts.vmtkSurfaceConnectivity()
-    connectivity.Surface     = triangulator.Surface
-    connectivity.Method      = method
-    connectivity.CleanOutput = True
+    Given a disconnected surface, extract a portion of the surface
+    by choosing the largest or closest to point patch."""
     
-    if method == 'closest':
-        connectivity.ClosestPoint = closest_point
+    cleaner = vtk.vtkCleanPolyData()
+    cleaner.SetInputData(regions)
+    cleaner.Update()
     
-    connectivity.Execute()
+    triangulator = vtk.vtkTriangleFilter()
+    triangulator.SetInputData(cleaner.GetOutput())
+    triangulator.Update()
+
+    connectivity = vtk.vtkPolyDataConnectivityFilter()
+    connectivity.SetInputData(triangulator.GetOutput())
     
-    return connectivity.Surface
+    if method == 'largest':
+        connectivity.SetExtractionModeToLargestRegion()
+        
+    elif method == 'closest':
+        connectivity.SetExtractionModeToClosestPointRegion()
+        connectivity.SetClosestPoint(closest_point)
+
+    connectivity.Update()
+
+    return connectivity.GetOutput()
 
 
 def _compute_Voronoi(surface_model):
@@ -180,6 +195,9 @@ def _clip_with_plane(surface, plane_center, plane_normal, inside_out=False):
     clipSurface = vtk.vtkClipPolyData()
     clipSurface.SetInputData(surface)
     clipSurface.SetClipFunction(cutPlane)
+
+    if _inspect:
+        clipSurface.GenerateClipScalarsOn()    
     
     if inside_out:
         clipSurface.InsideOutOn()
@@ -205,7 +223,7 @@ def _tube_surface(centerline, smooth=True):
     The tube surface is the maximum tubular structure ins-
     cribed in the vasculature. 
     
-    Arguents:
+    Arguments:
     centerline -- the centerline to compute the tube surface
                   with the radius array.
     
@@ -249,32 +267,37 @@ def _tube_surface(centerline, smooth=True):
 
 
 def _compute_surfaces_distance(isurface, rsurface, array_name='DistanceArray', signed_array=True):
-    """
-    Internal function to compute distance between a reference
+    """Compute point-wise distance between two surfaces.
+    
+    Compute distance between a reference
     surface, rsurface, and an input surface, isurface, with 
     the resulting array written in the isurface. 
     """
     
-    surfaceDistance = vmtkscripts.vmtkSurfaceDistance()
-    surfaceDistance.Surface = isurface
-    surfaceDistance.ReferenceSurface = rsurface
-    
-    # Check if signed array or not
     if signed_array:
-        surfaceDistance.SignedDistanceArrayName = array_name
-    else:
-        surfaceDistance.DistanceArrayName = array_name
-         
-    surfaceDistance.Execute()    
+        normalsFilter = vtk.vtkPolyDataNormals()
+        normalsFilter.SetInputData(rsurface)
+        normalsFilter.AutoOrientNormalsOn()
+        normalsFilter.SetFlipNormals(False)
+        normalsFilter.Update()
+        rsurface.GetPointData().SetNormals(normalsFilter.GetOutput().GetPointData().GetNormals())
     
-    return surfaceDistance.Surface
+    surfaceDistance = vtkvmtk.vtkvmtkSurfaceDistance()
+    surfaceDistance.SetInputData(isurface)
+    surfaceDistance.SetReferenceSurface(rsurface)
+    
+    if signed_array:
+        surfaceDistance.SetSignedDistanceArrayName(array_name)
+    else:
+        surfaceDistance.SetDistanceArrayName(array_name)
+        
+    surfaceDistance.Update()
+    
+    return surfaceDistance.GetOutput()  
 
 
 def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
-    """
-    Procedure to clip the voronoi diagram only of 
-    the aneurysm portion of the original surface.
-    """
+    """Extract the Voronoi diagram of the aneurysmal portion."""
 
     # Compute distance between complete Voronoi and the parent vessel tube surface 
     DistanceArrayName = 'DistanceToTubeArray'
@@ -385,9 +408,6 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
 
 def _clip_tube(parent_tube, parent_centerline, clipping_points):
     """Clip the tube surface portion between clipping points."""
-    # Get parent centerline points 
-    vertices = _vtk_vertices_to_numpy(parent_centerline)
-
     # Search clipping points in the new centerlines
     clipCenters = []
     clipNormals = []
@@ -397,14 +417,14 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
     for point in clipPointsArray:
 
         # Get id of point with min distance
-        idMinDist = int(_id_min_dist_to_point(point, vertices))
+        idMinDist = _id_min_dist_to_point(point, parent_centerline)
 
         # Get plane centers
-        center = vertices[idMinDist]
+        center = np.array(parent_centerline.GetPoint(idMinDist))
         clipCenters.append(center)
 
         # Build normals to each clipping point by getting next abscissa coordinates
-        nextCenter = vertices[idMinDist + 1]
+        nextCenter = np.array(parent_centerline.GetPoint(idMinDist + 1))
         normal     = nextCenter - center
 
         clipNormals.append(normal)
@@ -448,6 +468,7 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
     return clippedTube
 
 
+
 def _sac_centerline(aneurysm_sac,distance_array):
     """Compute aneurysm sac centerline.
     
@@ -466,20 +487,20 @@ def _sac_centerline(aneurysm_sac,distance_array):
     surfaceWrapper = dsa.WrapDataObject(aneurysm_sac)
     distanceArray  = np.array(surfaceWrapper.PointData.GetArray(distance_array))
     
-    minTubeDist = distanceArray.min()
-    maxTubeDist = distanceArray.max()
+    minTubeDist = float(distanceArray.min())
+    maxTubeDist = float(distanceArray.max())
     
     # Build spline along with to perform the neck search
     
-    nPoints       = _intTwo * _intHundred   # number of points to perform search: 200
+    nPoints       = _intOne * _intHundred   # number of points to perform search: 200
     barycenters   = []                      # barycenter's list    
     
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
 
     # Get barycenters of iso-contours
-    limitFraction = _intFive/_intTen
+    limitFraction = _intSix/_intTen
     
-    for isovalue in np.linspace(minTubeDist, limitFraction*maxTubeDist, nPoints):
+    for isovalue in np.linspace(minTubeDist, maxTubeDist, nPoints):
 
         # Get isocontour polyline
         isoContour = vtk.vtkContourFilter()
@@ -504,7 +525,37 @@ def _sac_centerline(aneurysm_sac,distance_array):
         except:
             continue
 
-    return np.array(barycenters)
+    barycenters = np.array(barycenters)
+    
+    # Compute list with distance coordinate along spline
+    distance = _intZero                      
+    previous = barycenters[_intZero]
+    distanceCoord = []                      # path distance coordinate
+
+    for index, center in enumerate(barycenters):
+
+        if index > _intZero:
+            previous = barycenters[index - _intOne]
+
+        # Interpoint distance
+        increment  = center - previous
+        distance  += np.linalg.norm(increment,_intTwo)  
+        distanceCoord.append(distance)
+
+    distanceCoord = np.array(distanceCoord)
+
+    # Find spline of barycenters and get derivative == normals
+    tck, u  = interpolate.splprep(barycenters.T, u=distanceCoord)
+    
+    domain  = np.linspace(min(u), limitFraction*max(u), nPoints)
+    
+    deriv0  = interpolate.splev(domain, tck, der=0)
+    deriv1  = interpolate.splev(domain, tck, der=1)
+
+    points   = np.array(deriv0).T            # spline points
+    tangents = np.array(deriv1).T            # spline tangents
+              
+    return points,tangents
 
 
 def _search_neck_plane(anerysm_sac,centers,normals):
@@ -523,7 +574,7 @@ def _search_neck_plane(anerysm_sac,centers,normals):
     a vtkPlane object.
     """
     # Rotation angles 
-    tiltIncr = _intOne
+    tiltIncr = _intTwo
     azimIncr = _intTen
     tiltMax  = 32
     azimMax  = 360
@@ -672,30 +723,7 @@ def aneurysmNeckPlane(surface_model,parent_centerlines,clipping_points):
         _view_surface(initialAneurysmSurface)
 
         
-    barycenters = _sac_centerline(initialAneurysmSurface,tubeToAneurysmDistance)
-
-    # Compute list with distance coordinate along spline
-    distance = _intZero                      
-    previous = barycenters[_intZero]
-    distanceCoord = []                      # path distanec coordinate
-    
-    for index, center in enumerate(barycenters):
-        
-        if index > _intZero:
-            previous = barycenters[index - _intOne]
-        
-        
-        # Interpoint distance
-        increment  = center - previous
-        distance  += np.linalg.norm(increment,_intTwo)  
-        distanceCoord.append(distance)
-
-    distanceCoord = np.array(distanceCoord)
-
-    # Find spline of barycenters and get derivative == normals
-    tck, u  = interpolate.splprep(barycenters.T, u=distanceCoord)
-    deriv   = interpolate.splev(u, tck, der=1)
-    normals = np.array(deriv).T
+    barycenters,normals = _sac_centerline(initialAneurysmSurface,tubeToAneurysmDistance)
 
     # searches for neck plane
     neckPlane  = _search_neck_plane(initialAneurysmSurface,barycenters,normals) 
@@ -704,8 +732,31 @@ def aneurysmNeckPlane(surface_model,parent_centerlines,clipping_points):
 
     # Remove distance array
     initialAneurysmSurface.GetPointData().RemoveArray(tubeToAneurysmDistance) 
+    
+    # Clip final aneurysm surface: when clipped, two surfaces the aneurysm (desired) and
+    # the rest (not desired) which is closest to the clipped tube
+    surf1 = _clip_with_plane(initialAneurysmSurface,neckCenter,neckNormal)
+    surf2 = _clip_with_plane(initialAneurysmSurface,neckCenter,neckNormal,inside_out=True)
 
-    return _clip_with_plane(initialAneurysmSurface,neckCenter,neckNormal)
+    # Check which output is farthest from clipped tube 
+
+    tubePoints  = _vtk_vertices_to_numpy(clippedTube)
+    surf1Points = _vtk_vertices_to_numpy(surf1)
+    surf2Points = _vtk_vertices_to_numpy(surf2)
+
+    tubeCentroid  = tubePoints.mean(axis=0)
+    surf1Centroid = surf1Points.mean(axis=0)
+    surf2Centroid = surf2Points.mean(axis=0)
+
+    surf1Distance = vtk.vtkMath.Distance2BetweenPoints(tubeCentroid,surf1Centroid)
+    surf2Distance = vtk.vtkMath.Distance2BetweenPoints(tubeCentroid,surf2Centroid)
+
+    if surf1Distance > surf2Distance:
+        aneurysmSurface = surf1
+    else:
+        aneurysmSurface = surf2 
+    
+    return aneurysmSurface
 
 
 class Aneurysm:  
