@@ -7,7 +7,10 @@ from vmtk import vtkvmtk
 from scipy import interpolate
 from scipy.spatial import ConvexHull
 
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtk.numpyinterface import dataset_adapter as dsa
+
+# Local modules
+from constants import *
 
 # Flags
 _write   = False
@@ -16,30 +19,13 @@ _inspect = False
 
 _write_dir = '/home/iagolessa/'
 
-# Constants
-_intZero  = 0
-_intOne   = 1
-_intTwo   = 2
-_intThree = 3
-_intFour  = 4
-_intFive  = 5
-_intSix   = 6
-_intSeven = 7
-_intEight = 8
-_intNine  = 9
-_intTen   = 10
-
-_intHundred = 100
-
 INCR = 0.01 
 HUGE = 1e30
 
-_dimensions = _intThree
-_xComp = _intZero
-_yComp = _intOne
-_zComp = _intThree
-
-degToRad = np.pi/180.0
+_dimensions = intThree
+_xComp = intZero
+_yComp = intOne
+_zComp = intThree
 
 
 def _id_min_dist_to_point(point, polydata):
@@ -80,7 +66,7 @@ def _vtk_vertices_to_numpy(polydata):
 
 def _rotate3d_matrix(tilt, azim):
     """Rotation matrix traformation for a vector in 3D space."""
-    return np.array([[             np.cos(azim),             -np.sin(azim),      _intZero],
+    return np.array([[             np.cos(azim),             -np.sin(azim),      intZero],
                      [np.sin(azim)*np.cos(tilt), np.cos(azim)*np.cos(tilt), -np.sin(tilt)],
                      [np.sin(azim)*np.sin(tilt), np.cos(azim)*np.sin(tilt),  np.cos(tilt)]])
 
@@ -141,8 +127,8 @@ def _smooth_surface(surface):
     smoother = vmtkscripts.vmtkSurfaceSmoothing()
     smoother.Surface = surface
     smoother.Method  = 'taubin'
-    smoother.NumberOfIterations = _intThree*_intTen
-    smoother.PassBand = _intOne/_intTen
+    smoother.NumberOfIterations = intThree*intTen
+    smoother.PassBand = intOne/intTen
     smoother.Execute()
     
     return smoother.Surface
@@ -316,7 +302,7 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     VoronoiClipper.Surface = VoronoiDistance
     VoronoiClipper.Interactive   = False
     VoronoiClipper.ClipArrayName = DistanceArrayName
-    VoronoiClipper.ClipValue     = _intZero
+    VoronoiClipper.ClipValue     = intZero
     VoronoiClipper.InsideOut     = True
     VoronoiClipper.Execute()
 
@@ -337,8 +323,8 @@ def _Voronoi_envelope(Voronoi):
 
     VoronoiBounds     = Voronoi.GetBounds()
     radiusArrayBounds = Voronoi.GetPointData().GetArray(radiusArray).GetValueRange()
-    maxSphereRadius   = radiusArrayBounds[_intOne]
-    enlargeBoxBounds  = (_intFour/_intTen) * maxSphereRadius
+    maxSphereRadius   = radiusArrayBounds[intOne]
+    enlargeBoxBounds  = (intFour/intTen) * maxSphereRadius
     
     modelBounds = np.array(VoronoiBounds) + \
                   np.array(_dimensions * [-enlargeBoxBounds, enlargeBoxBounds])
@@ -412,7 +398,7 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     clipAneurysm = vmtkscripts.vmtkSurfaceClipper()
     clipAneurysm.Surface       = clippingArray.Surface
     clipAneurysm.ClipArrayName = clippingArray.ResultArrayName
-    clipAneurysm.ClipValue     = _intZero
+    clipAneurysm.ClipValue     = intZero
     clipAneurysm.Interactive   = False
     clipAneurysm.InsideOut     = False
     clipAneurysm.Execute()
@@ -442,7 +428,7 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
     # (avoid flipped normals to clip plane) November, 14, 2019
     clResampling = vmtkscripts.vmtkCenterlineResampling()
     clResampling.Centerlines = parent_centerline
-    clResampling.Length = _intOne/_intTen
+    clResampling.Length = intOne/intTen
     clResampling.Execute()
     
     parent_centerline = clResampling.Centerlines
@@ -473,12 +459,12 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
     clipNormals = np.array(clipNormals)
 
     # Clip the parent artery first
-    center = clipCenters[_intZero]
-    normal = clipNormals[_intZero]
+    center = clipCenters[intZero]
+    normal = clipNormals[intZero]
 
     # Get barycenter of clipping points
     clipPointsPoints     = clipping_points.GetPoints()    
-    clipPointsBarycenter = _dimensions * [_intZero]
+    clipPointsBarycenter = _dimensions * [intZero]
     vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(clipPointsPoints,clipPointsBarycenter)    
     clippedTube = _connected_region(_clip_with_plane(parent_tube,center,normal),
                                     'closest',
@@ -486,8 +472,8 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
         
         
     # Update clip points
-    clipCenters = np.delete(clipCenters, _intZero, axis=0)
-    clipNormals = np.delete(clipNormals, _intZero, axis=0)
+    clipCenters = np.delete(clipCenters, intZero, axis=0)
+    clipNormals = np.delete(clipNormals, intZero, axis=0)
 
     # Clip remaining daughters
     for center, normal in zip(clipCenters,clipNormals):
@@ -509,12 +495,12 @@ def _contour_perimeter(contour):
     nContourVertices = contour.GetNumberOfPoints()
 
     # Compute neck perimeter
-    perimeter = _intZero
-    previous  = contour.GetPoint(_intZero)
+    perimeter = intZero
+    previous  = contour.GetPoint(intZero)
 
     for index in range(nContourVertices):
-        if index > _intZero:
-            previous = contour.GetPoint(index - _intOne)
+        if index > intZero:
+            previous = contour.GetPoint(index - intOne)
 
         vertex = contour.GetPoint(index)
 
@@ -550,7 +536,7 @@ def _contour_hydraulic_diameter(contour):
     contourSurfArea  = _contour_plane_area(contour)
 
     # Return hydraulic diameter of neck
-    return _intFour * contourSurfArea/contourPerimeter
+    return intFour * contourSurfArea/contourPerimeter
 
 
 
@@ -577,7 +563,7 @@ def _sac_centerline(aneurysm_sac,distance_array):
 
     # Build spline along with to perform the neck search
     
-    nPoints       = _intOne * _intHundred   # number of points to perform search
+    nPoints       = intOne * intHundred   # number of points to perform search
     barycenters   = []                      # barycenter's list    
     
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
@@ -590,7 +576,7 @@ def _sac_centerline(aneurysm_sac,distance_array):
         isoContour.SetInputData(aneurysm_sac)
         isoContour.ComputeScalarsOff()
         isoContour.ComputeNormalsOff()
-        isoContour.SetValue(_intZero,isovalue)
+        isoContour.SetValue(intZero,isovalue)
         isoContour.Update()
 
         # Get largest connected contour
@@ -600,8 +586,8 @@ def _sac_centerline(aneurysm_sac,distance_array):
             contourPoints  = contour.GetPoints()
             nContourPoints = contour.GetNumberOfPoints()
 
-            if _contour_is_closed(contour) and nContourPoints != _intZero:
-                barycenter = _dimensions*[_intZero]
+            if _contour_is_closed(contour) and nContourPoints != intZero:
+                barycenter = _dimensions*[intZero]
                 vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(contourPoints,barycenter)
                 barycenters.append(barycenter)
 
@@ -611,32 +597,32 @@ def _sac_centerline(aneurysm_sac,distance_array):
     barycenters = np.array(barycenters)
 
     # Compute list with distance coordinate along spline
-    distance = _intZero                      
-    previous = barycenters[_intZero]
+    distance = intZero                      
+    previous = barycenters[intZero]
     distanceCoord = []                      # path distance coordinate
     
     for index, center in enumerate(barycenters):
         
-        if index > _intZero:
-            previous = barycenters[index - _intOne]
+        if index > intZero:
+            previous = barycenters[index - intOne]
 
         # Interpoint distance
         increment  = center - previous
-        distance  += np.linalg.norm(increment,_intTwo)  
+        distance  += np.linalg.norm(increment,intTwo)  
         distanceCoord.append(distance)
 
     distanceCoord = np.array(distanceCoord)
 
     # Find spline of barycenters and get derivative == normals
-    limitFraction = _intSeven/_intTen
+    limitFraction = intSeven/intTen
     
     tck, u  = interpolate.splprep(barycenters.T, u=distanceCoord)
     
     # Max and min t of spline
-    minSplineDomain = min(u)-_intFive/_intTen
+    minSplineDomain = min(u)-intFive/intTen
     maxSplineDomain = limitFraction*max(u)
     
-    domain  = np.linspace(minSplineDomain, maxSplineDomain, _intTwo*nPoints)
+    domain  = np.linspace(minSplineDomain, maxSplineDomain, intTwo*nPoints)
     
     deriv0  = interpolate.splev(domain, tck, der=0)
     deriv1  = interpolate.splev(domain, tck, der=1)
@@ -677,7 +663,7 @@ def _local_minimum(array):
               np.r_[array[:-1] < array[1:], True]
 
     # Local minima index    
-    return int(np.where(minimum == True)[_intZero][_intZero])
+    return int(np.where(minimum == True)[intZero][intZero])
     
 
 def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
@@ -696,13 +682,13 @@ def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
     a vtkPlane object.
     """
     # Rotation angles 
-    tiltIncr = _intOne
-    azimIncr = _intTen
+    tiltIncr = intOne
+    azimIncr = intTen
     tiltMax  = 32
     azimMax  = 360
     
-    tilts = np.arange(_intZero, tiltMax, tiltIncr) * degToRad
-    azims = np.arange(_intZero, azimMax, azimIncr) * degToRad
+    tilts = np.arange(intZero, tiltMax, tiltIncr) * degToRad
+    azims = np.arange(intZero, azimMax, azimIncr) * degToRad
 
     # Minimum area seacrh
     sectionInfo  = []
@@ -712,7 +698,7 @@ def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
     for index, (center, normal) in enumerate(zip(centers,normals)): 
 
         # Store previous area to compare and find local minimum
-        if index > _intZero:
+        if index > intZero:
             previousVariable = minVariable
 
         # Iterate over rotated planes
@@ -750,7 +736,7 @@ def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
                     contourPoints  = contour.GetPoints()
                     nContourPoints = contour.GetNumberOfPoints()
 
-                    if _contour_is_closed(contour) and nContourPoints != _intZero:
+                    if _contour_is_closed(contour) and nContourPoints != intZero:
                         
                         # Update minmum area
                         if   min_variable == 'area': 
@@ -760,7 +746,7 @@ def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
                             variable = _contour_perimeter(contour)
                             
                         elif min_variable == 'hyd_diameter': 
-                            variable = _intFour*area/perimeter
+                            variable = intFour*area/perimeter
                             
                         else: print('Minimizing variable not recognized!' \
                                     'Choose area, perimeter or hyd_diameter.')
@@ -782,11 +768,11 @@ def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
     sectionInfo = np.array(sectionInfo)
 
     # Get local minimum area
-    areas     = sectionInfo[:,_intZero]
+    areas     = sectionInfo[:,intZero]
     
     minimumId = _local_minimum(areas)
 
-    return sectionInfo[minimumId,_intOne]
+    return sectionInfo[minimumId,intOne]
 
 
 def generateCenterline(surface):
@@ -798,7 +784,7 @@ def generateCenterline(surface):
     # Resampling
     centerlineResampling = vmtkscripts.vmtkCenterlineResampling()
     centerlineResampling.Centerlines = centerlines.Centerlines
-    centerlineResampling.Length      = _intOne/_intTen
+    centerlineResampling.Length      = intOne/intTen
     centerlineResampling.Execute()
     
     if _inspect:
@@ -1053,7 +1039,7 @@ class Aneurysm:
         neckContour = self._neck_contour()
         neckPoints  = neckContour.GetPoints()
 
-        barycenter  = np.zeros(_intThree)
+        barycenter  = np.zeros(intThree)
         vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(neckPoints,barycenter)
 
         return barycenter
@@ -1064,7 +1050,7 @@ class Aneurysm:
             Compputes aneurysm neck plane polyData
         """
         
-        neckIndex = _intTwo
+        neckIndex = intTwo
         
         # Use thrshold filter to get neck plane
         getNeckPlane = vmtkscripts.vmtkThreshold()
@@ -1087,7 +1073,7 @@ class Aneurysm:
         barycenter  = self._neck_barycenter()
 
         # Get point in which distance to neck line baricenter is maximum
-        maxDistance = float(_intZero)
+        maxDistance = float(intZero)
         maxVertex   = None
 
         nVertices   = self.aneurysmSurface.GetPoints().GetNumberOfPoints()
@@ -1115,12 +1101,12 @@ class Aneurysm:
         nContourVertices = contour.GetNumberOfPoints()
 
         # Compute neck perimeter
-        perimeter = _intZero
-        previous  = contour.GetPoint(_intZero)
+        perimeter = intZero
+        previous  = contour.GetPoint(intZero)
 
         for index in range(nContourVertices):
-            if index > _intZero:
-                previous = contour.GetPoint(index - _intOne)
+            if index > intZero:
+                previous = contour.GetPoint(index - intOne)
 
             vertex = contour.GetPoint(index)
 
@@ -1154,7 +1140,7 @@ class Aneurysm:
         contourArea = computeArea.GetSurfaceArea()
 
         # Compute hydraulic diameter of neck
-        return _intFour * contourArea/contourPerimeter
+        return intFour * contourArea/contourPerimeter
 
 
     def _neck_plane_normal_vector(self):
@@ -1199,7 +1185,7 @@ class Aneurysm:
         neckPerimeter = self._contour_perimeter(neckContour)
         
         # Compute hydraulic diameter of neck
-        return _intFour * self.neckPlaneArea/neckPerimeter
+        return intFour * self.neckPlaneArea/neckPerimeter
 
 
     def maximumHeight(self):
@@ -1242,8 +1228,8 @@ class Aneurysm:
         Hnmax = self.maximumNormalHeight()
 
         # Form points of perpendicular line to neck plane
-        nPoints    = _intThree * _intTen
-        dimensions = _intThree
+        nPoints    = intThree * intTen
+        dimensions = intThree
 
         t = np.linspace(0, Hnmax, nPoints)
         parameters = np.array([t]*dimensions).T
@@ -1267,7 +1253,7 @@ class Aneurysm:
             nVertices = cutWithPlane.GetOutput().GetNumberOfPoints()
 
             # Compute diamenetr if contour is not empty
-            if nVertices > _intZero:
+            if nVertices > intZero:
 
                 # Compute hydraulic diameter of cut line
                 hydraulicDiameter = self._contour_hydraulic_diameter(cutWithPlane.GetOutput())
@@ -1333,7 +1319,7 @@ class Aneurysm:
         
         factor = (18*np.pi)**(1./3.)
         
-        return _intOne - factor/self.hullArea*(self.hullVolume**(2./3.))
+        return intOne - factor/self.hullArea*(self.hullVolume**(2./3.))
     
     def undulationIndex(self):
         """
@@ -1346,7 +1332,7 @@ class Aneurysm:
             volume of its convex hull.
         """
         
-        return _intOne - self.volume/self.hullVolume
+        return intOne - self.volume/self.hullVolume
 
 
 
