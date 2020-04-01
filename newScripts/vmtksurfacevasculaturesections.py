@@ -84,6 +84,7 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         centerlines.Surface = self.Surface
         centerlines.CheckNonManifold = True
         centerlines.AppendEndPoints = False
+#         centerlines.SeedSelector = 'openprofiles'
         centerlines.Resampling = True
         centerlines.ResamplingStepLength = 0.10
         centerlines.Execute()
