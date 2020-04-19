@@ -47,16 +47,22 @@ class Vasculature:
     a single inlet, defined as the one with largest radius).
     """
     
-    def __init__(self, surface):
+    def __init__(self, surface, manual_centerline=True):
         print('Initiating model.', end='\n')
         self.surface = surface
         
         # Compute open boundaries centers
         self.inletCenters  = []
         self.outletCenters = []
+
+        # Switches
+        self.ManualPickpoint = manual_centerline
+
+        # Compute morphology
         self._compute_open_centers()
         self._compute_centerline()
         self._compute_centerline_geometry()
+
         
         # Collect bifurcations to this list 
         self.bifurcations = []
@@ -118,44 +124,53 @@ class Vasculature:
         """
         
         print("Computing centerlines now (this may take a while depending on the size of the model).", end='\n')
-        # Aneurysm top point to get aneurysm centerline
-        aneurysmTopPoint = []
-        centerlinesList  = []
-        
-        # Compute sequential list of outlets
-        outletCenters = list(self.outletCenters[intZero])
-        
-        for center in self.outletCenters[intOne:]:
-            outletCenters += center
 
-        for source in self.inletCenters:
-            # Instantiate vmtkcenterline object
+        if self.ManualPickpoint:
             centerline = vmtkscripts.vmtkCenterlines()
             centerline.Surface = self.surface
-            centerline.SeedSelectorName = 'pointlist'
-            centerline.SourcePoints = source
-            centerline.TargetPoints = outletCenters + aneurysmTopPoint
             centerline.Execute()
-            centerlinesList.append(centerline.Centerlines)
+
+            self.centerline = centerline.Centerlines
+
+        else:
+            # Aneurysm top point to get aneurysm centerline
+            aneurysmTopPoint = []
+            centerlinesList  = []
+            
+            # Compute sequential list of outlets
+            outletCenters = list(self.outletCenters[intZero])
+            
+            for center in self.outletCenters[intOne:]:
+                outletCenters += center
+
+            for source in self.inletCenters:
+                # Instantiate vmtkcenterline object
+                centerline = vmtkscripts.vmtkCenterlines()
+                centerline.Surface = self.surface
+                centerline.SeedSelectorName = 'pointlist'
+                centerline.SourcePoints = source
+                centerline.TargetPoints = outletCenters + aneurysmTopPoint
+                centerline.Execute()
+                centerlinesList.append(centerline.Centerlines)
+            
+            # Provide managing exception if there is only one centerline
+            centerlineMain = centerlinesList[intZero]
+
+            # If more than one inlet, then the centerlines for 
+            # each inlet is appended here by a vmtk script
+            if len(centerlinesList) > intOne:
+                for centerline in centerlinesList[intOne:]:
+
+                    centerlinesAppend = vmtkscripts.vmtkSurfaceAppend()
+                    centerlinesAppend.Surface  = centerlineMain
+                    centerlinesAppend.Surface2 = centerline
+                    centerlinesAppend.Execute()
+
+                    # Store final centerlines to centerline main
+                    # therefore, centerlineMain will store the final complete centerline
+                    centerlineMain = centerlinesAppend.Surface
         
-        # Provide managing exception if there is only one centerline
-        centerlineMain = centerlinesList[intZero]
-
-        # If more than one inlet, then the centerlines for 
-        # each inlet is appended here by a vmtk script
-        if len(centerlinesList) > intOne:
-            for centerline in centerlinesList[intOne:]:
-
-                centerlinesAppend = vmtkscripts.vmtkSurfaceAppend()
-                centerlinesAppend.Surface  = centerlineMain
-                centerlinesAppend.Surface2 = centerline
-                centerlinesAppend.Execute()
-
-                # Store final centerlines to centerline main
-                # therefore, centerlineMain will store the final complete centerline
-                centerlineMain = centerlinesAppend.Surface
-        
-        self.centerline = centerlineMain
+            self.centerline = centerlineMain
 
         
     def _compute_centerline_geometry(self):
