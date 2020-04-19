@@ -28,11 +28,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self._wlrMedium = 0.07
         self._wlrLarge = 0.088
 
-        self._centerlines = None
-        self._radiusArrayName = "RadiusArray"
-
         # Public member
         self.Surface  = None
+        self.Centerlines = None
+        self.RadiusArrayName = "MaximumInscribedSphereRadius"
+        self.Aneurysm = True
 
         self.ManualMode = True
         self.ScaleFactor = 0.75
@@ -54,6 +54,15 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.SetInputMembers([
             ['Surface', 'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
+
+            ['Centerlines', 'icenterline', 'vtkPolyData', 1, '',
+                'the centerlines of the input surface', 'vmtksurfacereader'],
+
+            ['RadiusArrayName', 'radiusarray', 'str', 1, '',
+                'centerline radius array name, if loaded externally'],
+
+            ['Aneurysm', 'aneurysm', 'bool', 1, '',
+                'to indicate presence of an aneurysm'],
 
             ['ScaleFactor', 'scalefactor', 'float', 1, '',
                 'scale fator to control size of aneurysm thickness'],
@@ -172,15 +181,15 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         return surface
 
-    def _generate_eneterlines(self):
+    def _generate_centerlines(self):
         centerlines = vmtkscripts.vmtkCenterlines()
         centerlines.Surface = self.Surface
         centerlines.SeedSelectorName = 'openprofiles'
         centerlines.AppendEndPoints = 1
-        centerlines.RadiusArrayName = self._radiusArrayName
+        centerlines.RadiusArrayName = self.RadiusArrayName
         centerlines.Execute()
 
-        self._centerlines = centerlines.Centerlines
+        self.Centerlines = centerlines.Centerlines
 
     def ComputeVasculatureThickness(self):
         """Compute thickness array based on diameter and WLR.
@@ -192,15 +201,16 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         """
 
         # Compute centerlines
-        self._generate_eneterlines()
+        if not self.Centerlines:
+            self._generate_centerlines()
 
         # Compute distance to centerlines
         distanceToCenterlines = vmtkscripts.vmtkDistanceToCenterlines()
         distanceToCenterlines.Surface = self.Surface
-        distanceToCenterlines.Centerlines = self._centerlines
+        distanceToCenterlines.Centerlines = self.Centerlines
         distanceToCenterlines.UseRadiusInformation = 1
 #         distanceToCenterlines.UseCombinedDistance = 1
-        distanceToCenterlines.RadiusArrayName = self._radiusArrayName
+        distanceToCenterlines.RadiusArrayName = self.RadiusArrayName
         distanceToCenterlines.Execute()
 
         surface = distanceToCenterlines.Surface
@@ -209,7 +219,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # Smooth the distance to centerline array
         # to avoid sudden changes of thickness in
         # certain regions
-        surface = self._smooth_array(surface, distanceArrayName)
+        surface = self._smooth_array(surface, 
+                                     distanceArrayName,
+                                     niterations=self.SmoothingIterations)
 
         # Multiply by WLR to have a prelimimar thickness array
         # I assume that the WLR is the same for medium sized arteries
@@ -290,6 +302,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.vmtkRenderer.AddKeyBinding('d', 'Delete contour',
                                         self._delete_contour)
+
+        
+        self.vmtkRenderer.InputInfo('Select aneurysm neck')
 
         self._display()
         self.vmtkRenderer.Deallocate()
@@ -415,7 +430,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.vmtkRenderer.RegisterScript(self)
 
         self.ComputeVasculatureThickness()
-        self.SetAneurysmThickness()
+
+        if self.Aneurysm:
+            self.SetAneurysmThickness()
 
         if self.GenerateWallMesh:
             self.ExtrudeWallMesh()
