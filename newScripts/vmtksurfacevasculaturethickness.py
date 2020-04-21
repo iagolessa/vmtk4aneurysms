@@ -6,6 +6,7 @@
 import sys
 import vtk
 import math
+import numpy as np
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -29,7 +30,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self._wlrLarge = 0.088
 
         # Public member
-        self.Surface  = None
+        self.Surface = None
         self.Centerlines = None
         self.RadiusArrayName = "MaximumInscribedSphereRadius"
         self.Aneurysm = True
@@ -181,15 +182,130 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         return surface
 
-    def _generate_centerlines(self):
-        centerlines = vmtkscripts.vmtkCenterlines()
-        centerlines.Surface = self.Surface
-        centerlines.SeedSelectorName = 'openprofiles'
-        centerlines.AppendEndPoints = 1
-        centerlines.RadiusArrayName = self.RadiusArrayName
-        centerlines.Execute()
+    def _get_inlet_and_outlets(self):
+        """Compute inlet and outlets centers of vascular surface.
 
-        self.Centerlines = centerlines.Centerlines
+        Based on the surface and assuming that the inlet is the
+        open profile with largest area, return a tuple with two lists:
+        the first includes the coordinates of the inlet and the second 
+        the coordinates of the outlets.
+        """
+
+        boundaryRadiusArrayName = "Radius"
+        boundaryNormalsArrayName = "Normals"
+        boundaryCentersArrayName = "Centers"
+
+        boundarySystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
+        boundarySystems.SetInputData(self.Surface)
+        boundarySystems.SetBoundaryRadiusArrayName(boundaryRadiusArrayName)
+        boundarySystems.SetBoundaryNormalsArrayName(boundaryNormalsArrayName)
+        boundarySystems.SetPoint1ArrayName(boundaryCentersArrayName)
+        boundarySystems.SetPoint2ArrayName(boundaryCentersArrayName)
+        boundarySystems.Update()
+
+        referenceSystems = boundarySystems.GetOutput()
+
+        nProfiles = referenceSystems.GetNumberOfPoints()
+
+        # Get inlet center (larger radius)
+        radiusArray = np.array([
+            referenceSystems.GetPointData().GetArray(boundaryRadiusArrayName).GetTuple1(i)
+            for i in range(nProfiles)
+        ])
+
+        maxRadius = max(radiusArray)
+        inletId = int(np.where(radiusArray == maxRadius)[0])
+        inletCenter = list(referenceSystems.GetPoint(inletId))
+
+        # Get outlets
+        outletCenters = list()
+
+        # Get centers of outlets
+        for profileId in range(nProfiles):
+
+            if profileId != inletId:
+                outletCenters += referenceSystems.GetPoint(profileId)
+
+        return inletCenter, outletCenters
+
+    def _generate_centerlines(self):
+        """Compute centerlines automatically"""
+
+        # Get inlet and outlet centers of surface
+        sourcePoints, targetPoints = self._get_inlet_and_outlets()
+
+        CapDisplacement = 0.0
+        FlipNormals = 0
+        CostFunction = '1/R'
+        AppendEndPoints = 1
+        CheckNonManifold = 0
+
+        Resampling = 0
+        ResamplingStepLength = 1.0
+        SimplifyVoronoi = 0
+
+        # Clean and triangulate
+        surfaceCleaner = vtk.vtkCleanPolyData()
+        surfaceCleaner.SetInputData(self.Surface)
+        surfaceCleaner.Update()
+
+        surfaceTriangulator = vtk.vtkTriangleFilter()
+        surfaceTriangulator.SetInputConnection(surfaceCleaner.GetOutputPort())
+        surfaceTriangulator.PassLinesOff()
+        surfaceTriangulator.PassVertsOff()
+        surfaceTriangulator.Update()
+
+        # Cap surface
+        surfaceCapper = vtkvmtk.vtkvmtkCapPolyData()
+        surfaceCapper.SetInputConnection(surfaceTriangulator.GetOutputPort())
+        surfaceCapper.SetDisplacement(CapDisplacement)
+        surfaceCapper.SetInPlaneDisplacement(CapDisplacement)
+        surfaceCapper.Update()
+
+        centerlineInputSurface = surfaceCapper.GetOutput()
+
+        # Get source and target ids of closest point
+        sourceSeedIds = vtk.vtkIdList()
+        targetSeedIds = vtk.vtkIdList()
+
+        pointLocator = vtk.vtkPointLocator()
+        pointLocator.SetDataSet(centerlineInputSurface)
+        pointLocator.BuildLocator()
+
+        for i in range(len(sourcePoints)//3):
+            point = [sourcePoints[3*i + 0],
+                     sourcePoints[3*i + 1],
+                     sourcePoints[3*i + 2]]
+
+            id_ = pointLocator.FindClosestPoint(point)
+            sourceSeedIds.InsertNextId(id_)
+
+        for i in range(len(targetPoints)//3):
+            point = [targetPoints[3*i + 0],
+                     targetPoints[3*i + 1],
+                     targetPoints[3*i + 2]]
+
+            id_ = pointLocator.FindClosestPoint(point)
+            targetSeedIds.InsertNextId(id_)
+
+        # Compute centerlines
+        centerlineFilter = vtkvmtk.vtkvmtkPolyDataCenterlines()
+        centerlineFilter.SetInputData(centerlineInputSurface)
+
+        centerlineFilter.SetSourceSeedIds(sourceSeedIds)
+        centerlineFilter.SetTargetSeedIds(targetSeedIds)
+
+        centerlineFilter.SetRadiusArrayName(self.RadiusArrayName)
+        centerlineFilter.SetCostFunction(CostFunction)
+        centerlineFilter.SetFlipNormals(FlipNormals)
+        centerlineFilter.SetAppendEndPointsToCenterlines(AppendEndPoints)
+        centerlineFilter.SetSimplifyVoronoi(SimplifyVoronoi)
+
+        centerlineFilter.SetCenterlineResampling(Resampling)
+        centerlineFilter.SetResamplingStepLength(ResamplingStepLength)
+        centerlineFilter.Update()
+
+        self.Centerlines = centerlineFilter.GetOutput()
 
     def ComputeVasculatureThickness(self):
         """Compute thickness array based on diameter and WLR.
@@ -219,7 +335,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # Smooth the distance to centerline array
         # to avoid sudden changes of thickness in
         # certain regions
-        surface = self._smooth_array(surface, 
+        surface = self._smooth_array(surface,
                                      distanceArrayName,
                                      niterations=self.SmoothingIterations)
 
@@ -303,8 +419,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.vmtkRenderer.AddKeyBinding('d', 'Delete contour',
                                         self._delete_contour)
 
-        
-        self.vmtkRenderer.InputInfo('Select aneurysm neck')
+        self.vmtkRenderer.InputInfo('Select aneurysm neck\n')
 
         self._display()
         self.vmtkRenderer.Deallocate()
@@ -373,12 +488,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                                           self.ThicknessArrayName,
                                           niterations=self.SmoothingIterations)
 
-
     def ExtrudeWallMesh(self):
         """Extrude wall along normals with thickness array."""
 
         normals = vmtkscripts.vmtkSurfaceNormals()
-        normals.Surface = self.Surface 
+        normals.Surface = self.Surface
         normals.FlipNormals = 0
         normals.Execute()
 
@@ -388,7 +502,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         wallMesh = vmtkscripts.vmtkBoundaryLayer()
         wallMesh.Mesh = surfaceToMesh.Mesh
-        wallMesh.WarpVectorsArrayName = normals.NormalsArrayName 
+        wallMesh.WarpVectorsArrayName = normals.NormalsArrayName
         wallMesh.ThicknessArrayName = self.ThicknessArrayName
         wallMesh.ThicknessRatio = 1
         wallMesh.NumberOfSubLayers = self.WallMeshLayers
@@ -414,7 +528,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         wallMesh.Execute()
 
         self.WallMesh = wallMesh.Mesh
-
 
     def Execute(self):
 
