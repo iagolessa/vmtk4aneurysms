@@ -35,11 +35,14 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.RadiusArrayName = "MaximumInscribedSphereRadius"
         self.Aneurysm = True
 
-        self.ManualMode = True
-        self.ScaleFactor = 0.75
+        self.ManualMode = False
+        self.GlobalScaleFactor = 0.75
         self.WallLumenRatio = self._wlrMedium
         self.ThicknessArrayName = 'Thickness'
         self.SmoothingIterations = 10
+
+        self.SelectAneurysmRegions = False
+        self.LocalScaleFactor = 0.75
 
         self.GenerateWallMesh = False
         self.WallMesh = None
@@ -48,6 +51,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.vmtkRenderer = None
         self.OwnRenderer = 0
         self.ContourWidget = None
+        self.Actor = None
+        self.Interpolator = None
 
         self.SetScriptName('vmtksurfacevasculaturethickness')
         self.SetScriptDoc('')
@@ -65,8 +70,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             ['Aneurysm', 'aneurysm', 'bool', 1, '',
                 'to indicate presence of an aneurysm'],
 
-            ['ScaleFactor', 'scalefactor', 'float', 1, '',
-                'scale fator to control size of aneurysm thickness'],
+            ['GlobalScaleFactor', 'globalfactor', 'float', 1, '',
+                'scale fator to control global aneurysm thickness'],
 
             ['ManualMode', 'manual', 'bool', 1, '',
                 'enable manual mode to select centerline endpoints'],
@@ -85,6 +90,12 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             ['WallMeshLayers', 'layers', 'int', 1, '',
                 'the number of layers to extrude the wall mesh'],
+
+            ['SelectAneurysmRegions', 'aneurysmregions', 'bool', 1, '',
+                'enable selection of aneurysm thinner or thicker regions'],
+
+            ['LocalScaleFactor', 'localfactor', 'float', 1, '',
+                'scale fator to control local aneurysm thickness'],
         ])
 
         self.SetOutputMembers([
@@ -378,6 +389,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         triangleFilter.Update()
         self.Surface = triangleFilter.GetOutput()
 
+#         self.Surface.GetPointData().SetActiveScalars(self.ThicknessArrayName)
+
         # Create mapper for the surface
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputData(self.Surface)
@@ -422,7 +435,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.vmtkRenderer.InputInfo('Select aneurysm neck\n')
 
         self._display()
-        self.vmtkRenderer.Deallocate()
 
         # Get loop points from representation to vtkPoints
         pointIds = vtk.vtkIdList()
@@ -449,7 +461,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         selectionScalars = selectionFilter.GetOutput().GetPointData().GetScalars()
 
         # Update both fields with selection
-        thicknessArray = self.Surface.GetPointData().GetArray(self.ThicknessArrayName)
+        thicknessArray = self.Surface.GetPointData().GetArray(
+            self.ThicknessArrayName
+        )
 
         # Compute aneurysm thickness
         aneurysmThickness = 0.0
@@ -468,7 +482,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 aneurysmThickness += weight*thicknessValue
                 normFactor += weight
 
-        aneurysmThickness = self.ScaleFactor*aneurysmThickness/normFactor
+        aneurysmThickness = self.GlobalScaleFactor*aneurysmThickness/normFactor
 
         # Then, substitute thickness array by aneurysmThickness
         for i in range(thicknessArray.GetNumberOfTuples()):
@@ -487,6 +501,142 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Surface = self._smooth_array(surfaceProjection.GetOutput(),
                                           self.ThicknessArrayName,
                                           niterations=self.SmoothingIterations)
+
+        if self.OwnRenderer:
+            self.vmtkRenderer.Deallocate()
+            self.OwnRenderer = 0
+
+    def _set_thinner_thickness(self, obj):
+        """Set thinner thickness on selected region."""
+
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+            self.ContourWidget.GetRepresentation()
+        )
+
+        # Get loop points from representation to vtkPoints
+        pointIds = vtk.vtkIdList()
+        self.Interpolator.GetContourPointIds(rep, pointIds)
+
+        points = vtk.vtkPoints()
+        points.SetNumberOfPoints(pointIds.GetNumberOfIds())
+
+        # Get points in surface
+        for i in range(pointIds.GetNumberOfIds()):
+            pointId = pointIds.GetId(i)
+            point = self.Surface.GetPoint(pointId)
+            points.SetPoint(i, point)
+
+        # Get array of surface selection based on loop points
+        selectionFilter = vtk.vtkSelectPolyData()
+        selectionFilter.SetInputData(self.Surface)
+        selectionFilter.SetLoop(points)
+        selectionFilter.GenerateSelectionScalarsOn()
+        selectionFilter.SetSelectionModeToSmallestRegion()
+        selectionFilter.Update()
+
+        # Get selection scalars
+        selectionScalars = selectionFilter.GetOutput().GetPointData().GetScalars()
+
+        # Update both fields with selection
+        thicknessArray = self.Surface.GetPointData().GetArray(
+            self.ThicknessArrayName
+        )
+
+#         queryString = 'Enter scale factor: '
+#         self.LocalScaleFactor = self.InputText(queryString)
+#         print(self.LocalScaleFactor)
+
+        # multiply thickness by scale factor in inside regions
+        # where selection value is < 0.0, for this case
+        for i in range(thicknessArray.GetNumberOfTuples()):
+            selectionValue = selectionScalars.GetTuple1(i)
+            thicknessValue = thicknessArray.GetTuple1(i)
+
+            if selectionValue < 0.0:
+                thinnerThickness = self.LocalScaleFactor*thicknessValue
+                thicknessArray.SetTuple1(i, thinnerThickness)
+
+        self.Actor.GetMapper().SetScalarRange(thicknessArray.GetRange(0))
+
+        self.Surface.Modified()
+
+        self.ContourWidget.Initialize()
+
+    def SelectThinnerRegions(self):
+        """Interactvely select thinner regions of the aneurysm."""
+
+        # Initialize renderer
+        if not self.OwnRenderer:
+            self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
+            self.vmtkRenderer.Initialize()
+            self.OwnRenderer = 1
+
+        self.Surface.GetPointData().SetActiveScalars(self.ThicknessArrayName)
+
+        # Create mapper and actor to scene
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(self.Surface)
+        mapper.ScalarVisibilityOn()
+
+        self.Actor = vtk.vtkActor()
+        self.Actor.SetMapper(mapper)
+        self.Actor.GetMapper().SetScalarRange(-1.0, 0.0)
+        self.vmtkRenderer.Renderer.AddActor(self.Actor)
+
+        # Create representation to draw contour
+        self.ContourWidget = vtk.vtkContourWidget()
+        self.ContourWidget.SetInteractor(
+            self.vmtkRenderer.RenderWindowInteractor)
+
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+            self.ContourWidget.GetRepresentation()
+        )
+
+        rep.GetLinesProperty().SetColor(1, 0.2, 0)
+        rep.GetLinesProperty().SetLineWidth(3.0)
+
+        pointPlacer = vtk.vtkPolygonalSurfacePointPlacer()
+        pointPlacer.AddProp(self.Actor)
+        pointPlacer.GetPolys().AddItem(self.Surface)
+        rep.SetPointPlacer(pointPlacer)
+
+        self.Interpolator = vtk.vtkPolygonalSurfaceContourLineInterpolator()
+        self.Interpolator.GetPolys().AddItem(self.Surface)
+        rep.SetLineInterpolator(self.Interpolator)
+
+        self.vmtkRenderer.AddKeyBinding('i', 'Start interaction: select region',
+                                        self._interact)
+
+        self.vmtkRenderer.AddKeyBinding('space',
+                                        'Update thickness',
+                                        self._set_thinner_thickness)
+
+        self.vmtkRenderer.AddKeyBinding('d',
+                                        'Delete contour',
+                                        self._delete_contour)
+
+        self.vmtkRenderer.InputInfo('Select regions to update thickness\n'
+                                    'Current local scale factor: '+str(self.LocalScaleFactor)+'\n')
+
+        # Update range for lengend
+        thicknessArray = self.Surface.GetPointData().GetArray(self.ThicknessArrayName)
+        self.Actor.GetMapper().SetScalarRange(thicknessArray.GetRange(0))
+        self.Surface.Modified()
+
+        self.Legend = 1
+        if self.Legend and self.Actor:
+            self.ScalarBarActor = vtk.vtkScalarBarActor()
+            self.ScalarBarActor.SetLookupTable(
+                self.Actor.GetMapper().GetLookupTable())
+            self.ScalarBarActor.GetLabelTextProperty().ItalicOff()
+            self.ScalarBarActor.GetLabelTextProperty().BoldOff()
+            self.ScalarBarActor.GetLabelTextProperty().ShadowOff()
+# self.ScalarBarActor.GetLabelTextProperty().SetColor(0.0,0.0,0.0)
+            self.ScalarBarActor.SetLabelFormat('%.2f')
+            self.ScalarBarActor.SetTitle(self.ThicknessArrayName)
+            self.vmtkRenderer.Renderer.AddActor(self.ScalarBarActor)
+
+        self._display()
 
     def ExtrudeWallMesh(self):
         """Extrude wall along normals with thickness array."""
@@ -546,9 +696,13 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         if self.Aneurysm:
             self.SetAneurysmThickness()
+            self.SelectThinnerRegions()
 
         if self.GenerateWallMesh:
             self.ExtrudeWallMesh()
+
+        if self.OwnRenderer:
+            self.vmtkRenderer.Deallocate()
 
 
 if __name__ == '__main__':
