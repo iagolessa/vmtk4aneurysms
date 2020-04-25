@@ -36,19 +36,29 @@ class Bifurcation:
             self.numberOfBranches = vectors.GetPoints().GetNumberOfPoints()
 
             # Collect point and vectors
-            points = vectors.GetPoints()
+            points    = vectors.GetPoints()
             pointData = vectors.GetPointData()
 
-            self.points = [points.GetPoint(i)
-                           for i in range(self.numberOfBranches)]
-            self.vectors = [pointData.GetArray('BifurcationVectors').GetTuple(
-                i) for i in range(self.numberOfBranches)]
-            self.inPlaneVectors = [pointData.GetArray('InPlaneBifurcationVectors').GetTuple(
-                i) for i in range(self.numberOfBranches)]
+            self.points = [
+                    points.GetPoint(i)
+                    for i in range(self.numberOfBranches)
+                ]
+
+            self.vectors = [
+                    pointData.GetArray('BifurcationVectors').GetTuple(index) 
+                    for index in range(self.numberOfBranches)
+                ]
+
+            self.inPlaneVectors = [
+                    pointData.GetArray('InPlaneBifurcationVectors').GetTuple(i) 
+                    for i in range(self.numberOfBranches)
+                ]
 
         except AttributeError:
-            print(
-                "Error building bifurcation! It seems you did not pass me a vtkPolyData.", end='\n')
+            errorMessage = "Error building bifurcation!"+ \
+                            "It seems you did not pass me a vtkPolyData."
+
+            print(errorMessage)
 
 
 class Vasculature:
@@ -60,27 +70,37 @@ class Vasculature:
     its inlets and outlets of blood flow as perpendicular
     open sections (so far, it handles only vasculatures with 
     a single inlet, defined as the one with largest radius).
+    At construction, the class automatically computes the 
+    centerlines (can be changed with the switch 
+    'manual_centerline') and the morphology of the vasculature:
+    the centerlines is computed together with its complete
+    set of morphological attributes.
     """
 
-    def __init__(self, surface, manual_centerline=True, with_aneurysm=True):
+    def __init__(self, 
+                 surface, 
+                 manual_centerline=False, 
+                 with_aneurysm=True):
+
         print('Initiating model.', end='\n')
-        self.surface = surface
+        self.surface     = surface
+        self.centerlines = None
 
         # Compute open boundaries centers
-        self.inletCenters = []
-        self.outletCenters = []
+        self.inletCenters  = list()
+        self.outletCenters = list()
 
         # Switches
         self.ManualPickpoint = manual_centerline
-        self.WithAneurysm = with_aneurysm
+        self.WithAneurysm    = with_aneurysm
 
         # Compute morphology
         self._compute_open_centers()
-        self._compute_centerline()
+        self._generate_centerlines()
         self._compute_centerline_geometry()
 
         # Collect bifurcations to this list
-        self.bifurcations = []
+        self.bifurcations = list()
         self._compute_bifurcations_geometry()
 
     def _compute_open_centers(self):
@@ -88,16 +108,16 @@ class Vasculature:
 
         Computes the geometric center of each open boundary
         of the model. Computes two lists: one with the inlet
-        coordinates (tuple) and another with the outlets 
+        coordinates (tuple) and another with the outlets
         coordinates also as tuples of three components:
 
-            Inlet coords: [(xi, yi, zi)]
-            Outlet coords: [(xo1,yo1,zo1), 
+            Inlet coords:  [(xi, yi, zi)]
+            Outlet coords: [(xo1,yo1,zo1),
                             (xo2,yo2,zo2),
                             ...
                             (xon,yon,zon)]
 
-        for a model with a single inlet and n outlets. The 
+        for a model with a single inlet and n outlets. The
         inlet is defined as the open boundary with largest radius.
         """
 
@@ -115,12 +135,12 @@ class Vasculature:
         referenceSystems.Update()
 
         openBoundariesRefSystem = referenceSystems.GetOutput()
-        numberOfOpenBoundaries = openBoundariesRefSystem.GetPoints().GetNumberOfPoints()
+        nOpenBoundaries = openBoundariesRefSystem.GetPoints().GetNumberOfPoints()
 
         maxRadius = openBoundariesRefSystem.GetPointData().GetArray(
             radiusArray).GetRange()[intOne]
 
-        for i in range(numberOfOpenBoundaries):
+        for i in range(nOpenBoundaries):
             # Get radius and center
             center = tuple(openBoundariesRefSystem.GetPoints().GetPoint(i))
             radius = openBoundariesRefSystem.GetPointData().GetArray(radiusArray).GetValue(i)
@@ -242,8 +262,11 @@ class Vasculature:
         # Get bifuraction list
         self.numberOfBifurcations = bifsRefSystem.ReferenceSystems.GetPoints().GetNumberOfPoints()
         bifsIdsArray = bifsRefSystem.ReferenceSystems.GetPointData().GetArray(groupIdsArrayName)
-        bifurcationsIds = [bifsIdsArray.GetValue(
-            i) for i in range(self.numberOfBifurcations)]
+
+        bifurcationsIds = [
+                bifsIdsArray.GetValue(index) 
+                for index in range(self.numberOfBifurcations)
+            ]
 
         if self.numberOfBifurcations > intZero:
             # Compute bifurcation
@@ -285,8 +308,9 @@ class Vasculature:
 
         vasculatureThickness = vmtkscripts.vmtkSurfaceVasculatureThickness()
         vasculatureThickness.Surface = self.surface
-        vasculatureThickness.Centerlines = self.centerline
+        vasculatureThickness.Centerlines = self.centerlines
         vasculatureThickness.Aneurysm = self.WithAneurysm
+        vasculatureThickness.SelectAneurysmRegions = False
 
         vasculatureThickness.SmoothingIterations = 20
         vasculatureThickness.GenerateWallMesh = False

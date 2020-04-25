@@ -190,7 +190,10 @@ def _tube_surface(centerline, smooth=True):
         return tube
 
 
-def _compute_surfaces_distance(isurface, rsurface, array_name='DistanceArray', signed_array=True):
+def _compute_surfaces_distance(isurface, 
+                               rsurface, 
+                               array_name='DistanceArray', 
+                               signed_array=True):
     """Compute point-wise distance between two surfaces.
     
     Compute distance between a reference
@@ -204,7 +207,9 @@ def _compute_surfaces_distance(isurface, rsurface, array_name='DistanceArray', s
         normalsFilter.AutoOrientNormalsOn()
         normalsFilter.SetFlipNormals(False)
         normalsFilter.Update()
-        rsurface.GetPointData().SetNormals(normalsFilter.GetOutput().GetPointData().GetNormals())
+        rsurface.GetPointData().SetNormals(
+            normalsFilter.GetOutput().GetPointData().GetNormals()
+        )
     
     surfaceDistance = vtkvmtk.vtkvmtkSurfaceDistance()
     surfaceDistance.SetInputData(isurface)
@@ -223,11 +228,17 @@ def _compute_surfaces_distance(isurface, rsurface, array_name='DistanceArray', s
 def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     """Extract the Voronoi diagram of the aneurysmal portion."""
 
-    # Compute distance between complete Voronoi and the parent vessel tube surface 
+    # Compute distance between complete Voronoi 
+    # and the parent vessel tube surface 
     DistanceArrayName = 'DistanceToTubeArray'
-    VoronoiDistance   = _compute_surfaces_distance(VoronoiSurface, tubeSurface, array_name=DistanceArrayName)
+    VoronoiDistance   = _compute_surfaces_distance(
+                            VoronoiSurface, 
+                            tubeSurface, 
+                            array_name=DistanceArrayName
+                        )
 
-    # Clip the original voronoi diagram at the zero distance (intersection)
+    # Clip the original voronoi diagram at 
+    # the zero distance (intersection)
     VoronoiClipper = vmtkscripts.vmtkSurfaceClipper()
     VoronoiClipper.Surface = VoronoiDistance
     VoronoiClipper.Interactive   = False
@@ -239,31 +250,32 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     aneurysmVoronoi = _connected_region(VoronoiClipper.Surface,'largest')
     
     if _inspect:
-        _view_surface(aneurysmVoronoi)
+        tools.viewSurface(aneurysmVoronoi)
         
-    return _cleaner(aneurysmVoronoi)
+    return tools.cleaner(aneurysmVoronoi)
 
 
 def _Voronoi_envelope(Voronoi):
     """Compute the envelope surface of a Voronoi diagram."""
+
     # List to collect objects 
-    objects = []
+    objects = list()
     
     radiusArray   = 'MaximumInscribedSphereRadius'
 
     VoronoiBounds     = Voronoi.GetBounds()
     radiusArrayBounds = Voronoi.GetPointData().GetArray(radiusArray).GetValueRange()
     maxSphereRadius   = radiusArrayBounds[intOne]
-    enlargeBoxBounds  = (intFour/intTen) * maxSphereRadius
+    enlargeBoxBounds  = (intFour/intTen)*maxSphereRadius
     
     modelBounds = np.array(VoronoiBounds) + \
-                  np.array(_dimensions * [-enlargeBoxBounds, enlargeBoxBounds])
+                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
     
     # Building the envelope image function
     envelopeFunction = vmtkscripts.vmtkPolyBallModeller()
     envelopeFunction.Surface = Voronoi
-    envelopeFunction.RadiusArrayName  = radiusArray
-    envelopeFunction.ModelBounds      = list(modelBounds)
+    envelopeFunction.RadiusArrayName = radiusArray
+    envelopeFunction.ModelBounds     = list(modelBounds)
     envelopeFunction.Execute()
     objects.append(envelopeFunction)
     
@@ -273,7 +285,7 @@ def _Voronoi_envelope(Voronoi):
     envelopeSurface.Execute()
     objects.append(envelopeSurface)
 
-    envelope = _connected_region(envelopeSurface.Surface,'largest')
+    envelope = _connected_region(envelopeSurface.Surface, 'largest')
     
     if _debug:
         for obj in objects:
@@ -281,17 +293,20 @@ def _Voronoi_envelope(Voronoi):
             obj.PrintOutputMembers()
             
     if _inspect:
-        _view_surface(envelope)
+        tools.viewSurface(envelope)
         
-    return _smooth_surface(envelope)
+    return tools.smoothSurface(envelope)
 
 
 def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     """Clip initial aneurysm surface from the original vascular model.
     
-    Compute distance between the aneurysm envelope and parent vasculature 
-    tube function from the original vascular surface model. Clip the surface
-    at the zero value of the difference between these two fields.
+    Compute distance between the aneurysm 
+    envelope and parent vasculature tube 
+    function from the original vascular 
+    surface model. Clip the surface at the 
+    zero value of the difference between 
+    these two fields.
     
     Arguments:
     surface_model --  the original vascular surface
@@ -304,8 +319,9 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     tubeToModelArray     = 'ParentTubeModelDistanceArray'
     envelopeToModelArray = 'AneurysmEnvelopeModelDistanceArray'
 
-    # Computes distance between original surface model and the aneurysm envelope, 
-    # and from the parent tube surface
+    # Computes distance between original surface model 
+    # and the aneurysm envelope, and from the parent 
+    # tube surface
     aneurysmEnvelopeDistance = _compute_surfaces_distance(surface_model, 
                                                           aneurysm_envelope, 
                                                           array_name=envelopeToModelArray)
@@ -364,8 +380,8 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
     parent_centerline = clResampling.Centerlines
     
     # Search clipping points in the new centerlines
-    clipCenters = []
-    clipNormals = []
+    clipCenters = list()
+    clipNormals = list()
     
     clipPointsArray = _vtk_vertices_to_numpy(clipping_points)
     
@@ -394,8 +410,12 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
 
     # Get barycenter of clipping points
     clipPointsPoints     = clipping_points.GetPoints()    
-    clipPointsBarycenter = _dimensions * [intZero]
-    vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(clipPointsPoints,clipPointsBarycenter)    
+    clipPointsBarycenter = _dimensions*[intZero]
+
+    vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
+        clipPointsPoints,clipPointsBarycenter
+    )    
+    
     clippedTube = _connected_region(_clip_with_plane(parent_tube,center,normal),
                                     'closest',
                                     clipPointsBarycenter)
@@ -407,8 +427,15 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
 
     # Clip remaining daughters
     for center, normal in zip(clipCenters,clipNormals):
-        clipDaughter = _clip_with_plane(clippedTube,center,normal,inside_out=True)       
-        clippedTube  = _connected_region(clipDaughter,'closest',clipPointsBarycenter)
+        
+        clipDaughter = _clip_with_plane(clippedTube,
+                                        center,
+                                        normal,
+                                        inside_out=True)
+
+        clippedTube  = _connected_region(clipDaughter,
+                                         'closest',
+                                         clipPointsBarycenter)
 
     if _inspect:
         tools.viewSurface(clippedTube)
@@ -493,8 +520,8 @@ def _sac_centerline(aneurysm_sac,distance_array):
 
     # Build spline along with to perform the neck search
     
-    nPoints       = intOne * intHundred   # number of points to perform search
-    barycenters   = []                      # barycenter's list    
+    nPoints       = intOne*intHundred   # number of points to perform search
+    barycenters   = list()              # barycenter's list    
     
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
 
@@ -529,7 +556,7 @@ def _sac_centerline(aneurysm_sac,distance_array):
     # Compute list with distance coordinate along spline
     distance = intZero                      
     previous = barycenters[intZero]
-    distanceCoord = []                      # path distance coordinate
+    distanceCoord = list()                    # path distance coordinate
     
     for index, center in enumerate(barycenters):
         
@@ -546,7 +573,7 @@ def _sac_centerline(aneurysm_sac,distance_array):
     # Find spline of barycenters and get derivative == normals
     limitFraction = intSeven/intTen
     
-    tck, u  = interpolate.splprep(barycenters.T, u=distanceCoord)
+    tck, u = interpolate.splprep(barycenters.T, u=distanceCoord)
     
     # Max and min t of spline
     minSplineDomain = min(u)-intFive/intTen
@@ -621,7 +648,7 @@ def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
     azims = np.arange(intZero, azimMax, azimIncr) * degToRad
 
     # Minimum area seacrh
-    sectionInfo  = []
+    sectionInfo  = list()
     previousVariable = HUGE
 
     # Iterate over barycenters and clip surface with closed surface
@@ -643,7 +670,8 @@ def _search_neck_plane(anerysm_sac,centers,normals,min_variable='area'):
         for tilt in tilts:
             for azim in azims:
 
-                # Set plane with barycenters and normals as tangent to spline
+                # Set plane with barycenters and 
+                # normals as tangent to spline
                 plane = vtk.vtkPlane()
                 plane.SetOrigin(tuple(center)) 
 
