@@ -374,6 +374,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             elif distance < minRadiusLim:
                 distanceArray.SetTuple1(index, radius)
+
+        # Remove radius array
+        surface.GetPointData().RemoveArray(self.RadiusArrayName)
             
         # Smooth the distance to centerline array
         # to avoid sudden changes of thickness in
@@ -528,9 +531,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         surfaceProjection.SetReferenceSurface(self.Surface)
         surfaceProjection.Update()
 
-        self.Surface = self._smooth_array(surfaceProjection.GetOutput(),
-                                          self.ThicknessArrayName,
-                                          niterations=self.SmoothingIterations)
+        self.Surface = surfaceProjection.GetOutput()
 
         if self.OwnRenderer:
             self.vmtkRenderer.Deallocate()
@@ -645,11 +646,15 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                                         'Delete contour',
                                         self._delete_contour)
 
-        self.vmtkRenderer.InputInfo('Select regions to update thickness\n'
-                                    'Current local scale factor: '+str(self.LocalScaleFactor)+'\n')
+        self.vmtkRenderer.InputInfo('Select regions to update thickness\n'  \
+                                    'Current local scale factor: '+         \
+                                    str(self.LocalScaleFactor)+'\n')
 
         # Update range for lengend
-        thicknessArray = self.Surface.GetPointData().GetArray(self.ThicknessArrayName)
+        thicknessArray = self.Surface.GetPointData().GetArray(
+                            self.ThicknessArrayName
+                        )
+
         self.Actor.GetMapper().SetScalarRange(thicknessArray.GetRange(0))
         self.Surface.Modified()
 
@@ -661,7 +666,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             self.ScalarBarActor.GetLabelTextProperty().ItalicOff()
             self.ScalarBarActor.GetLabelTextProperty().BoldOff()
             self.ScalarBarActor.GetLabelTextProperty().ShadowOff()
-# self.ScalarBarActor.GetLabelTextProperty().SetColor(0.0,0.0,0.0)
+#             self.ScalarBarActor.GetLabelTextProperty().SetColor(0.0,0.0,0.0)
             self.ScalarBarActor.SetLabelFormat('%.2f')
             self.ScalarBarActor.SetTitle(self.ThicknessArrayName)
             self.vmtkRenderer.Renderer.AddActor(self.ScalarBarActor)
@@ -741,6 +746,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             if self.SelectAneurysmRegions:
                 self.SelectThinnerRegions()
+
+        # After array create, smooth it hard
+        self.Surface = self._smooth_array(self.Surface,
+                                          self.ThicknessArrayName,
+                                          niterations=self.SmoothingIterations)
 
         if self.GenerateWallMesh:
             self.ExtrudeWallMesh()
