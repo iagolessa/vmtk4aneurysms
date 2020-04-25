@@ -41,16 +41,22 @@ def writeSurface(surface, file_name, mode='binary'):
     Optional arguments:
     mode -- mode to write file (ASCII or binary, default binary)
     """
-    writer = vtk.vtkPolyDataWriter()
-    writer.SetFileName(file_name)
-    writer.SetInputData(surface)
-    
-    if mode == 'binary':
-        writer.SetDataModeToBinary()
-    elif mode == 'ascii':
-        writer.SetDataModeToAscii()
-        
-    writer.Write()
+    writer = vmtkscripts.vmtkSurfaceWriter()
+    writer.Surface = surface
+    writer.Mode = mode
+    writer.OutputFileName = file_name
+    writer.Execute()
+
+#     writer = vtk.vtkPolyDataWriter()
+#     writer.SetFileName(file_name)
+#     writer.SetInputData(surface)
+#
+#     if mode == 'binary':
+#         writer.SetFileTypeToBinary()
+#     elif mode == 'ascii':
+#         writer.SetFileTypeToASCII()
+#
+#     writer.Write()
 
 
 def smoothSurface(surface):
