@@ -7,7 +7,7 @@ from vmtk import vtkvmtk
 from scipy import interpolate
 from scipy.spatial import ConvexHull
 
-from vtk.numpyinterface import dataset_adapter as dsa
+from vtk.numpy_interface import dataset_adapter as dsa
 
 # Local modules
 from constants import *
