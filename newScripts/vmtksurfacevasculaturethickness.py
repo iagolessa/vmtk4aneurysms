@@ -332,24 +332,55 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             self._generate_centerlines()
 
         # Compute distance to centerlines
-        distanceToCenterlines = vmtkscripts.vmtkDistanceToCenterlines()
-        distanceToCenterlines.Surface = self.Surface
-        distanceToCenterlines.Centerlines = self.Centerlines
-        distanceToCenterlines.UseRadiusInformation = 1
-#         distanceToCenterlines.UseCombinedDistance = 1
-        distanceToCenterlines.RadiusArrayName = self.RadiusArrayName
-        distanceToCenterlines.DistanceToCenterlinesArrayName = self.ThicknessArrayName
-        distanceToCenterlines.Execute()
+        distanceToCenterlines = vtkvmtk.vtkvmtkPolyDataDistanceToCenterlines()
+        distanceToCenterlines.SetInputData(self.Surface)
+        distanceToCenterlines.SetCenterlines(self.Centerlines)
 
-        surface = distanceToCenterlines.Surface
-        distanceArrayName = distanceToCenterlines.DistanceToCenterlinesArrayName
+        distanceToCenterlines.SetUseRadiusInformation(True)
+        distanceToCenterlines.SetEvaluateCenterlineRadius(True)
+        distanceToCenterlines.SetEvaluateTubeFunction(False)
+        distanceToCenterlines.SetProjectPointArrays(False)
+        
+        distanceToCenterlines.SetDistanceToCenterlinesArrayName(
+            self.ThicknessArrayName
+        )
 
+        distanceToCenterlines.SetCenterlineRadiusArrayName(self.RadiusArrayName)
+        distanceToCenterlines.Update()    
+        
+        surface = distanceToCenterlines.GetOutput()
+
+        distanceArray = surface.GetPointData().GetArray(self.ThicknessArrayName)
+        radiusArray   = surface.GetPointData().GetArray(self.RadiusArrayName)
+
+        # This portion evaluates if distance is much higher 
+        # than the actual radius array
+        # This necessarily will need ome smoothing
+
+        # Set high and low threshold factors
+        highRadiusThresholdFactor = 1.4
+        lowRadiusThresholdFactor  = 0.9
+
+        for index in range(surface.GetNumberOfPoints()):
+            distance = distanceArray.GetTuple1(index)
+            radius   = radiusArray.GetTuple1(index)
+
+            # Are they arbitrary
+            maxRadiusLim = highRadiusThresholdFactor*radius
+            minRadiusLim = lowRadiusThresholdFactor*radius
+
+            if distance > maxRadiusLim:
+                distanceArray.SetTuple1(index, maxRadiusLim)
+
+            elif distance < minRadiusLim:
+                distanceArray.SetTuple1(index, radius)
+            
         # Smooth the distance to centerline array
         # to avoid sudden changes of thickness in
         # certain regions
         nIterations = 5     # add a little bit of smoothing now
         surface = self._smooth_array(surface,
-                                     distanceArrayName,
+                                     self.ThicknessArrayName,
                                      niterations=nIterations)
 
         # Multiply by WLR to have a prelimimar thickness array
@@ -357,7 +388,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # but I can change this in a point-wise manner based on
         # the local radius array by using the algorithm contained
         # in the vmtksurfacearrayoperation script
-        array = surface.GetPointData().GetArray(distanceArrayName)
+        array = surface.GetPointData().GetArray(self.ThicknessArrayName)
         
         for index in range(array.GetNumberOfTuples()):
             # Get value
@@ -542,7 +573,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         )
 
 #         queryString = 'Enter scale factor: '
-#         self.LocalScaleFactor = self.InputText(queryString)
+#         self.LocalScaleFactor = int(self.InputText(queryString))
 #         print(self.LocalScaleFactor)
 
         # multiply thickness by scale factor in inside regions
@@ -707,7 +738,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         if self.Aneurysm:
             self.SetAneurysmThickness()
-            self.SelectThinnerRegions()
+
+            if self.SelectAneurysmRegions:
+                self.SelectThinnerRegions()
 
         if self.GenerateWallMesh:
             self.ExtrudeWallMesh()
