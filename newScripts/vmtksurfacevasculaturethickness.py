@@ -676,8 +676,20 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         wallMesh.IncludeSurfaceCells = 0
         wallMesh.NegateWarpVectors = 0
         wallMesh.Execute()
+        
+        # Clean fields and cell arrays
+        solidWallMesh = wallMesh.Mesh
+        
+        nFields     = solidWallMesh.GetFieldData().GetNumberOfArrays()
+        nCellArrays = solidWallMesh.GetCellData().GetNumberOfArrays()
+        
+        for field in range(nFields):
+            solidWallMesh.GetFieldData().RemoveArray(field)
 
-        self.WallMesh = wallMesh.Mesh
+        for array in range(nCellArrays):
+            solidWallMesh.GetCellData().RemoveArray(array)
+
+        self.WallMesh = solidWallMesh
 
     def Execute(self):
 
