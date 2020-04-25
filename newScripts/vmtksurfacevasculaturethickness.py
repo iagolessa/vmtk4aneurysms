@@ -338,6 +338,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         distanceToCenterlines.UseRadiusInformation = 1
 #         distanceToCenterlines.UseCombinedDistance = 1
         distanceToCenterlines.RadiusArrayName = self.RadiusArrayName
+        distanceToCenterlines.DistanceToCenterlinesArrayName = self.ThicknessArrayName
         distanceToCenterlines.Execute()
 
         surface = distanceToCenterlines.Surface
@@ -346,26 +347,24 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # Smooth the distance to centerline array
         # to avoid sudden changes of thickness in
         # certain regions
+        nIterations = 5     # add a little bit of smoothing now
         surface = self._smooth_array(surface,
                                      distanceArrayName,
-                                     niterations=self.SmoothingIterations)
+                                     niterations=nIterations)
 
         # Multiply by WLR to have a prelimimar thickness array
         # I assume that the WLR is the same for medium sized arteries
         # but I can change this in a point-wise manner based on
         # the local radius array by using the algorithm contained
         # in the vmtksurfacearrayoperation script
-        wlrFactor = vmtkscripts.vmtkSurfaceArrayOperation()
-        wlrFactor.Surface = surface
-        wlrFactor.Operation = 'multiplybyc'
-        wlrFactor.InputArrayName = distanceArrayName
-        wlrFactor.Constant = 2.0*self.WallLumenRatio
-        wlrFactor.ResultArrayName = self.ThicknessArrayName
-        wlrFactor.Execute()
-
-        wlrFactor.Surface.GetPointData().RemoveArray(distanceArrayName)
-
-        self.Surface = wlrFactor.Surface
+        array = surface.GetPointData().GetArray(distanceArrayName)
+        
+        for index in range(array.GetNumberOfTuples()):
+            # Get value
+            value = array.GetTuple1(index)
+            array.SetTuple1(index, 2.0*self.WallLumenRatio*value)
+            
+        self.Surface = surface
 
     def SetAneurysmThickness(self):
         """Calculate and set aneurysm thickness.
