@@ -545,7 +545,11 @@ def _sac_centerline(aneurysm_sac,distance_array):
 
             if _contour_is_closed(contour) and nContourPoints != intZero:
                 barycenter = _dimensions*[intZero]
-                vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(contourPoints,barycenter)
+                vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
+                    contourPoints,
+                    barycenter
+                )
+
                 barycenters.append(barycenter)
 
         except:
@@ -1009,15 +1013,22 @@ class Aneurysm:
         """
         
         neckIndex = intTwo
-        
+        CellEntityIdsArrayName = "CellEntityIds"
+
         # Use thrshold filter to get neck plane
-        getNeckPlane = vmtkscripts.vmtkThreshold()
-        getNeckPlane.Surface = self._cap_aneurysm()
-        getNeckPlane.LowThreshold  = neckIndex
-        getNeckPlane.HighThreshold = neckIndex
-        getNeckPlane.Execute()
+        getNeckPlane = vtk.vtkThreshold()
+        getNeckPlane.SetInputData(self._cap_aneurysm())
+        getNeckPlane.SetInputArrayToProcess(0, 0, 0, 1, CellEntityIdsArrayName) 
+        getNeckPlane.ThresholdBetween(neckIndex, neckIndex)
+        getNeckPlane.Update()
+
+#         getNeckPlane = vmtkscripts.vmtkThreshold()
+#         getNeckPlane.Surface = self._cap_aneurysm()
+#         getNeckPlane.LowThreshold  = neckIndex
+#         getNeckPlane.HighThreshold = neckIndex
+#         getNeckPlane.Execute()
         
-        return getNeckPlane.Surface
+        return getNeckPlane.GetOutput()
         
 
     def _max_height_vector(self):
