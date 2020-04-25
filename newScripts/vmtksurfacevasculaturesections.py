@@ -2,11 +2,13 @@
 
 import os
 import sys
+import vtk
+import numpy as np
 
 from vmtk import pypes
 from vmtk import vmtkscripts
+from vmtk import vtkvmtk
 
-import vmtkfunctions as vf
 vmtksurfacevasculaturesections = 'vmtkSurfaceVasculatureSections'
 
 class vmtkSurfaceVasculatureSections(pypes.pypeScript):
@@ -52,6 +54,132 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         ])
 
 
+
+    def _get_inlet_and_outlets(self):
+        """Compute inlet and outlets centers of vascular surface.
+
+        Based on the surface and assuming that the inlet is the
+        open profile with largest area, return a tuple with two lists:
+        the first includes the coordinates of the inlet and the second 
+        the coordinates of the outlets.
+        """
+
+        boundaryRadiusArrayName  = "Radius"
+        boundaryNormalsArrayName = "Normals"
+        boundaryCentersArrayName = "Centers"
+
+        boundarySystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
+        boundarySystems.SetInputData(self.Surface)
+        boundarySystems.SetBoundaryRadiusArrayName(boundaryRadiusArrayName)
+        boundarySystems.SetBoundaryNormalsArrayName(boundaryNormalsArrayName)
+        boundarySystems.SetPoint1ArrayName(boundaryCentersArrayName)
+        boundarySystems.SetPoint2ArrayName(boundaryCentersArrayName)
+        boundarySystems.Update()
+
+        referenceSystems = boundarySystems.GetOutput()
+
+        nProfiles = referenceSystems.GetNumberOfPoints()
+
+        # Get inlet center (larger radius)
+        radiusArray = np.array([
+            referenceSystems.GetPointData().GetArray(boundaryRadiusArrayName).GetTuple1(i)
+            for i in range(nProfiles)
+        ])
+
+        maxRadius = max(radiusArray)
+        inletId = int(np.where(radiusArray == maxRadius)[0])
+        inletCenter = list(referenceSystems.GetPoint(inletId))
+
+        # Get outlets
+        outletCenters = list()
+
+        # Get centers of outlets
+        for profileId in range(nProfiles):
+
+            if profileId != inletId:
+                outletCenters += referenceSystems.GetPoint(profileId)
+
+        return inletCenter, outletCenters
+
+    def _generate_centerlines(self):
+        """Compute centerlines automatically"""
+
+        # Get inlet and outlet centers of surface
+        sourcePoints, targetPoints = self._get_inlet_and_outlets()
+
+        CapDisplacement = 0.0
+        FlipNormals     = 0
+        CostFunction    = '1/R'
+        AppendEndPoints = 1
+        CheckNonManifold = 0
+
+        Resampling = 0
+        ResamplingStepLength = 1.0
+        SimplifyVoronoi = 0
+
+        # Clean and triangulate
+        surfaceCleaner = vtk.vtkCleanPolyData()
+        surfaceCleaner.SetInputData(self.Surface)
+        surfaceCleaner.Update()
+
+        surfaceTriangulator = vtk.vtkTriangleFilter()
+        surfaceTriangulator.SetInputConnection(surfaceCleaner.GetOutputPort())
+        surfaceTriangulator.PassLinesOff()
+        surfaceTriangulator.PassVertsOff()
+        surfaceTriangulator.Update()
+
+        # Cap surface
+        surfaceCapper = vtkvmtk.vtkvmtkCapPolyData()
+        surfaceCapper.SetInputConnection(surfaceTriangulator.GetOutputPort())
+        surfaceCapper.SetDisplacement(CapDisplacement)
+        surfaceCapper.SetInPlaneDisplacement(CapDisplacement)
+        surfaceCapper.Update()
+
+        centerlineInputSurface = surfaceCapper.GetOutput()
+
+        # Get source and target ids of closest point
+        sourceSeedIds = vtk.vtkIdList()
+        targetSeedIds = vtk.vtkIdList()
+
+        pointLocator = vtk.vtkPointLocator()
+        pointLocator.SetDataSet(centerlineInputSurface)
+        pointLocator.BuildLocator()
+
+        for i in range(len(sourcePoints)//3):
+            point = [sourcePoints[3*i + 0],
+                     sourcePoints[3*i + 1],
+                     sourcePoints[3*i + 2]]
+
+            id_ = pointLocator.FindClosestPoint(point)
+            sourceSeedIds.InsertNextId(id_)
+
+        for i in range(len(targetPoints)//3):
+            point = [targetPoints[3*i + 0],
+                     targetPoints[3*i + 1],
+                     targetPoints[3*i + 2]]
+
+            id_ = pointLocator.FindClosestPoint(point)
+            targetSeedIds.InsertNextId(id_)
+
+        # Compute centerlines
+        centerlineFilter = vtkvmtk.vtkvmtkPolyDataCenterlines()
+        centerlineFilter.SetInputData(centerlineInputSurface)
+
+        centerlineFilter.SetSourceSeedIds(sourceSeedIds)
+        centerlineFilter.SetTargetSeedIds(targetSeedIds)
+
+        centerlineFilter.SetRadiusArrayName(self.RadiusArrayName)
+        centerlineFilter.SetCostFunction(CostFunction)
+        centerlineFilter.SetFlipNormals(FlipNormals)
+        centerlineFilter.SetAppendEndPointsToCenterlines(AppendEndPoints)
+        centerlineFilter.SetSimplifyVoronoi(SimplifyVoronoi)
+
+        centerlineFilter.SetCenterlineResampling(Resampling)
+        centerlineFilter.SetResamplingStepLength(ResamplingStepLength)
+        centerlineFilter.Update()
+
+        self.Centerlines = centerlineFilter.GetOutput()
+
     def ClipModel(self):
         """Clip surface on inlets and outlets."""
 
@@ -77,21 +205,6 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         # endPointExtractor.Execute()
         # endPointExtractor.PrintOutputMembers()
 
-    def ComputeCenterlines(self):
-        """Compute comdel centerlines."""
-
-        centerlines = vmtkscripts.vmtkCenterlines()
-        centerlines.Surface = self.Surface
-        centerlines.CheckNonManifold = True
-        centerlines.AppendEndPoints = False
-#         centerlines.SeedSelector = 'openprofiles'
-        centerlines.Resampling = True
-        centerlines.ResamplingStepLength = 0.10
-        centerlines.Execute()
-
-        self.Centerlines = centerlines.Centerlines
-        self.RadiusArrayName = centerlines.RadiusArrayName
-
 
     def Execute(self):
 
@@ -99,7 +212,7 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
             self.ClipModel()
 
         # Compute centerlines of model
-        self.ComputeCenterlines()
+        self._generate_centerlines()
 
         # Computing centerlines Frenet system
         cntGeometry = vmtkscripts.vmtkCenterlineGeometry()
