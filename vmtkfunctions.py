@@ -162,7 +162,7 @@ def readSurface(surfaceFileName):
 
 
 # Viewing surface
-def viewSurface(surface):
+def viewSurface(surface,array=None,legend=False):
     """ Function for visualize VTK surface objects.
     
         Input arguments:
@@ -172,6 +172,11 @@ def viewSurface(surface):
     """
     surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
     surfaceViewer.Surface = surface
+    
+    if array: 
+        surfaceViewer.ArrayName = array
+        surfaceViewer.Legend = legend
+
     surfaceViewer.Execute()
 
     
