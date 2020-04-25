@@ -121,73 +121,80 @@ class Vasculature:
             else:
                 self.outletCenters.append(center)
 
-    def _compute_centerline(self):
-        """Compute complete centerline.
+    def _generate_centerlines(self):
+        """Compute centerlines automatically"""
 
-        This code computes centerlines for a generic number of inlets
-        It does that by computing the centerlines for each source barycenter
-        and then appending the resulting centerlines with 'vmtksurfaceappend'
-        """
+        # Get inlet and outlet centers of surface
+        CapDisplacement  = 0.0
+        FlipNormals      = 0
+        CostFunction     = '1/R'
+        AppendEndPoints  = 1
+        CheckNonManifold = 0
 
-        if self.ManualPickpoint:
-            centerline = vmtkscripts.vmtkCenterlines()
-            centerline.Surface = self.surface
-            centerline.SeedSelectorName = 'openprofiles'
-            centerline.AppendEndPoints = 1
-            centerline.Execute()
+        Resampling = 0
+        ResamplingStepLength = 1.0
+        SimplifyVoronoi = 0
+        RadiusArrayName = "MaximumInscribedSphereRadius"
 
-            self.centerline = centerline.Centerlines
+        # Clean and triangulate
+        surface = tools.cleaner(self.surface)
 
-        else:
-            # Aneurysm top point to get aneurysm centerline
-            aneurysmTopPoint = []
-            centerlinesList = []
+        surfaceTriangulator = vtk.vtkTriangleFilter()
+        surfaceTriangulator.SetInputData(surface)
+        surfaceTriangulator.PassLinesOff()
+        surfaceTriangulator.PassVertsOff()
+        surfaceTriangulator.Update()
 
-            # Compute sequential list of outlets
-            outletCenters = list(self.outletCenters[intZero])
-            inletCenters = list(self.inletCenters[intZero])
+        # Cap surface
+        surfaceCapper = vtkvmtk.vtkvmtkCapPolyData()
+        surfaceCapper.SetInputConnection(surfaceTriangulator.GetOutputPort())
+        surfaceCapper.SetDisplacement(CapDisplacement)
+        surfaceCapper.SetInPlaneDisplacement(CapDisplacement)
+        surfaceCapper.Update()
 
-            for center in self.outletCenters[intOne:]:
-                outletCenters += center
+        centerlineInputSurface = surfaceCapper.GetOutput()
 
-            for center in self.inletCenters[intOne:]:
-                inlettCenters += center
+        # Get source and target ids of closest point
+        sourceSeedIds = vtk.vtkIdList()
+        targetSeedIds = vtk.vtkIdList()
 
-            for source in self.inletCenters:
-                # Instantiate vmtkcenterline object
-                centerline = vmtkscripts.vmtkCenterlines()
-                centerline.Surface = self.surface
-                centerline.SeedSelectorName = 'pointlist'
-                centerline.SourcePoints = inletCenters
-                centerline.TargetPoints = outletCenters + aneurysmTopPoint
-                centerline.Execute()
+        pointLocator = vtk.vtkPointLocator()
+        pointLocator.SetDataSet(centerlineInputSurface)
+        pointLocator.BuildLocator()
 
-                centerlinesList.append(centerline.Centerlines)
+        for point in self.inletCenters:
+            id_ = pointLocator.FindClosestPoint(point)
+            sourceSeedIds.InsertNextId(id_)
 
-            # Provide managing exception if there is only one centerline
-            centerlineMain = centerlinesList[intZero]
+        for point in self.outletCenters:
+            id_ = pointLocator.FindClosestPoint(point)
+            targetSeedIds.InsertNextId(id_)
 
-            # If more than one inlet, then the centerlines for
-            # each inlet is appended here by a vmtk script
-            if len(centerlinesList) > intOne:
-                for centerline in centerlinesList[intOne:]:
+        # Compute centerlines
+        centerlineFilter = vtkvmtk.vtkvmtkPolyDataCenterlines()
+        centerlineFilter.SetInputData(centerlineInputSurface)
 
-                    centerlinesAppend = vmtkscripts.vmtkSurfaceAppend()
-                    centerlinesAppend.Surface = centerlineMain
-                    centerlinesAppend.Surface2 = centerline
-                    centerlinesAppend.Execute()
+        centerlineFilter.SetSourceSeedIds(sourceSeedIds)
+        centerlineFilter.SetTargetSeedIds(targetSeedIds)
 
-                    # Store final centerlines to centerline main
-                    # therefore, centerlineMain will store the final centerline
-                    centerlineMain = centerlinesAppend.Surface
+        centerlineFilter.SetRadiusArrayName(RadiusArrayName)
+        centerlineFilter.SetCostFunction(CostFunction)
+        centerlineFilter.SetFlipNormals(FlipNormals)
+        centerlineFilter.SetAppendEndPointsToCenterlines(AppendEndPoints)
+        centerlineFilter.SetSimplifyVoronoi(SimplifyVoronoi)
 
-            self.centerline = centerlineMain
+        centerlineFilter.SetCenterlineResampling(Resampling)
+        centerlineFilter.SetResamplingStepLength(ResamplingStepLength)
+        centerlineFilter.Update()
+
+        self.centerlines = centerlineFilter.GetOutput()
+
 
     def _compute_centerline_geometry(self):
         """Compute centerline sections and geometry."""
 
         calcGeometry = vmtkscripts.vmtkCenterlineGeometry()
-        calcGeometry.Centerlines = self.centerline
+        calcGeometry.Centerlines = self.centerlines
         calcGeometry.Execute()
 
         # Computation of centerlines attributes (parallel theory)
@@ -195,7 +202,7 @@ class Vasculature:
         calcAttributes.Centerlines = calcGeometry.Centerlines
         calcAttributes.Execute()
 
-        self.centerline = calcAttributes.Centerlines
+        self.centerlines = calcAttributes.Centerlines
 
     def _compute_bifurcations_geometry(self):
         """Collect bifurcations and computes their geometry.
@@ -206,7 +213,7 @@ class Vasculature:
 
         # Split surface into branches
         branches = vmtkscripts.vmtkBranchExtractor()
-        branches.Centerlines = self.centerline
+        branches.Centerlines = self.centerlines
         branches.Execute()
 
         # Array Names
