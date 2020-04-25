@@ -1,8 +1,17 @@
+"""Provide Vasculature class.
+
+This module provides the Vasculature class that models
+a vasculature portion of the vascular system. The basic
+input is a surface model of the vasculature as a vtkPolyData
+or a file name.
+"""
+
 import vtk
-from vmtk import vmtkscripts
 from vmtk import vtkvmtk
+from vmtk import vmtkscripts
 
 from constants import *
+import polydatatools as tools 
 
 
 class Bifurcation:

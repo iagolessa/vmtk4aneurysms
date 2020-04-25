@@ -11,6 +11,7 @@ from vtk.numpyinterface import dataset_adapter as dsa
 
 # Local modules
 from constants import *
+import polydatatools as tools 
 
 # Flags
 _write   = False
@@ -71,77 +72,6 @@ def _rotate3d_matrix(tilt, azim):
                      [np.sin(azim)*np.sin(tilt), np.cos(azim)*np.sin(tilt),  np.cos(tilt)]])
 
 
-
-def _read_surface(file_name):
-    """Read surface file to VTK object.
-               
-    Arguments: 
-    file_name -- complete path with file name
-    """
-    reader = vtk.vtkXMLPolyDataReader()
-    reader.SetFileName(file_name)
-    reader.Update()
-    
-    return reader.GetOutput()
-
-
-def _view_surface(surface,array_name=None):
-    """View surface vtkPolyData objects.
-    
-    Arguments:
-    surface -- the surface to be displayed.
-    """
-    viewer = vmtkscripts.vmtkSurfaceViewer()
-    viewer.Surface = surface
-    
-    if array_name != None:
-        viewer.ArrayName = array_name
-        viewer.Legend = True
-    
-    viewer.Execute()
-    
-def _write_surface(surface, file_name, mode='binary'):
-    """Write surface vtkPolyData. 
-        
-    Arguments:
-    surface -- surface vtkPolyData object
-    file_name -- output file name with full path
-    
-    Optional arguments:
-    mode -- mode to write file (ASCII or binary, default binary)
-    """
-    writer = vtk.vtkXMLPolyDataWriter()
-    writer.SetFileName(file_name)
-    writer.SetInputData(surface)
-    
-    if mode == 'binary':
-        writer.SetDataModeToBinary()
-    elif mode == 'ascii':
-        writer.SetDataModeToAscii()
-        
-    writer.Write()
-
-
-def _smooth_surface(surface):
-    """Smooth surface based on Taubin's algorithm."""
-    smoother = vmtkscripts.vmtkSurfaceSmoothing()
-    smoother.Surface = surface
-    smoother.Method  = 'taubin'
-    smoother.NumberOfIterations = intThree*intTen
-    smoother.PassBand = intOne/intTen
-    smoother.Execute()
-    
-    return smoother.Surface
-
-def _cleaner(surface):
-    """Polydata cleaner."""
-    cleaner = vtk.vtkCleanPolyData()
-    cleaner.SetInputData(surface)
-    cleaner.Update()
-    
-    return cleaner.GetOutput()
-
-
 def _connected_region(regions,method,closest_point=None):
     """Extract the largest or closest to point patch of a disconnected domain. 
     
@@ -149,7 +79,7 @@ def _connected_region(regions,method,closest_point=None):
     by choosing the largest or closest to point patch."""
     
     triangulator = vtk.vtkTriangleFilter()
-    triangulator.SetInputData(_cleaner(regions))
+    triangulator.SetInputData(tools.cleaner(regions))
     triangulator.Update()
 
     connectivity = vtk.vtkPolyDataConnectivityFilter()
@@ -252,10 +182,10 @@ def _tube_surface(centerline, smooth=True):
             obj.PrintOutputMembers()
             
     if _inspect:
-        _view_surface(tube)
+        tools.viewSurface(tube)
     
     if smooth:
-        return _smooth_surface(tube)
+        return tools.smoothSurface(tube)
     else:
         return tube
 
@@ -410,13 +340,13 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     aneurysm.GetPointData().RemoveArray(tubeToModelArray)
     aneurysm.GetPointData().RemoveArray(envelopeToModelArray)
     
-    aneurysm = _cleaner(aneurysm)
+    aneurysm = tools.cleaner(aneurysm)
     
     if _inspect:
-        _view_surface(aneurysm)
+        tools.viewSurface(aneurysm)
     
     if _write:
-        _write_surface(aneurysm, _write_dir+'initial_aneurysm_surface.vtp')
+        tools.writeSurface(aneurysm, _write_dir+'initial_aneurysm_surface.vtp')
     
     return aneurysm
 
@@ -481,10 +411,10 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
         clippedTube  = _connected_region(clipDaughter,'closest',clipPointsBarycenter)
 
     if _inspect:
-        _view_surface(clippedTube)
+        tools.viewSurface(clippedTube)
         
     if _write:
-        _write_surface(clippedTube,_write_dir+'clipped_tube.vtp')
+        tools.writeSurface(clippedTube,_write_dir+'clipped_tube.vtp')
     
     return clippedTube
 
@@ -648,7 +578,7 @@ def _sac_centerline(aneurysm_sac,distance_array):
         spline.GetPointData().SetActiveVectors('Normals')
         spline.GetPointData().SetVectors(pointDataArray)
 
-        _write_surface(spline,_write_dir+'sac_spline.vtp')
+        tools.writeSurface(spline,_write_dir+'sac_spline.vtp')
     
     return points,tangents
 
@@ -788,7 +718,7 @@ def generateCenterline(surface):
     centerlineResampling.Execute()
     
     if _inspect:
-        _view_surface(centerlineResampling.Centerlines)
+        tools.viewSurface(centerlineResampling.Centerlines)
     
     return centerlineResampling.Centerlines
 
@@ -1353,16 +1283,16 @@ if __name__ == '__main__':
     aneurysmPlaneClipped = _write_dir + caseId+'_aneurysm_plane_clipped.vtp'
 
 
-    aneurysmSurfaceModel = _read_surface(surfaceModelFile)
-    parentVesselSurface  = _read_surface(parentVesselFile)
-    clippingPointsData   = _read_surface(clippingPointsFile)
+    aneurysmSurfaceModel = tools.readSurface(surfaceModelFile)
+    parentVesselSurface  = tools.readSurface(parentVesselFile)
+    clippingPointsData   = tools.readSurface(clippingPointsFile)
 
     # Smooth
-    parentVesselSmooth = _smooth_surface(parentVesselSurface)
+    parentVesselSmooth = tools.smoothSurface(parentVesselSurface)
     parentCenterlines  = _generate_centerline(parentVesselSmooth)    
 
     aneurysmPlaneClippedSurface = aneurysmNeckPlane(aneurysmSurfaceModel,
                                                     parentCenterlines,
                                                     clippingPointsData)
 
-    _write_surface(aneurysmPlaneClippedSurface,aneurysmPlaneClipped)
+    tools.writeSurface(aneurysmPlaneClippedSurface,aneurysmPlaneClipped)
