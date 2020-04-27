@@ -96,7 +96,12 @@ class Vasculature:
 
         # Compute morphology
         self._compute_open_centers()
-        self._generate_centerlines()
+        self.centerlines = self._generate_centerlines(
+                                self.surface,
+                                self.inletCenters,
+                                self.outletCenters
+                            )
+
         self._compute_centerline_geometry()
 
         # Collect bifurcations to this list
@@ -150,8 +155,11 @@ class Vasculature:
             else:
                 self.outletCenters.append(center)
 
-    def _generate_centerlines(self):
-        """Compute centerlines automatically"""
+    def _generate_centerlines(self, 
+                              surface, 
+                              source_points, 
+                              target_points):
+        """Compute centerlines automatically, given source and target points."""
 
         # Get inlet and outlet centers of surface
         CapDisplacement  = 0.0
@@ -160,8 +168,8 @@ class Vasculature:
         AppendEndPoints  = 1
         CheckNonManifold = 0
 
-        Resampling = 0
-        ResamplingStepLength = 1.0
+        Resampling = 1
+        ResamplingStepLength = 0.1
         SimplifyVoronoi = 0
         RadiusArrayName = "MaximumInscribedSphereRadius"
 
@@ -191,11 +199,11 @@ class Vasculature:
         pointLocator.SetDataSet(centerlineInputSurface)
         pointLocator.BuildLocator()
 
-        for point in self.inletCenters:
+        for point in source_points:
             id_ = pointLocator.FindClosestPoint(point)
             sourceSeedIds.InsertNextId(id_)
 
-        for point in self.outletCenters:
+        for point in target_points:
             id_ = pointLocator.FindClosestPoint(point)
             targetSeedIds.InsertNextId(id_)
 
@@ -216,7 +224,7 @@ class Vasculature:
         centerlineFilter.SetResamplingStepLength(ResamplingStepLength)
         centerlineFilter.Update()
 
-        self.centerlines = centerlineFilter.GetOutput()
+        return centerlineFilter.GetOutput()
 
 
     def _compute_centerline_geometry(self):
