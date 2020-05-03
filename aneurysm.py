@@ -24,32 +24,26 @@ class Aneurysm:
     """
     
     # Constructor
-    def __init__(self, surface, typeOfAneurysm, status, label):
-        self.aneurysmType   = typeOfAneurysm
-        self.aneurysmLabel  = label
-        self.aneurysmStatus = status
+    def __init__(self, surface, aneurysm_type='', status='', label=''):
+        self.type   = aneurysm_type
+        self.label  = label
+        self.status = status
         
         # Triangulate vtkPolyData surface
+        # (input is cleaned surface)
+        cleanedSurface = tools.cleaner(surface)
+
         triangulate = vtk.vtkTriangleFilter()
-        triangulate.SetInputData(surface)
+        triangulate.SetInputData(cleanedSurface)
         triangulate.Update()
         
-        self.aneurysmSurface = triangulate.GetOutput()
-        
-        # Cap aneurysm surface
-        # (needed for correct calculation of aneurysm volume)
-        cappedSurface = self._cap_aneurysm()
-        
-        # Compute attributes (3D size indices)
-        # Surface area is computed with the open surface
-        self.surfaceArea = self._surface_area(self.aneurysmSurface)
-        self.volume      = self._surface_volume(cappedSurface)
+        self._aneurysm_surface = triangulate.GetOutput()
         
         # Compute neck surface area
-        self.neckPlaneArea = self._surface_area(self._neck_surface())
+        self._neck_plane_area = self._surface_area(self._neck_surface())
         
         # Computing hull properties
-        self.hullSurface = self._aneurysm_convex_hull()
+        self._hull_surface = self._aneurysm_convex_hull()
         
     
     def _cap_aneurysm(self):
@@ -62,7 +56,7 @@ class Aneurysm:
         cellEntityIdsArrayName = "CellEntityIds"
         
         capper = vtkvmtk.vtkvmtkCapPolyData()
-        capper.SetInputData(self.aneurysmSurface)
+        capper.SetInputData(self._aneurysm_surface)
         capper.SetDisplacement(intZero)
         capper.SetInPlaneDisplacement(intZero)
         capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
@@ -72,17 +66,17 @@ class Aneurysm:
         return capper.GetOutput()
     
 
-    def _surface_area(self, surf):
+    def _surface_area(self, surface):
         """Compute the surface area of an input surface."""
 
         surface_area = vtk.vtkMassProperties()
-        surface_area.SetInputData(surf)
+        surface_area.SetInputData(surface)
         surface_area.Update()
         
         return surface_area.GetSurfaceArea()
 
     
-    def _surface_volume(self, surf):
+    def _surface_volume(self, surface):
         """Compute voluem of closed surface.
         
         Computes the volume of an assumed orientable 
@@ -91,7 +85,7 @@ class Aneurysm:
         """
 
         volume = vtk.vtkMassProperties()
-        volume.SetInputData(surf)
+        volume.SetInputData(surface)
         volume.Update()
         
         return volume.GetVolume()
@@ -101,7 +95,7 @@ class Aneurysm:
         vil = vtk.vtkIdList()
         for i in it:
             vil.InsertNextId(int(i))
-        return vil    
+        return vil
     
     def _aneurysm_convex_hull(self):
         """Compute convex hull of closed surface.
@@ -112,11 +106,11 @@ class Aneurysm:
         """
 
         # Convert surface points to numpy array
-        nPoints = self.aneurysmSurface.GetNumberOfPoints()
-        vertices  = list()
+        nPoints  = self._aneurysm_surface.GetNumberOfPoints()
+        vertices = list()
         
         for index in range(nPoints):
-            vertex = self.aneurysmSurface.GetPoint(index)
+            vertex = self._aneurysm_surface.GetPoint(index)
             vertices.append(list(vertex))
 
         vertices = np.array(vertices)
@@ -125,11 +119,11 @@ class Aneurysm:
         aneurysmHull = ConvexHull(vertices)
 
         # Get hull properties
-        self.hullVolume = aneurysmHull.volume
+        self._hull_volume = aneurysmHull.volume
         
         # Need to subtract neck area to 
         # compute correct hull surface area
-        self.hullArea   = aneurysmHull.area - self.neckPlaneArea
+        self._hull_surface_area   = aneurysmHull.area - self._neck_plane_area
 
         # Intantiate poly data
         polyData = vtk.vtkPolyData()
@@ -161,7 +155,7 @@ class Aneurysm:
     def _neck_contour(self):
         """Get boundary of aneurysm surface (== neck contour)"""
         boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
-        boundaryExtractor.SetInputData(self.aneurysmSurface)
+        boundaryExtractor.SetInputData(self._aneurysm_surface)
         boundaryExtractor.Update()
 
         return boundaryExtractor.GetOutput()
@@ -218,10 +212,10 @@ class Aneurysm:
         maxDistance = float(intZero)
         maxVertex   = None
 
-        nVertices   = self.aneurysmSurface.GetPoints().GetNumberOfPoints()
+        nVertices   = self._aneurysm_surface.GetPoints().GetNumberOfPoints()
 
         for index in range(nVertices):
-            vertex = self.aneurysmSurface.GetPoint(index)
+            vertex = self._aneurysm_surface.GetPoint(index)
 
             # Compute distance between point and neck barycenter
             distanceSquared = vtk.vtkMath.Distance2BetweenPoints(barycenter, vertex)
@@ -301,6 +295,30 @@ class Aneurysm:
 
         return np.array([xNormal, yNormal, zNormal])
 
+    # Public interface
+    def getSurface(self):
+        return self._aneurysm_surface
+
+    def getHullSurface(self):
+        return self._hull_surface
+
+    def getAneurysmSurfaceArea(self):
+        return self._surface_area(self._aneurysm_surface)
+
+    def getNeckPlaneArea(self):
+        return self._neck_plane_area
+
+    def getAneurysmVolume(self):
+        cappedSurface = self._cap_aneurysm()
+
+        return self._surface_volume(cappedSurface)
+
+    def getHullSurfaceArea(self):
+        return self._hull_surface_area
+
+    def getHullVolume(self):
+        return self._hull_volume
+
     # 1D Size Indices
     def neckDiameter(self):
         """
@@ -379,7 +397,7 @@ class Aneurysm:
 
             # Cut initial aneurysm surface with create plane
             cutWithPlane = vtk.vtkCutter()
-            cutWithPlane.SetInputData(self.aneurysmSurface)
+            cutWithPlane.SetInputData(self._aneurysm_surface)
             cutWithPlane.SetCutFunction(plane)
             cutWithPlane.Update()
 
@@ -454,7 +472,7 @@ class Aneurysm:
         
         factor = (18*np.pi)**(1./3.)
         
-        return intOne - factor/self.hullArea*(self.hullVolume**(2./3.))
+        return intOne - factor/self._hull_surface_area*(self._hull_volume**(2./3.))
     
     def undulationIndex(self):
         """
@@ -467,6 +485,6 @@ class Aneurysm:
             volume of its convex hull.
         """
         
-        return intOne - self.volume/self.hullVolume
+        return intOne - self.volume/self._hull_volume
 #
 # if __name__ == '__main__':
