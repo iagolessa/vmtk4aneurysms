@@ -10,8 +10,11 @@ import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
+import aneurysm
+
 from constants import *
 import polydatatools as tools 
+
 
 
 class Bifurcation:
@@ -79,34 +82,89 @@ class Vasculature:
 
     def __init__(self, 
                  surface, 
-                 manual_centerline=False, 
-                 with_aneurysm=True):
+                 with_aneurysm=False,
+                 manual_aneurysm=False,
+                 aneurysm_prop=dict()):
 
+        """Initiate vascular model.
+        
+        Given vascular surface(vtkPolyData), automatically compute 
+        its centerlines and bifurcations geometry. If the vasculature
+        has an aneurysm, the flag 'with_aneurysm' enables its selection.
+
+        Arguments:
+        surface -- the vtkPolyData vascular model (default None)
+
+        with_aneurysm -- bool to indicate that the vasculature
+            has an aneurysm (default False)
+
+        manual_aneurysm -- bool that enable the manual selection
+            of the aneurysm neck, otherwise, try to automatically 
+            extract the aneurysm neck *plane*, based on the user
+            input of the aneurysm tip point and the algorithm
+            proposed in 
+            
+                Piccinelli et al. (2012). 
+                Automatic neck plane detection and 3d geometric 
+                characterization of aneurysmal sacs. 
+                Annals of Biomedical Engineering, 40(10), 2188–2211. 
+                DOI :10.1007/s10439-012-0577-5.
+
+            Only enabled if the 'with_aneurysm' arguments is True.
+            (default False).
+
+        aneurysm_prop -- dictionary with properties required by Aneurysm
+            class: type, status, label.
+        """
+        
         print('Initiating model.', end='\n')
-        self.surface     = surface
-        self.centerlines = None
+        self._surface     = surface
+        self._centerlines = None
+        self._aneurysm_point   = None
 
         # Compute open boundaries centers
-        self.inletCenters  = list()
-        self.outletCenters = list()
+        self._inlet_centers  = list()
+        self._outlet_centers = list()
 
-        # Switches
-        self.ManualPickpoint = manual_centerline
-        self.WithAneurysm    = with_aneurysm
+        # Flags
+        self._with_aneurysm   = with_aneurysm
+        self._manual_aneurysm = manual_aneurysm
 
         # Compute morphology
         self._compute_open_centers()
-        self.centerlines = self._generate_centerlines(
-                                self.surface,
-                                self.inletCenters,
-                                self.outletCenters
+
+        print('Computing centerlines...', end='\n')
+        self._centerlines = self._generate_centerlines(
+                                self._surface,
+                                self._inlet_centers,
+                                self._outlet_centers
                             )
 
         self._compute_centerline_geometry()
 
         # Collect bifurcations to this list
+        print('Collecting bifurcations...', end='\n')
         self.bifurcations = list()
         self._compute_bifurcations_geometry()
+
+        # Delineating aneurysm
+        if self._with_aneurysm:
+            print("Extracting aneurysm surface")
+
+            if self._manual_aneurysm:
+                extractAneurysm = vmtkscripts.vmtkExtractAneurysm()
+                extractAneurysm.Surface = self._surface
+                extractAneurysm.Execute()
+
+                aneurysm_surface = extractAneurysm.AneurysmSurface
+
+                self._aneurysm_model = aneurysm.Aneurysm(
+                                            aneurysm_surface,
+                                            **aneurysm_prop
+                                        )
+
+            else:
+                self._select_aneurysm_point()
 
     def _compute_open_centers(self):
         """Compute barycenters of inlets and outlets.
@@ -132,7 +190,7 @@ class Vasculature:
         pointArrays = ['Point1', 'Point2']
 
         referenceSystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
-        referenceSystems.SetInputData(self.surface)
+        referenceSystems.SetInputData(self._surface)
         referenceSystems.SetBoundaryRadiusArrayName(radiusArray)
         referenceSystems.SetBoundaryNormalsArrayName(normalsArray)
         referenceSystems.SetPoint1ArrayName(pointArrays[intZero])
@@ -151,9 +209,9 @@ class Vasculature:
             radius = openBoundariesRefSystem.GetPointData().GetArray(radiusArray).GetValue(i)
 
             if radius == maxRadius:
-                self.inletCenters.append(center)
+                self._inlet_centers.append(center)
             else:
-                self.outletCenters.append(center)
+                self._outlet_centers.append(center)
 
     def _generate_centerlines(self, 
                               surface, 
@@ -231,7 +289,7 @@ class Vasculature:
         """Compute centerline sections and geometry."""
 
         calcGeometry = vmtkscripts.vmtkCenterlineGeometry()
-        calcGeometry.Centerlines = self.centerlines
+        calcGeometry.Centerlines = self._centerlines
         calcGeometry.Execute()
 
         # Computation of centerlines attributes (parallel theory)
@@ -239,7 +297,7 @@ class Vasculature:
         calcAttributes.Centerlines = calcGeometry.Centerlines
         calcAttributes.Execute()
 
-        self.centerlines = calcAttributes.Centerlines
+        self._centerlines = calcAttributes.Centerlines
 
     def _compute_bifurcations_geometry(self):
         """Collect bifurcations and computes their geometry.
@@ -250,7 +308,7 @@ class Vasculature:
 
         # Split surface into branches
         branches = vmtkscripts.vmtkBranchExtractor()
-        branches.Centerlines = self.centerlines
+        branches.Centerlines = self._centerlines
         branches.Execute()
 
         # Array Names
