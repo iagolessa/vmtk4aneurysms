@@ -232,7 +232,7 @@ class Vasculature:
         RadiusArrayName = "MaximumInscribedSphereRadius"
 
         # Clean and triangulate
-        surface = tools.cleaner(self.surface)
+        surface = tools.cleaner(self._surface)
 
         surfaceTriangulator = vtk.vtkTriangleFilter()
         surfaceTriangulator.SetInputData(surface)
@@ -373,13 +373,28 @@ class Vasculature:
         """Add thickness array to the vascular surface."""
 
         vasculatureThickness = vmtkscripts.vmtkSurfaceVasculatureThickness()
-        vasculatureThickness.Surface = self.surface
-        vasculatureThickness.Centerlines = self.centerlines
-        vasculatureThickness.Aneurysm = self.WithAneurysm
+        vasculatureThickness.Surface = self._surface
+        vasculatureThickness.Centerlines = self._centerlines
+        vasculatureThickness.Aneurysm = self._with_aneurysm
         vasculatureThickness.SelectAneurysmRegions = False
 
         vasculatureThickness.SmoothingIterations = 20
         vasculatureThickness.GenerateWallMesh = False
         vasculatureThickness.Execute()
 
-        self.surface = vasculatureThickness.Surface
+        self._surface = vasculatureThickness.Surface
+
+    def getSurface(self):
+        return self._surface
+
+    def getAneurysm(self):
+        return self._aneurysm_model
+
+    def getCenterlines(self):
+        return self._centerlines
+
+    def getInletCenters(self):
+        return self._inlet_centers
+
+    def getOutletCenters(self):
+        return self._outlet_centers
