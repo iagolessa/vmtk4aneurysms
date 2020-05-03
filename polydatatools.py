@@ -4,6 +4,8 @@ import vtk
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 
+from constants import *
+
 def readSurface(file_name):
     """Read surface file to VTK object.
                
