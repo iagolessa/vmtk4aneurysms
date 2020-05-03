@@ -90,6 +90,8 @@ class PickPointSeedSelector():
         self._SeedIds = None
         self._SourceSeedIds = vtk.vtkIdList()
         self._TargetSeedIds = vtk.vtkIdList()
+        self._InputInfo = None
+
         self.PickedSeedIds = vtk.vtkIdList()
         self.PickedSeeds = vtk.vtkPolyData()
         self.vmtkRenderer = None
@@ -97,8 +99,12 @@ class PickPointSeedSelector():
 
     def SetSurface(self,surface):
         self._Surface = surface
+
     def GetSurface(self):
         return self._Surface
+
+    def InputInfo(self, message):
+        self._InputInfo = message
 
     def UndoCallback(self, obj):
         self.InitializeSeeds()
@@ -162,8 +168,6 @@ class PickPointSeedSelector():
             self.vmtkRenderer.Initialize()
             self.OwnRenderer = 1
 
-#         self.vmtkRenderer.RegisterScript(self.Script) 
-
         glyphs = vtk.vtkGlyph3D()
         glyphSource = vtk.vtkSphereSource()
         glyphs.SetInputData(self.PickedSeeds)
@@ -179,11 +183,10 @@ class PickPointSeedSelector():
         self.SeedActor.PickableOff()
         self.vmtkRenderer.Renderer.AddActor(self.SeedActor)
 
-        ##self.vmtkRenderer.RenderWindowInteractor.AddObserver("KeyPressEvent", self.KeyPressed)
-        self.vmtkRenderer.AddKeyBinding('u','Undo.',
+        self.vmtkRenderer.AddKeyBinding('u','Undo',
                                         self.UndoCallback)
 
-        self.vmtkRenderer.AddKeyBinding('space','Add points.',
+        self.vmtkRenderer.AddKeyBinding('space','Add points',
                                         self.PickCallback)
         
         surfaceMapper = vtk.vtkPolyDataMapper()
@@ -196,7 +199,7 @@ class PickPointSeedSelector():
 
         self.vmtkRenderer.Renderer.AddActor(surfaceActor)
 
-#         self.InputInfo('Please position the mouse and press space to add source points, \'u\' to undo\n')
+        self.vmtkRenderer.InputInfo(self._InputInfo)
 
         any_ = 0
         while any_ == 0:
