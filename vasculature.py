@@ -369,7 +369,19 @@ class Vasculature:
 
                 self.bifurcations.append(Bifurcation(system, vectors))
 
-    def ComputeWallThicknessArray(self):
+    def _select_aneurysm_point(self):
+        """Enable selection of aneurysm point."""
+
+        # Select aneurysm tip point 
+        pickPoint = tools.PickPointSeedSelector()
+        pickPoint.SetSurface(self._surface)
+        pickPoint.InputInfo("Select point on the aneurysm surface")
+        pickPoint.Execute()
+
+        self._aneurysm_point = pickPoint.PickedSeeds.GetPoint(0)
+
+
+    def computeWallThicknessArray(self):
         """Add thickness array to the vascular surface."""
 
         vasculatureThickness = vmtkscripts.vmtkSurfaceVasculatureThickness()
