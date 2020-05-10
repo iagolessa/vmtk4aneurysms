@@ -303,7 +303,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
                                     '- Select a closed region and press "space" to fix it;\n'
                                     '- Select a region by interactively drawing closed contours\n'
                                     '  in the region where vessels are joined and, after it, \n'
-                                    '  press "c" to fix it.\n'
+                                    '  press "f" to fix it.\n'
                                     '\n'
                                     'All the available commands are shown on the left.\n')
 
