@@ -238,7 +238,8 @@ class PickPointSeedSelector():
 
         self.vmtkRenderer.Renderer.AddActor(surfaceActor)
 
-        self.vmtkRenderer.InputInfo(self._InputInfo)
+        if self._InputInfo is not None:
+            self.vmtkRenderer.InputInfo(self._InputInfo)
 
         any_ = 0
         while any_ == 0:

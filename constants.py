@@ -1,17 +1,17 @@
 import math
 
 # Constants
-intZero  = 0
-intOne   = 1
-intTwo   = 2
+intZero = 0
+intOne = 1
+intTwo = 2
 intThree = 3
-intFour  = 4
-intFive  = 5
-intSix   = 6
+intFour = 4
+intFive = 5
+intSix = 6
 intSeven = 7
 intEight = 8
-intNine  = 9
-intTen   = 10
+intNine = 9
+intTen = 10
 
 intHundred = 100
 

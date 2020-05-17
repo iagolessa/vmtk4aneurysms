@@ -13,22 +13,23 @@ from vmtk import vmtkscripts
 import aneurysm
 
 from constants import *
-import polydatatools as tools 
+import polydatatools as tools
+
 
 class Branch():
     """Branch segment representation."""
 
     def __init__(self, polydata):
         """Initialize from branch vtkPolyData."""
-        
+
         self._branch = polydata
-    
+
     @classmethod
     def from_centerline(cls, centerline, start_point, end_point):
         """Initialize branch object from centerline and end points."""
-        
+
         pass
-    
+
     def getBranch(self):
         """Return branch vtkPolyData."""
         return self._branch
@@ -38,18 +39,18 @@ class Branch():
         # Get arrays
         pointArrays = tools.getPointArrays(self._branch)
         abscissasArray = "Abscissas"
-        
+
         if abscissasArray not in pointArrays:
             attributes = vmtkscripts.vmtkCenterlineAttributes()
             attributes.Centerlines = self._branch
             attributes.Execute()
-            
+
             self._branch = attributes.Centerlines
-            
+
         # Compute length by Abscissas array
         distanceRange = self._branch.GetPointData().GetArray(
-                            abscissasArray
-                        ).GetRange()
+            abscissasArray
+        ).GetRange()
 
         length = max(distanceRange) - min(distanceRange)
 
@@ -73,32 +74,38 @@ class Bifurcation:
     def __init__(self, referenceSystem, vectors):
         try:
             self.center = referenceSystem.GetPoints().GetPoint(0)
-            self.normal = referenceSystem.GetPointData().GetArray('Normal').GetTuple(0)
-            self.upnormal = referenceSystem.GetPointData().GetArray('UpNormal').GetTuple(0)
+            self.normal = referenceSystem.GetPointData().GetArray(
+                'Normal'
+            ).GetTuple(0)
+
+            self.upnormal = referenceSystem.GetPointData().GetArray(
+                'UpNormal'
+            ).GetTuple(0)
+
             self.numberOfBranches = vectors.GetPoints().GetNumberOfPoints()
 
             # Collect point and vectors
-            points    = vectors.GetPoints()
+            points = vectors.GetPoints()
             pointData = vectors.GetPointData()
 
             self.points = [
-                    points.GetPoint(i)
-                    for i in range(self.numberOfBranches)
-                ]
+                points.GetPoint(i)
+                for i in range(self.numberOfBranches)
+            ]
 
             self.vectors = [
-                    pointData.GetArray('BifurcationVectors').GetTuple(index) 
-                    for index in range(self.numberOfBranches)
-                ]
+                pointData.GetArray('BifurcationVectors').GetTuple(index)
+                for index in range(self.numberOfBranches)
+            ]
 
             self.inPlaneVectors = [
-                    pointData.GetArray('InPlaneBifurcationVectors').GetTuple(i) 
-                    for i in range(self.numberOfBranches)
-                ]
+                pointData.GetArray('InPlaneBifurcationVectors').GetTuple(i)
+                for i in range(self.numberOfBranches)
+            ]
 
         except AttributeError:
-            errorMessage = "Error building bifurcation!"+ \
-                            "It seems you did not pass me a vtkPolyData."
+            errorMessage = "Error building bifurcation!" + \
+                "It seems you did not pass me a vtkPolyData."
 
             print(errorMessage)
 
@@ -119,14 +126,13 @@ class Vasculature:
     set of morphological attributes.
     """
 
-    def __init__(self, 
-                 surface, 
+    def __init__(self,
+                 surface,
                  with_aneurysm=False,
                  manual_aneurysm=False,
                  aneurysm_prop=dict()):
-
         """Initiate vascular model.
-        
+
         Given vascular surface(vtkPolyData), automatically compute 
         its centerlines and bifurcations geometry. If the vasculature
         has an aneurysm, the flag 'with_aneurysm' enables its selection.
@@ -142,7 +148,7 @@ class Vasculature:
             extract the aneurysm neck *plane*, based on the user
             input of the aneurysm tip point and the algorithm
             proposed in 
-            
+
                 Piccinelli et al. (2012). 
                 Automatic neck plane detection and 3d geometric 
                 characterization of aneurysmal sacs. 
@@ -155,18 +161,18 @@ class Vasculature:
         aneurysm_prop -- dictionary with properties required by Aneurysm
             class: type, status, label.
         """
-        
+
         print('Initiating model.', end='\n')
-        self._surface     = surface
+        self._surface = surface
         self._centerlines = None
-        self._aneurysm_point   = None
+        self._aneurysm_point = None
 
         # Compute open boundaries centers
-        self._inlet_centers  = list()
+        self._inlet_centers = list()
         self._outlet_centers = list()
 
         # Flags
-        self._with_aneurysm   = with_aneurysm
+        self._with_aneurysm = with_aneurysm
         self._manual_aneurysm = manual_aneurysm
 
         # Compute morphology
@@ -174,16 +180,16 @@ class Vasculature:
 
         print('Computing centerlines...', end='\n')
         self._centerlines = self._generate_centerlines(
-                                self._surface,
-                                self._inlet_centers,
-                                self._outlet_centers
-                            )
+            self._surface,
+            self._inlet_centers,
+            self._outlet_centers
+        )
 
         self._compute_centerline_geometry()
 
         print('Collecting bifurcations...', end='\n')
         self._nbifurcations = 0
-        self._bifurcations  = list()
+        self._bifurcations = list()
         self._compute_bifurcations_geometry()
 
         print('Collecting branches...', end='\n')
@@ -227,7 +233,6 @@ class Vasculature:
         inlet is defined as the open boundary with largest radius.
         """
 
-        print('Getting open boundaries centers.', end='\n')
         radiusArray = 'Radius'
         normalsArray = 'Normals'
         pointArrays = ['Point1', 'Point2']
@@ -249,24 +254,26 @@ class Vasculature:
         for i in range(nOpenBoundaries):
             # Get radius and center
             center = tuple(openBoundariesRefSystem.GetPoints().GetPoint(i))
-            radius = openBoundariesRefSystem.GetPointData().GetArray(radiusArray).GetValue(i)
+            radius = openBoundariesRefSystem.GetPointData().GetArray(
+                radiusArray
+            ).GetValue(i)
 
             if radius == maxRadius:
                 self._inlet_centers.append(center)
             else:
                 self._outlet_centers.append(center)
 
-    def _generate_centerlines(self, 
-                              surface, 
-                              source_points, 
+    def _generate_centerlines(self,
+                              surface,
+                              source_points,
                               target_points):
-        """Compute centerlines automatically, given source and target points."""
+        """Compute centerlines, given source and target points."""
 
         # Get inlet and outlet centers of surface
-        CapDisplacement  = 0.0
-        FlipNormals      = 0
-        CostFunction     = '1/R'
-        AppendEndPoints  = 1
+        CapDisplacement = 0.0
+        FlipNormals = 0
+        CostFunction = '1/R'
+        AppendEndPoints = 1
         CheckNonManifold = 0
 
         Resampling = 1
@@ -327,7 +334,6 @@ class Vasculature:
 
         return centerlineFilter.GetOutput()
 
-
     def _compute_centerline_geometry(self):
         """Compute centerline sections and geometry."""
 
@@ -345,7 +351,6 @@ class Vasculature:
     def _extract_branches(self):
         """Split the vasculature centerlines into branches."""
         pass
-
 
     def _compute_bifurcations_geometry(self):
         """Collect bifurcations and computes their geometry.
@@ -374,15 +379,19 @@ class Vasculature:
         bifsRefSystem.Execute()
 
         # Get bifuraction list
-        self.numberOfBifurcations = bifsRefSystem.ReferenceSystems.GetPoints().GetNumberOfPoints()
-        bifsIdsArray = bifsRefSystem.ReferenceSystems.GetPointData().GetArray(groupIdsArrayName)
+        systems = bifsRefSystem.ReferenceSystems
+        self._nbifurcations = systems.GetPoints().GetNumberOfPoints()
+
+        bifsIdsArray = systems.GetPointData().GetArray(
+            groupIdsArrayName
+        )
 
         bifurcationsIds = [
-                bifsIdsArray.GetValue(index) 
-                for index in range(self.numberOfBifurcations)
-            ]
+            bifsIdsArray.GetValue(index)
+            for index in range(self._nbifurcations)
+        ]
 
-        if self.numberOfBifurcations > intZero:
+        if self._nbifurcations > intZero:
             # Compute bifurcation
             bifVectors = vmtkscripts.vmtkBifurcationVectors()
             bifVectors.ReferenceSystems = bifsRefSystem.ReferenceSystems
@@ -392,21 +401,28 @@ class Vasculature:
             bifVectors.TractIdsArrayName = tractIdsArrayName
             bifVectors.BlankingArrayName = blankingArrayName
             bifVectors.CenterlineIdsArrayName = branches.CenterlineIdsArrayName
+
             bifVectors.ReferenceSystemsNormalArrayName = bifsRefSystem.ReferenceSystemsNormalArrayName
             bifVectors.ReferenceSystemsUpNormalArrayName = bifsRefSystem.ReferenceSystemsUpNormalArrayName
+
             bifVectors.NormalizeBifurcationVectors = True
             bifVectors.Execute()
 
             for index in bifurcationsIds:
                 # Filter bifurcation reference system to get only one bifurcation
-                bifsRefSystem.ReferenceSystems.GetPointData().SetActiveScalars(groupIdsArrayName)
+                bifsRefSystem.ReferenceSystems.GetPointData().SetActiveScalars(
+                    groupIdsArrayName
+                )
+
                 bifurcationSystem = vtk.vtkThresholdPoints()
                 bifurcationSystem.SetInputData(bifsRefSystem.ReferenceSystems)
                 bifurcationSystem.ThresholdBetween(index, index)
                 bifurcationSystem.Update()
 
                 bifVectors.BifurcationVectors.GetPointData().SetActiveScalars(
-                    bifVectors.BifurcationGroupIdsArrayName)
+                    bifVectors.BifurcationGroupIdsArrayName
+                )
+
                 bifurcationVectors = vtk.vtkThresholdPoints()
                 bifurcationVectors.SetInputData(bifVectors.BifurcationVectors)
                 bifurcationVectors.ThresholdBetween(index, index)
@@ -415,12 +431,12 @@ class Vasculature:
                 system = bifurcationSystem.GetOutput()
                 vectors = bifurcationVectors.GetOutput()
 
-                self.bifurcations.append(Bifurcation(system, vectors))
+                self._bifurcations.append(Bifurcation(system, vectors))
 
     def _select_aneurysm_point(self):
         """Enable selection of aneurysm point."""
 
-        # Select aneurysm tip point 
+        # Select aneurysm tip point
         pickPoint = tools.PickPointSeedSelector()
         pickPoint.SetSurface(self._surface)
         pickPoint.InputInfo("Select point on the aneurysm surface")
@@ -430,11 +446,11 @@ class Vasculature:
 
     def _split_branches(self):
         """Split vasculature into branches.
-        
+
         Given the vasculature centerlines, slits it into
         its constituent branches. Return a list of branch
         objects.
-        
+
         """
         # Split centerline into branches
         branches = vmtkscripts.vmtkBranchExtractor()
@@ -450,27 +466,27 @@ class Vasculature:
         # Extract only the branches portion
         branchesId = 0
         branches = tools.extractPortion(
-                        branches.Centerlines, 
-                        blankingArrayName,
-                        branchesId
-                    )
+            branches.Centerlines,
+            blankingArrayName,
+            branchesId
+        )
 
         maxGroupId = max(
-                        branches.GetCellData().GetArray(
-                            groupIdsArrayName
-                        ).GetRange()
-                    )
+            branches.GetCellData().GetArray(
+                groupIdsArrayName
+            ).GetRange()
+        )
 
         for branchId in range(int(maxGroupId)):
             branch = tools.extractPortion(
-                        branches, 
-                        groupIdsArrayName, 
-                        branchId
-                    )
-            
+                branches,
+                groupIdsArrayName,
+                branchId
+            )
+
             if branch.GetLength() != 0.0:
                 self._branches.append(Branch(branch))
-        
+
     def computeWallThicknessArray(self):
         """Add thickness array to the vascular surface."""
 
