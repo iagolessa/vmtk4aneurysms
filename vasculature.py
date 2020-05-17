@@ -15,6 +15,45 @@ import aneurysm
 from constants import *
 import polydatatools as tools 
 
+class Branch():
+    """Branch segment representation."""
+
+    def __init__(self, polydata):
+        """Initialize from branch vtkPolyData."""
+        
+        self._branch = polydata
+    
+    @classmethod
+    def from_centerline(cls, centerline, start_point, end_point):
+        """Initialize branch object from centerline and end points."""
+        
+        pass
+    
+    def getBranch(self):
+        """Return branch vtkPolyData."""
+        return self._branch
+
+    def getLength(self):
+        """Compute length of branch."""
+        # Get arrays
+        pointArrays = tools.getPointArrays(self._branch)
+        abscissasArray = "Abscissas"
+        
+        if abscissasArray not in pointArrays:
+            attributes = vmtkscripts.vmtkCenterlineAttributes()
+            attributes.Centerlines = self._branch
+            attributes.Execute()
+            
+            self._branch = attributes.Centerlines
+            
+        # Compute length by Abscissas array
+        distanceRange = self._branch.GetPointData().GetArray(
+                            abscissasArray
+                        ).GetRange()
+
+        length = max(distanceRange) - min(distanceRange)
+
+        return length
 
 
 class Bifurcation:
@@ -142,10 +181,14 @@ class Vasculature:
 
         self._compute_centerline_geometry()
 
-        # Collect bifurcations to this list
         print('Collecting bifurcations...', end='\n')
-        self.bifurcations = list()
+        self._nbifurcations = 0
+        self._bifurcations  = list()
         self._compute_bifurcations_geometry()
+
+        print('Collecting branches...', end='\n')
+        self._branches = list()
+        self._split_branches()
 
         # Delineating aneurysm
         if self._with_aneurysm:
@@ -299,6 +342,11 @@ class Vasculature:
 
         self._centerlines = calcAttributes.Centerlines
 
+    def _extract_branches(self):
+        """Split the vasculature centerlines into branches."""
+        pass
+
+
     def _compute_bifurcations_geometry(self):
         """Collect bifurcations and computes their geometry.
 
@@ -306,7 +354,7 @@ class Vasculature:
         and gather their information in a list of bifurcations.
         """
 
-        # Split surface into branches
+        # Split centerline into branches
         branches = vmtkscripts.vmtkBranchExtractor()
         branches.Centerlines = self._centerlines
         branches.Execute()
@@ -380,7 +428,49 @@ class Vasculature:
 
         self._aneurysm_point = pickPoint.PickedSeeds.GetPoint(0)
 
+    def _split_branches(self):
+        """Split vasculature into branches.
+        
+        Given the vasculature centerlines, slits it into
+        its constituent branches. Return a list of branch
+        objects.
+        
+        """
+        # Split centerline into branches
+        branches = vmtkscripts.vmtkBranchExtractor()
+        branches.Centerlines = self._centerlines
+        branches.Execute()
 
+        # Array Names
+        radiusArrayName = branches.RadiusArrayName
+        blankingArrayName = branches.BlankingArrayName
+        groupIdsArrayName = branches.GroupIdsArrayName
+        tractIdsArrayName = branches.TractIdsArrayName
+
+        # Extract only the branches portion
+        branchesId = 0
+        branches = tools.extractPortion(
+                        branches.Centerlines, 
+                        blankingArrayName,
+                        branchesId
+                    )
+
+        maxGroupId = max(
+                        branches.GetCellData().GetArray(
+                            groupIdsArrayName
+                        ).GetRange()
+                    )
+
+        for branchId in range(int(maxGroupId)):
+            branch = tools.extractPortion(
+                        branches, 
+                        groupIdsArrayName, 
+                        branchId
+                    )
+            
+            if branch.GetLength() != 0.0:
+                self._branches.append(Branch(branch))
+        
     def computeWallThicknessArray(self):
         """Add thickness array to the vascular surface."""
 

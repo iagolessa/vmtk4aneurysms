@@ -81,6 +81,45 @@ def cleaner(surface):
     
     return cleaner.GetOutput()
 
+def getCellArrays(polydata):
+    """Return the names and number of arrays for a vtkPolyData."""
+    
+    nCellArrays = polydata.GetCellData().GetNumberOfArrays()
+    names = list()
+    
+    for id_ in range(nCellArrays):
+        names.append(polydata.GetCellData().GetArray(id_).GetName())
+        
+    return names
+
+def getPointArrays(polydata):
+    """Return the names of point arrays for a vtkPolyData."""
+    
+    nPointArrays = polydata.GetPointData().GetNumberOfArrays()
+    names = list()
+    
+    for id_ in range(nPointArrays):
+        names.append(polydata.GetPointData().GetArray(id_).GetName())
+        
+    return names
+
+def extractPortion(polydata, array_name, isovalue):
+    """Extract portion of vtkPolyData based on array."""
+
+    threshold = vtk.vtkThreshold()
+    threshold.SetInputData(polydata)
+    threshold.SetInputArrayToProcess(0, 0, 0, 1, array_name)
+    threshold.ThresholdBetween(isovalue, isovalue)
+    threshold.Update()
+    
+    # Converts vtkUnstructuredGrid -> vtkPolyData
+    gridToSurfaceFilter = vtk.vtkGeometryFilter()
+    gridToSurfaceFilter.SetInputData(threshold.GetOutput())
+    gridToSurfaceFilter.Update()
+    
+    return gridToSurfaceFilter.GetOutput()
+
+
 # This class was adapted from the 'vmtkcenterlines.py' script
 # distributed with VMTK in https://github.com/vmtk/vmtk
 class PickPointSeedSelector():
