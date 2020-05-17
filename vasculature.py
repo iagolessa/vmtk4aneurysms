@@ -543,7 +543,7 @@ if __name__ == '__main__':
 
     vasculatureSurface = tools.readSurface(filename)
 
-    withAneurysm = False
+    withAneurysm = True
     manual = withAneurysm
 
     case = Vasculature(
