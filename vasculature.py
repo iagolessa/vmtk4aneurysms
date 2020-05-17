@@ -6,6 +6,7 @@ input is a surface model of the vasculature as a vtkPolyData
 or a file name.
 """
 
+import sys
 import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -208,12 +209,21 @@ class Vasculature:
                 aneurysm_surface = extractAneurysm.AneurysmSurface
 
                 self._aneurysm_model = aneurysm.Aneurysm(
-                                            aneurysm_surface,
-                                            **aneurysm_prop
-                                        )
+                    aneurysm_surface,
+                    **aneurysm_prop
+                )
 
             else:
+                # Extract aneurysm neck plane
                 self._select_aneurysm_point()
+
+                # Compute daughter centerlines
+
+                # Compute clipping and diverging points
+
+                # Compute parent centerline reconstruction
+
+                # Find neck plane
 
     def _compute_open_centers(self):
         """Compute barycenters of inlets and outlets.
@@ -516,3 +526,70 @@ class Vasculature:
 
     def getOutletCenters(self):
         return self._outlet_centers
+
+    def getBifurcations(self):
+        return self._bifurcations
+
+    def getNumberOfBifurcations(self):
+        return self._nbifurcations
+
+    def getBranches(self):
+        return self._branches
+
+
+if __name__ == '__main__':
+    # Testing
+    filename = sys.argv[1]
+
+    vasculatureSurface = tools.readSurface(filename)
+
+    withAneurysm = False
+    manual = withAneurysm
+
+    case = Vasculature(
+        vasculatureSurface,
+        with_aneurysm=withAneurysm,
+        manual_aneurysm=manual
+    )
+
+    # Inspection
+    tools.viewSurface(case.getSurface())
+    tools.viewSurface(case.getCenterlines())
+
+    print("Centerline arrays", end='\n')
+    for index in range(case.getCenterlines().GetPointData().GetNumberOfArrays()):
+        print(case.getCenterlines().GetPointData().GetArray(index).GetName())
+
+    # If has aneurysm
+    if withAneurysm:
+        tools.viewSurface(case.getAneurysm().getHullSurface())
+
+        obj = case.getAneurysm()
+
+        print("Aneurysms parameters: ", end='\n')
+        for parameter in dir(obj):
+            if parameter.startswith('get'):
+                attribute = getattr(obj, parameter)()
+
+                if type(attribute) == float:
+                    print(parameter.strip('get') +
+                          ' = '+str(attribute), end='\n')
+#                     message = f"the parameter is {attribute}"
+
+    # Inlet and outlets
+    print("Inlet: ", case.getInletCenters(), end='\n')
+    print("Outlets: ", case.getOutletCenters(), end='\n')
+
+    # Bifurcations
+    print("Bifurcation number = ", case.getNumberOfBifurcations(), end='\n')
+    print(case.getBifurcations()[0].inPlaneVectors)
+
+    # Compute wall thickness
+#     case.computeWallThicknessArray()
+#     tools.viewSurface(case.getSurface(),array_name="Thickness")
+
+    # Inspect branches
+    print("Branches number ", len(case.getBranches()), end='\n')
+    for branch in case.getBranches():
+        tools.viewSurface(branch.getBranch())
+        print('Branch Length = ', branch.getLength(), end='\n')
