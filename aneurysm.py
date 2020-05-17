@@ -36,25 +36,26 @@ class Aneurysm:
         triangulate = vtk.vtkTriangleFilter()
         triangulate.SetInputData(cleanedSurface)
         triangulate.Update()
-        
+
         self._aneurysm_surface = triangulate.GetOutput()
-        
+
         # Compute neck surface area
         self._neck_plane_area = self._surface_area(self._neck_surface())
-        
+
         # Computing hull properties
+        self._hull_surface_area = 0.0
+        self._hull_volume = 0.0
         self._hull_surface = self._aneurysm_convex_hull()
-        
-    
+
     def _cap_aneurysm(self):
         """Cap aneurysm neck with triangles. 
-        
+
         Returns aneurysm surface capped with a plane
         of triangles. Uses VMTK's script 'vmtksurfacecapper'. 
         """
-        
+
         cellEntityIdsArrayName = "CellEntityIds"
-        
+
         capper = vtkvmtk.vtkvmtkCapPolyData()
         capper.SetInputData(self._aneurysm_surface)
         capper.SetDisplacement(intZero)
@@ -117,10 +118,10 @@ class Aneurysm:
 
         # Get hull properties
         self._hull_volume = aneurysmHull.volume
-        
-        # Need to subtract neck area to 
+
+        # Need to subtract neck area to
         # compute correct hull surface area
-        self._hull_surface_area   = aneurysmHull.area - self._neck_plane_area
+        self._hull_surface_area = aneurysmHull.area - self._neck_plane_area
 
         # Intantiate poly data
         polyData = vtk.vtkPolyData()
@@ -319,66 +320,69 @@ class Aneurysm:
         return self._hull_volume
 
     # 1D Size Indices
-    def neckDiameter(self):
+    def getNeckDiameter(self):
+        """Return aneurysm neck diameter.
+
+        Compute neck diameter, defined as the hydraulic diameter
+        of the neck plane section:
+
+            Dn = 4*An/pn
+
+        where An is the aneurysm neck section area and pn is its
+        perimeter.
+
         """
-            Compute neck diameter, defined as the hydraulic diameter
-            of the neck plane section:
-
-                Dn = 4*An/pn
-
-            where An is the aneurysm neck section area and pn is its
-            perimeter.
-         """   
 
         # Get lenght of boundary neck (validate in ParaView)
-        neckContour   = self._neck_contour()
+        neckContour = self._neck_contour()
         neckPerimeter = self._contour_perimeter(neckContour)
-        
+
         # Compute hydraulic diameter of neck
-        return intFour * self.neckPlaneArea/neckPerimeter
+        return intFour*self._neck_plane_area/neckPerimeter
 
+    def getMaximumHeight(self):
+        """Return maximum height.
 
-    def maximumHeight(self):
-        """ 
-            Computation of the maximum aneurysm height, 
-            defined as the maximum distance between the 
-            neck barycenter and the aneurysm surface.
+        Aneurysm maximum aneurysm height is
+        defined as the maximum distance between the 
+        neck barycenter and the aneurysm surface.
+
         """
         # Get neck contour
         vec = self._max_height_vector()
         return np.linalg.norm(vec)
 
+    def getMaximumNormalHeight(self):
+        """Return maximum normal height.
 
-    def maximumNormalHeight(self):
-        """ 
-            Computation of the maximum NORMAL aneurysm 
-            height, defined as the maximum distance between 
-            the neck barycenter and the aneurysm surface.
+        Computation of the maximum NORMAL aneurysm 
+        height, defined as the maximum distance between 
+        the neck barycenter and the aneurysm surface.
         """
 
-        # Get max height vector and neck plane normal vector 
+        # Get max height vector and neck plane normal vector
         vecMaxHeight = self._max_height_vector()
-        vecNormal    = self._neck_plane_normal_vector()
+        vecNormal = self._neck_plane_normal_vector()
 
-        return abs(vtk.vtkMath.Dot(vecMaxHeight,vecNormal))
+        return abs(vtk.vtkMath.Dot(vecMaxHeight, vecNormal))
 
+    def getMaximumDiameter(self):
+        """Return maximum aneurysm diameter.
 
-    def maximumDiameter(self):
-        """
-            Computattion of the maximum section diameter of the aneurysm,
-            defined as the maximum diameter of the aneurysm cross sections
-            that are parallel to the neck plane.
+        Computation of the maximum section diameter of the aneurysm,
+        defined as the maximum diameter of the aneurysm cross sections
+        that are parallel to the neck plane.
+
         """
         # Compute neck contour barycenter and normal vector
-        normal     = self._neck_plane_normal_vector()
+        normal = self._neck_plane_normal_vector()
         barycenter = self._neck_barycenter()
 
-        
         # Get maximum normal height
-        Hnmax = self.maximumNormalHeight()
+        Hnmax = self.getMaximumNormalHeight()
 
         # Form points of perpendicular line to neck plane
-        nPoints    = intThree * intTen
+        nPoints = intThree * intTen
         dimensions = intThree
 
         t = np.linspace(0, Hnmax, nPoints)
@@ -407,83 +411,168 @@ class Aneurysm:
 
                 # Compute hydraulic diameter of cut line
                 hydraulicDiameter = self._contour_hydraulic_diameter(
-                                        cutWithPlane.GetOutput()
-                                    )
+                    cutWithPlane.GetOutput()
+                )
 
-                # Update minmum area 
-                if hydraulicDiameter > maxDiameter: 
+                # Update minmum area
+                if hydraulicDiameter > maxDiameter:
                     maxDiameter = hydraulicDiameter
 
-        return maxDiameter    
-    
-    
+        return maxDiameter
+
     # 2D Shape indices
-    def aspectRatio(self):
-        """
-            Computes the aneurysm aspect ratio, defined as the 
-            ratio between the maximum perpendicular height and
-            the neck diameter. 
+    def getAspectRatio(self):
+        """Return the aspect ratio.
+
+        Computes the aneurysm aspect ratio, defined as the 
+        ratio between the maximum perpendicular height and
+        the neck diameter. 
 
         """
-        
-        return self.maximumNormalHeight()/self.neckDiameter()
-    
-    
-    def bottleneckFactor(self):
+
+        return self.getMaximumNormalHeight()/self.getNeckDiameter()
+
+    def getBottleneckFactor(self):
+        """Return the non-sphericity index.
+
+        Computes the bottleneck factor, defined as the 
+        ratio between the maximum diameter and the neck
+        diameter. This index represents the level 
+        to which the neck acts as a bottleneck to entry of 
+        blood during normal physiological function and to 
+        coils during endovascular procedures. 
+
         """
-            Computes the bottleneck factor, defined as the 
-            ratio between the maximum diameter and the neck
-            diameter. This index represents the level 
-            to which the neck acts as a bottleneck to entry of 
-            blood during normal physiological function and to 
-            coils during endovascular procedures. 
-        """
-        
-        return self.maximumDiameter()/self.neckDiameter()
-    
-    
-    
+
+        return self.getMaximumDiameter()/self.getNeckDiameter()
+
     # 3D Shape indices
-    def nonSphericityIndex(self):
-        """ Computes the non-sphericity index of an aneurysm 
-            surface, given by:
+    def getNonSphericityIndex(self):
+        """Return the non-sphericity index.
 
-                NSI = 1 - (18pi)^(1/3) * Va^(2/3)/Sa
+        Computes the non-sphericity index of an aneurysm 
+        surface, given by:
 
-            where Va and Sa are the volume and surface area of the
-            aneurysm.
+            NSI = 1 - (18pi)^(1/3) * Va^(2/3)/Sa
+
+        where Va and Sa are the volume and surface area of the
+        aneurysm.
+
         """
         factor = (18*np.pi)**(1./3.)
-        
-        return 1 - factor/self.surfaceArea*(self.volume**(2./3.))
-    
-    
-    def ellipticityIndex(self):
-        """ Computes the ellipiticity index of an aneurysm 
-            surface, given by:
 
-                EI = 1 - (18pi)^(1/3) * Vch^(2/3)/Sch
+        area = self.getAneurysmSurfaceArea()
+        volume = self.getAneurysmVolume()
 
-            where Vch and Sch are the volume and surface area 
-            of the aneurysm convex hull.
+        return intOne - (factor/area)*(volume**(2./3.))
+
+    def getEllipticityIndex(self):
+        """Return ellipticity index.
+
+        Computes the ellipiticity index of an aneurysm 
+        surface, given by:
+
+            EI = 1 - (18pi)^(1/3) * Vch^(2/3)/Sch
+
+        where Vch and Sch are the volume and surface area 
+        of the aneurysm convex hull.
+
         """
-        
-        
+
         factor = (18*np.pi)**(1./3.)
-        
-        return intOne - factor/self._hull_surface_area*(self._hull_volume**(2./3.))
-    
-    def undulationIndex(self):
+
+        area = self._hull_surface_area
+        volume = self._hull_volume
+
+        return intOne - (factor/area)*(volume**(2./3.))
+
+    def getUndulationIndex(self):
+        """Return undulation index.
+
+        Computes the undulation index of an aneurysm,
+        defined as:
+
+            UI = 1 - Va/Vch
+
+        where Va is the aneurysm volume and Vch the
+        volume of its convex hull.
+
         """
-            Computes the undulation index of an aneurysm,
-            defined as:
-                
-                UI = 1 - Va/Vch
-            
-            where Va is the aneurysm volume and Vch the
-            volume of its convex hull.
-        """
-        
-        return intOne - self.volume/self._hull_volume
-#
-# if __name__ == '__main__':
+        aneurysmVolume = self.getAneurysmVolume()
+
+        return intOne - aneurysmVolume/self._hull_volume
+
+
+if __name__ == '__main__':
+
+    import glob
+    import pandas as pd
+
+    HOME = '/home/iagolessa/'
+    aneurysmsDir = HOME + 'documents/unesp/doctorate/data/aneurysms/'
+    workingDir = aneurysmsDir + 'geometries/einsteinCases/'
+
+    aneurysmsList = glob.glob(
+        workingDir + '*/*/*/*/*/case*aneurysm_plane_clipped.vtp')
+
+    surface = tools.readSurface(aneurysmsList[0])
+    tools.viewSurface(surface)
+
+    aneurysm = aneurysms.Aneurysm(surface, "terminal", "ruptured", "case19")
+
+    tools.viewSurface(aneurysm.aneurysmSurface)
+
+    ruptured = ['case1', 'case2', 'case4ruptured', 'case5']
+    unruptured = ['case11', 'case13', 'case4unruptured', 'case17']
+
+    aneurysmsCases = {}
+    aneurysmType = 'terminal'
+
+    for filename in aneurysmsList:
+        # Get case label
+        case = filename.split('/')[-2]
+
+        # Read surface
+        surface = tools.readSurface(filename)
+
+        if case in ruptured:
+            status = 'ruptured'
+        else:
+            status = 'unruptured'
+
+        # Initialize aneurysm object
+        aneurysm = aneurysms.Aneurysm(surface, aneurysmType, status, case)
+
+        # Collect into dict
+        aneurysmsCases[case] = aneurysm
+
+    aneurysmsCases['case1'].aneurysmStatus
+
+    dictMorphology = {case: {} for case in aneurysmsCases.keys()}
+
+    # Iterate over methods to get morphology of each case
+    parameters = [param for param in dir(
+        aneurysms.Aneurysm) if not param.startswith('_')]
+    attributes = ['surfaceArea', 'volume', 'aneurysmStatus']
+    parameters = parameters + attributes
+
+    for case in aneurysmsCases.keys():
+        for param in parameters:
+
+            # Aneurysm object
+            obj = aneurysmsCases[case]
+
+    #         try:
+            if param in attributes:
+                dictMorphology[case][param] = getattr(obj, param)
+            else:
+                dictMorphology[case][param] = getattr(obj, param)()
+    #         except:
+    #             print('Error for case'+case+' in param '+param)
+
+    morphology = pd.DataFrame.from_dict(dictMorphology, orient='index')
+
+    morphology.sort_values(by='volume')
+
+    morphology.sort_values(by='aneurysmStatus').to_csv('./morphology.csv',
+                                                       float_format="%3.4f")
