@@ -10,17 +10,17 @@ from scipy.spatial import ConvexHull
 # Local modules
 from constants import *
 import polydatatools as tools
+import polydatageometry as geo
 
 
 class Aneurysm:
-    """Class representing saccular intracranial aneurysms.
+    """Representation for saccular intracranial aneurysms.
 
-    Made internal use of VTK and VMTK's classes for 
-    vtkPolyData manipulations. Its main input is the
-    aneurysm sac as a vtkPolyData object.
-
-    The surface must be open for correct computation of
-    its surface area.
+    The  input aneurysm surface must be open for correct 
+    computations. Note that the calculations of aneurysm
+    parameters performed here are intended for a plane 
+    aneurysm neck. However, the computations will still
+    occur for a generic neck contour. 
     """
 
     # Constructor
@@ -40,7 +40,7 @@ class Aneurysm:
         self._aneurysm_surface = triangulate.GetOutput()
 
         # Compute neck surface area
-        self._neck_plane_area = self._surface_area(self._neck_surface())
+        self._neck_plane_area = geo.surfaceArea(self._neck_surface())
 
         # Computing hull properties
         self._hull_surface_area = 0.0
@@ -65,29 +65,6 @@ class Aneurysm:
         capper.Update()
 
         return capper.GetOutput()
-
-    def _surface_area(self, surface):
-        """Compute the surface area of an input surface."""
-
-        surface_area = vtk.vtkMassProperties()
-        surface_area.SetInputData(surface)
-        surface_area.Update()
-
-        return surface_area.GetSurfaceArea()
-
-    def _surface_volume(self, surface):
-        """Compute voluem of closed surface.
-
-        Computes the volume of an assumed orientable 
-        surface. Works internally with VTK, so it 
-        assumes that the surface is closed. 
-        """
-
-        volume = vtk.vtkMassProperties()
-        volume.SetInputData(surface)
-        volume.Update()
-
-        return volume.GetVolume()
 
     def _make_vtk_id_list(self, it):
         vil = vtk.vtkIdList()
@@ -158,15 +135,10 @@ class Aneurysm:
 
     def _neck_barycenter(self):
         """Computes and return the neck line barycenter as a Numpy array."""
+
         # Get neck contour
         neckContour = self._neck_contour()
-        neckPoints = neckContour.GetPoints()
-
-        barycenter = np.zeros(intThree)
-        vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
-            neckPoints,
-            barycenter
-        )
+        barycenter = geo.contourBarycenter(neckContour)
 
         return barycenter
 
@@ -211,70 +183,14 @@ class Aneurysm:
         for index in range(nVertices):
             vertex = self._aneurysm_surface.GetPoint(index)
 
-            # Compute distance between point and neck barycenter
-            distanceSquared = vtk.vtkMath.Distance2BetweenPoints(
-                barycenter,
-                vertex
-            )
-
-            distance = np.sqrt(distanceSquared)
+            distance = geo.distance(barycenter, vertex)
 
             if distance > maxDistance:
                 maxDistance = distance
                 maxVertex = vertex
 
-        return np.array(maxVertex) - barycenter
+        return tuple(np.subtract(maxVertex, barycenter))
 
-    def _contour_perimeter(self, contour):
-        """Coompute perimeter of a contour defined in 3D space."""
-
-        nContourVertices = contour.GetNumberOfPoints()
-
-        # Compute neck perimeter
-        perimeter = intZero
-        previous = contour.GetPoint(intZero)
-
-        for index in range(nContourVertices):
-            if index > intZero:
-                previous = contour.GetPoint(index - intOne)
-
-            vertex = contour.GetPoint(index)
-
-            # Compute distance between two consecutive points
-            distanceSquared = vtk.vtkMath.Distance2BetweenPoints(
-                previous,
-                vertex
-            )
-
-            increment = np.sqrt(distanceSquared)
-
-            perimeter += increment
-
-        return perimeter
-
-    def _contour_hydraulic_diameter(self, contour):
-        """Provided a poly line contour, compute its perimeter."""
-
-        contourPerimeter = self._contour_perimeter(contour)
-
-        # Compute contour fill area
-        fillContour = vtk.vtkContourTriangulator()
-        fillContour.SetInputData(contour)
-        fillContour.Update()
-
-        # Convert vtkUnstructuredData to vtkPolyData
-        meshToSurfaceFilter = vtk.vtkGeometryFilter()
-        meshToSurfaceFilter.SetInputData(fillContour.GetOutput())
-        meshToSurfaceFilter.Update()
-
-        computeArea = vtk.vtkMassProperties()
-        computeArea.SetInputData(meshToSurfaceFilter.GetOutput())
-        computeArea.Update()
-
-        contourArea = computeArea.GetSurfaceArea()
-
-        # Compute hydraulic diameter of neck
-        return intFour*contourArea/contourPerimeter
 
     def _neck_plane_normal_vector(self):
         """Calculate the normal vector to the aneurysm neck plane."""
@@ -293,7 +209,7 @@ class Aneurysm:
         yNormal = normals.GetOutput().GetCellData().GetNormals().GetRange(1)[0]
         zNormal = normals.GetOutput().GetCellData().GetNormals().GetRange(2)[0]
 
-        return np.array([xNormal, yNormal, zNormal])
+        return (xNormal, yNormal, zNormal)
 
     # Public interface
     def getSurface(self):
@@ -303,7 +219,7 @@ class Aneurysm:
         return self._hull_surface
 
     def getAneurysmSurfaceArea(self):
-        return self._surface_area(self._aneurysm_surface)
+        return geo.surfaceArea(self._aneurysm_surface)
 
     def getNeckPlaneArea(self):
         return self._neck_plane_area
@@ -311,7 +227,7 @@ class Aneurysm:
     def getAneurysmVolume(self):
         cappedSurface = self._cap_aneurysm()
 
-        return self._surface_volume(cappedSurface)
+        return geo.surfaceVolume(cappedSurface)
 
     def getHullSurfaceArea(self):
         return self._hull_surface_area
@@ -335,10 +251,8 @@ class Aneurysm:
 
         # Get lenght of boundary neck (validate in ParaView)
         neckContour = self._neck_contour()
-        neckPerimeter = self._contour_perimeter(neckContour)
 
-        # Compute hydraulic diameter of neck
-        return intFour*self._neck_plane_area/neckPerimeter
+        return geo.contourHydraulicDiameter(neckContour)
 
     def getMaximumHeight(self):
         """Return maximum height.
@@ -388,7 +302,7 @@ class Aneurysm:
         t = np.linspace(0, Hnmax, nPoints)
         parameters = np.array([t]*dimensions).T
 
-        points = barycenter + parameters * normal
+        points = np.array(barycenter) + parameters * np.array(normal)
 
         # Computes minimum hydraulic diameter
         maxDiameter = 0.0
@@ -410,7 +324,7 @@ class Aneurysm:
             if nVertices > intZero:
 
                 # Compute hydraulic diameter of cut line
-                hydraulicDiameter = self._contour_hydraulic_diameter(
+                hydraulicDiameter = geo.contourHydraulicDiameter(
                     cutWithPlane.GetOutput()
                 )
 

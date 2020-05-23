@@ -13,6 +13,7 @@ from vmtk import vmtkscripts
 
 import aneurysm
 import centerlines
+from aneurysm_neck import aneurysmNeckPlane 
 
 from constants import *
 import polydatatools as tools
@@ -107,6 +108,7 @@ class Bifurcation:
             ]
 
         except AttributeError:
+            # TODO: improve this init
             errorMessage = "Error building bifurcation!" + \
                 "It seems you did not pass me a vtkPolyData."
 
@@ -117,7 +119,7 @@ class Vasculature:
     """Class of vascular models represented by surfaces.
 
     This class presents an interface to work with vascular 
-    models represented as surfaces as vtkPolyData. The surface
+    models represented as surfaces (vtkPolyData). The surface
     model must contain the open boundaries of the domain, i.e.
     its inlets and outlets of blood flow as perpendicular
     open sections (so far, it handles only vasculatures with 
@@ -177,31 +179,32 @@ class Vasculature:
         # Flags
         self._with_aneurysm = with_aneurysm
         self._manual_aneurysm = manual_aneurysm
+        self._aneurysm_model = None
 
         # Compute morphology
         self._inlet_centers, self._outlet_centers = centerlines.computeOpenCenters(self._surface)
 
-        print('Computing centerlines...', end='\n')
+        print('Computing centerlines.', end='\n')
         self._centerlines = centerlines.generateCenterlines(
-            self._surface
-        )
+                                self._surface
+                            )
 
         self._centerlines = centerlines.computeCenterlineGeometry(
-                self._centerlines
-            )
+                                self._centerlines
+                            )
 
-        print('Collecting bifurcations...', end='\n')
+        print('Collecting bifurcations.', end='\n')
         self._nbifurcations = 0
         self._bifurcations = list()
         self._compute_bifurcations_geometry()
 
-        print('Collecting branches...', end='\n')
+        print('Collecting branches.', end='\n')
         self._branches = list()
         self._split_branches()
 
         # Delineating aneurysm
         if self._with_aneurysm:
-            print("Extracting aneurysm surface")
+            print("Extracting aneurysm surface.")
 
             if self._manual_aneurysm:
                 extractAneurysm = vmtkscripts.vmtkExtractAneurysm()
@@ -210,13 +213,20 @@ class Vasculature:
 
                 aneurysm_surface = extractAneurysm.AneurysmSurface
 
-                self._aneurysm_model = aneurysm.Aneurysm(
-                    aneurysm_surface,
-                    **aneurysm_prop
-                )
 
             else:
-                pass
+                # Extract aneurysm surface with plane neck
+                aneurysm_surface = aneurysmNeckPlane(self._surface)
+
+            self._aneurysm_model = aneurysm.Aneurysm(
+                aneurysm_surface,
+                **aneurysm_prop
+            )
+
+    @classmethod
+    def from_surface_file(cls, surface_file):
+        """Initialize vasculature object from vasculature surface file."""
+        pass
 
     def _extract_branches(self):
         """Split the vasculature centerlines into branches."""
@@ -411,20 +421,21 @@ if __name__ == '__main__':
         print(case.getCenterlines().GetPointData().GetArray(index).GetName())
 
     # If has aneurysm
-#     if withAneurysm:
-#         tools.viewSurface(case.getAneurysm().getHullSurface())
+    if withAneurysm:
+        tools.viewSurface(case.getAneurysm().getSurface())
+        tools.viewSurface(case.getAneurysm().getHullSurface())
 
-#         obj = case.getAneurysm()
+        obj = case.getAneurysm()
 
-#         print("Aneurysms parameters: ", end='\n')
-#         for parameter in dir(obj):
-#             if parameter.startswith('get'):
-#                 attribute = getattr(obj, parameter)()
-#
-#                 if type(attribute) == float:
-#                     print(parameter.strip('get') +
-#                           ' = '+str(attribute), end='\n')
-# #                     message = f"the parameter is {attribute}"
+        print("Aneurysms parameters: ", end='\n')
+        for parameter in dir(obj):
+            if parameter.startswith('get'):
+                attribute = getattr(obj, parameter)()
+
+                if type(attribute) == float:
+                    print(parameter.strip('get') +
+                          ' = '+str(attribute), end='\n')
+#                     message = f"the parameter is {attribute}"
     
 
     # Inlet and outlets
@@ -440,7 +451,7 @@ if __name__ == '__main__':
 #     tools.viewSurface(case.getSurface(),array_name="Thickness")
 
     # Inspect branches
-    print("Branches number ", len(case.getBranches()), end='\n')
-    for branch in case.getBranches():
-        tools.viewSurface(branch.getBranch())
-        print('Branch Length = ', branch.getLength(), end='\n')
+#     print("Branches number ", len(case.getBranches()), end='\n')
+#     for branch in case.getBranches():
+#         tools.viewSurface(branch.getBranch())
+#         print('Branch Length = ', branch.getLength(), end='\n')
