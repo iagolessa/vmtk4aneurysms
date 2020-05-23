@@ -4,8 +4,11 @@ The module provides a function to compute the aneurysm neck plane,
 as defined by Piccinelli et al. (2009).
 """
 
+import sys
 import vtk
 import numpy as np
+import centerlines
+import morphman
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -66,7 +69,7 @@ def _vtk_vertices_to_numpy(polydata):
 
     for index in range(nPoints):
         vertex = polydata.GetPoint(index)
-        vertices.append(list(vertex))
+        vertices.append(vertex)
 
     return np.array(vertices)
 
@@ -389,8 +392,21 @@ def _clip_tube(parent_tube, parent_centerline, clipping_points):
     clipCenters = list()
     clipNormals = list()
 
-    clipPointsArray = _vtk_vertices_to_numpy(clipping_points)
+    # Check clipping points type
+    if type(clipping_points) == type(vtk.vtkPolyData()): 
+        clipPointsArray = _vtk_vertices_to_numpy(clipping_points)
 
+    elif type(clipping_points) == type(vtk.vtkPoints()):
+
+        clipPointsArray = list()
+
+        for point_id in range(clipping_points.GetNumberOfPoints()):
+            clipPointsArray.append(
+                    clipping_points.GetPoint(point_id)
+                )
+
+        
+    print(clipPointsArray)
     for point in clipPointsArray:
 
         # Get id of point with min distance
@@ -767,8 +783,8 @@ def generateCenterline(surface):
 
 
 def aneurysmNeckPlane(surface_model,
-                      parent_centerlines,
-                      clipping_points,
+                      parent_centerlines=None,
+                      clipping_points=None,
                       min_variable='perimeter'):
     """Extracts the aneurysm neck plane.
 
@@ -799,15 +815,32 @@ def aneurysmNeckPlane(surface_model,
     # Variables
     tubeToAneurysmDistance = 'ClippedTubeToAneurysmDistanceArray'
 
-    # Initiate neck plane detection pipeline
-    VoronoiDiagram = _compute_Voronoi(surface_model)
+    # Compute vasculature centerline
+    # TODO: update this to use the parent centerlines with the radius array
+    parent_centerlines = centerlines.generateCenterlines(surface_model)
 
+    # Get clipping and diverging data
+    divergingData = centerlines.getDivergingPoints(surface_model)
+
+    # Reconstruct tube functions
     parentTube = _tube_surface(parent_centerlines)
 
-    clippedTube = _clip_tube(parentTube,
-                             parent_centerlines,
-                             clipping_points)
+    # Substituted procedure to clip the tube surface
+    # Now it is reconstructed instead
+#     clippedTube = _clip_tube(parentTube,
+#                              parent_centerlines,
+#                              clipping_points)
 
+    # Clip centerlines between clipping points
+    clipped_centerline = morphman.get_centerline_between_clipping_points(
+                            parent_centerlines, 
+                            divergingData
+                        )
+
+    clippedTube = _tube_surface(clipped_centerline)
+
+    # Clip aneurysm Voronoi
+    VoronoiDiagram = _compute_Voronoi(surface_model)
     aneurysmVoronoi = _clip_aneurysm_Voronoi(VoronoiDiagram, parentTube)
 
     aneurysmEnvelope = _Voronoi_envelope(aneurysmVoronoi)
@@ -862,3 +895,74 @@ def aneurysmNeckPlane(surface_model,
         aneurysmSurface = surf2
 
     return aneurysmSurface
+
+if __name__ == '__main__':
+    # Testing
+    from vasculature import Vasculature
+
+    filename = sys.argv[1]
+
+    vasculatureSurface = tools.readSurface(filename)
+
+    withAneurysm = False
+    manual = False
+
+    case = Vasculature(
+        vasculatureSurface,
+        with_aneurysm=withAneurysm,
+        manual_aneurysm=manual
+    )
+
+    # Inspection
+#     tools.viewSurface(case.getSurface())
+#     tools.viewSurface(case.getCenterlines())
+
+    # If has aneurysm
+    print("Computing aneurysm surface", end='\n')
+    aneurysmSurface = aneurysmNeckPlane(
+                        case.getSurface()
+                    )
+
+    tools.writeSurface(aneurysmSurface, '/home/iagolessa/tmp_aneurysm.vtp')
+    tools.viewSurface(aneurysmSurface)
+
+#     # Debug each stage
+#     print("Reconstructing tube surface", end='\n')
+#     parentTube = _tube_surface(case.getCenterlines())
+#     tools.viewSurface(parentTube)
+#
+#     print("Clipping tube", end='\n')
+#     clippedTube = _clip_tube(parentTube,
+#                              case.getParentCenterlines(),
+#                              case.getClippingPoints()
+#                         )
+#
+    # tools.viewSurface(clippedTube)
+
+#     aneurysmVoronoi  = aneurysm_neck._clip_aneurysm_Voronoi(VoronoiDiagram, parentTube)
+#     tools.viewSurface(aneurysmVoronoi)
+#
+#     tools.writeSurface(aneurysmVoronoi, '/home/iagolessa/voronoi.vtp')
+#
+#
+#     aneurysmEnvelope = _Voronoi_envelope(aneurysmVoronoi)
+#
+#     initialAneurysm  = _clip_initial_aneurysm(surface_model,
+#                                               aneurysmEnvelope,
+#                                               parentTube)
+#
+#     initialAneurysmSurface = _compute_surfaces_distance(initialAneurysm,
+#                                                         clippedTube,
+#                                                         array_name=tubeToAneurysmDistance,
+#                                                         signed_array=False)
+#
+#     barycenters,normals = _sac_centerline(initialAneurysmSurface,
+#                                           tubeToAneurysmDistance)
+#
+#     # Search for neck plane
+#     neckPlane  = _search_neck_plane(initialAneurysmSurface,
+#                                     barycenters,
+#                                     normals,
+#                                     min_variable=min_variable)
+#
+#
