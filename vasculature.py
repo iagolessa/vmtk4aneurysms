@@ -8,11 +8,11 @@ or a file name.
 
 import sys
 import vtk
-import morphman
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
 import aneurysm
+import centerlines
 
 from constants import *
 import polydatatools as tools
@@ -171,24 +171,24 @@ class Vasculature:
         self._aneurysm_point = None
 
         # Compute open boundaries centers
-        self._inlet_centers = list()
-        self._outlet_centers = list()
+        self._inlet_centers = None
+        self._outlet_centers = None
 
         # Flags
         self._with_aneurysm = with_aneurysm
         self._manual_aneurysm = manual_aneurysm
 
         # Compute morphology
-        self._compute_open_centers()
+        self._inlet_centers, self._outlet_centers = centerlines.computeOpenCenters(self._surface)
 
         print('Computing centerlines...', end='\n')
-        self._centerlines = self._generate_centerlines(
-            self._surface,
-            self._inlet_centers,
-            self._outlet_centers
+        self._centerlines = centerlines.generateCenterlines(
+            self._surface
         )
 
-        self._compute_centerline_geometry()
+        self._centerlines = centerlines.computeCenterlineGeometry(
+                self._centerlines
+            )
 
         print('Collecting bifurcations...', end='\n')
         self._nbifurcations = 0
@@ -216,146 +216,7 @@ class Vasculature:
                 )
 
             else:
-                # Extract aneurysm neck plane
-                self._select_aneurysm_point()
-
-                # Generate parent centerline
-                self._generate_parent_centerlines()
-
-                # Find neck plane
-
-    def _compute_open_centers(self):
-        """Compute barycenters of inlets and outlets.
-
-        Computes the geometric center of each open boundary
-        of the model. Computes two lists: one with the inlet
-        coordinates (tuple) and another with the outlets
-        coordinates also as tuples of three components:
-
-            Inlet coords:  [(xi, yi, zi)]
-            Outlet coords: [(xo1,yo1,zo1),
-                            (xo2,yo2,zo2),
-                            ...
-                            (xon,yon,zon)]
-
-        for a model with a single inlet and n outlets. The
-        inlet is defined as the open boundary with largest radius.
-        """
-
-        radiusArray = 'Radius'
-        normalsArray = 'Normals'
-        pointArrays = ['Point1', 'Point2']
-
-        referenceSystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
-        referenceSystems.SetInputData(self._surface)
-        referenceSystems.SetBoundaryRadiusArrayName(radiusArray)
-        referenceSystems.SetBoundaryNormalsArrayName(normalsArray)
-        referenceSystems.SetPoint1ArrayName(pointArrays[intZero])
-        referenceSystems.SetPoint2ArrayName(pointArrays[intOne])
-        referenceSystems.Update()
-
-        openBoundariesRefSystem = referenceSystems.GetOutput()
-        nOpenBoundaries = openBoundariesRefSystem.GetPoints().GetNumberOfPoints()
-
-        maxRadius = openBoundariesRefSystem.GetPointData().GetArray(
-            radiusArray).GetRange()[intOne]
-
-        for i in range(nOpenBoundaries):
-            # Get radius and center
-            center = tuple(openBoundariesRefSystem.GetPoints().GetPoint(i))
-            radius = openBoundariesRefSystem.GetPointData().GetArray(
-                radiusArray
-            ).GetValue(i)
-
-            if radius == maxRadius:
-                self._inlet_centers.append(center)
-            else:
-                self._outlet_centers.append(center)
-
-    def _generate_centerlines(self,
-                              surface,
-                              source_points,
-                              target_points):
-        """Compute centerlines, given source and target points."""
-
-        # Get inlet and outlet centers of surface
-        CapDisplacement = 0.0
-        FlipNormals = 0
-        CostFunction = '1/R'
-        AppendEndPoints = 1
-        CheckNonManifold = 0
-
-        Resampling = 1
-        ResamplingStepLength = 0.1
-        SimplifyVoronoi = 0
-        RadiusArrayName = "MaximumInscribedSphereRadius"
-
-        # Clean and triangulate
-        surface = tools.cleaner(self._surface)
-
-        surfaceTriangulator = vtk.vtkTriangleFilter()
-        surfaceTriangulator.SetInputData(surface)
-        surfaceTriangulator.PassLinesOff()
-        surfaceTriangulator.PassVertsOff()
-        surfaceTriangulator.Update()
-
-        # Cap surface
-        surfaceCapper = vtkvmtk.vtkvmtkCapPolyData()
-        surfaceCapper.SetInputConnection(surfaceTriangulator.GetOutputPort())
-        surfaceCapper.SetDisplacement(CapDisplacement)
-        surfaceCapper.SetInPlaneDisplacement(CapDisplacement)
-        surfaceCapper.Update()
-
-        centerlineInputSurface = surfaceCapper.GetOutput()
-
-        # Get source and target ids of closest point
-        sourceSeedIds = vtk.vtkIdList()
-        targetSeedIds = vtk.vtkIdList()
-
-        pointLocator = vtk.vtkPointLocator()
-        pointLocator.SetDataSet(centerlineInputSurface)
-        pointLocator.BuildLocator()
-
-        for point in source_points:
-            id_ = pointLocator.FindClosestPoint(point)
-            sourceSeedIds.InsertNextId(id_)
-
-        for point in target_points:
-            id_ = pointLocator.FindClosestPoint(point)
-            targetSeedIds.InsertNextId(id_)
-
-        # Compute centerlines
-        centerlineFilter = vtkvmtk.vtkvmtkPolyDataCenterlines()
-        centerlineFilter.SetInputData(centerlineInputSurface)
-
-        centerlineFilter.SetSourceSeedIds(sourceSeedIds)
-        centerlineFilter.SetTargetSeedIds(targetSeedIds)
-
-        centerlineFilter.SetRadiusArrayName(RadiusArrayName)
-        centerlineFilter.SetCostFunction(CostFunction)
-        centerlineFilter.SetFlipNormals(FlipNormals)
-        centerlineFilter.SetAppendEndPointsToCenterlines(AppendEndPoints)
-        centerlineFilter.SetSimplifyVoronoi(SimplifyVoronoi)
-
-        centerlineFilter.SetCenterlineResampling(Resampling)
-        centerlineFilter.SetResamplingStepLength(ResamplingStepLength)
-        centerlineFilter.Update()
-
-        return centerlineFilter.GetOutput()
-
-    def _compute_centerline_geometry(self):
-        """Compute centerline sections and geometry."""
-
-        calcGeometry = vmtkscripts.vmtkCenterlineGeometry()
-        calcGeometry.Centerlines = self._centerlines
-        calcGeometry.Execute()
-
-        # Computation of centerlines attributes (parallel theory)
-        calcAttributes = vmtkscripts.vmtkCenterlineAttributes()
-        calcAttributes.Centerlines = calcGeometry.Centerlines
-        calcAttributes.Execute()
-
-        self._centerlines = calcAttributes.Centerlines
+                pass
 
     def _extract_branches(self):
         """Split the vasculature centerlines into branches."""
@@ -442,16 +303,6 @@ class Vasculature:
 
                 self._bifurcations.append(Bifurcation(system, vectors))
 
-    def _select_aneurysm_point(self):
-        """Enable selection of aneurysm point."""
-
-        # Select aneurysm tip point
-        pickPoint = tools.PickPointSeedSelector()
-        pickPoint.SetSurface(self._surface)
-        pickPoint.InputInfo("Select point on the aneurysm surface")
-        pickPoint.Execute()
-
-        self._aneurysm_point = pickPoint.PickedSeeds.GetPoint(0)
 
     def _split_branches(self):
         """Split vasculature into branches.
@@ -496,97 +347,6 @@ class Vasculature:
             if branch.GetLength() != 0.0:
                 self._branches.append(Branch(branch))
 
-    def _generate_parent_centerlines(self):
-        """Compute parent artery centerlines.
-        
-        Uses the Morphman library to extract the
-        hypothetical parent artery centerlines. 
-        Uses the procedure originally proposed in 
-        
-            Ford et al. (2009). An objective approach 
-            to digital removal of saccular aneurysms: 
-            technique and applications. 
-            DOI: 10.1259/bjr/67593727
-            
-        and improved in
-        
-            Bergersen et al. (2019). 
-            Automated and Objective Removal of Bifurcation 
-            Aneurysms: Incremental Improvements, and Validation 
-            Against Healthy Controls. 
-            DOI: 10.1016/j.jbiomech.2019.109342
-        
-        """
-        # Compute daughter centerlines
-        # Build daughter centerlines
-        self._daughter_centerlines = list()
-
-        # First outlet centerline
-        self._daughter_centerlines.append(
-            self._generate_centerlines(
-                self._surface,
-                [self._outlet_centers[0]], 
-                [self._outlet_centers[1],
-                 self._aneurysm_point]
-            )
-        )
-
-        # Second outlet centerline
-        self._daughter_centerlines.append(
-            self._generate_centerlines(
-                self._surface, 
-                [self._outlet_centers[1]], 
-                [self._outlet_centers[0],
-                 self._aneurysm_point]
-            )
-        )
-
-        # Compute clipping and diverging points
-        centerlineSpacing = geo.distance(
-                self._centerlines.GetPoint(10), 
-                self._centerlines.GetPoint(11)
-            )
-
-        # Origianlly got from the scripts by Picinelli
-        divRatioToSpacingTolerance = 2.0
-        divTolerance = 0.1/10# centerlineSpacing/divRatioToSpacingTolerance   
-
-        # Compute clipping and divergence points
-        bifs = morphman.get_bifurcating_and_diverging_point_data(
-                self._centerlines, 
-                self._daughter_centerlines[0], 
-                divTolerance
-            )
-
-        # Store points 
-        self._clipping_points = vtk.vtkPoints()
-        self._diverging_points = vtk.vtkPoints()
-
-        for key in bifs.keys():
-            self._clipping_points.InsertNextPoint(
-                    bifs[key].get('end_point')
-                )
-
-            self._diverging_points.InsertNextPoint(
-                    bifs[key].get('div_point')
-                )
-
-        # Compute parent centerline reconstruction
-        patchCenterlines = morphman.create_parent_artery_patches(
-                self._centerlines, 
-                self._clipping_points, 
-                siphon=True, 
-                bif=True
-            )
-
-        tools.writeSurface(patchCenterlines, '/home/iagolessa/tmp_patch.vtp')
-        self._parent_centerlines = morphman.interpolate_patch_centerlines(
-                                        patchCenterlines,
-                                        self._centerlines,
-                                        additionalPoint=None,
-                                        lower='bif',
-                                        version=True
-                                    )
 
     def computeWallThicknessArray(self):
         """Add thickness array to the vascular surface."""
@@ -627,13 +387,6 @@ class Vasculature:
     def getBranches(self):
         return self._branches
 
-    def getClippingPoints(self):
-        return self._clipping_points
-
-    def getParentCenterlines(self):
-        return self._parent_centerlines
-
-
 if __name__ == '__main__':
     # Testing
     filename = sys.argv[1]
@@ -658,7 +411,7 @@ if __name__ == '__main__':
         print(case.getCenterlines().GetPointData().GetArray(index).GetName())
 
     # If has aneurysm
-    if withAneurysm:
+#     if withAneurysm:
 #         tools.viewSurface(case.getAneurysm().getHullSurface())
 
 #         obj = case.getAneurysm()
@@ -673,15 +426,6 @@ if __name__ == '__main__':
 #                           ' = '+str(attribute), end='\n')
 # #                     message = f"the parameter is {attribute}"
     
-        tools.writeSurface(case._daughter_centerlines[0],'/home/iagolessa/tmp_dau1.vtp')
-        tools.writeSurface(case._daughter_centerlines[1],'/home/iagolessa/tmp_dau2.vtp')
-
-        # Save clippin points
-        tools.writePoints(case._clipping_points, '/home/iagolessa/tmp_clppoints.vtp')
-        tools.writePoints(case._diverging_points, '/home/iagolessa/tmp_divpoints.vtp')
-       
-        # Save interpolated centerlines
-        tools.writeSurface(case._parent_centerlines, '/home/iagolessa/tmp_parent.vtp')
 
     # Inlet and outlets
     print("Inlet: ", case.getInletCenters(), end='\n')
@@ -696,7 +440,7 @@ if __name__ == '__main__':
 #     tools.viewSurface(case.getSurface(),array_name="Thickness")
 
     # Inspect branches
-#     print("Branches number ", len(case.getBranches()), end='\n')
-#     for branch in case.getBranches():
-#         tools.viewSurface(branch.getBranch())
-#         print('Branch Length = ', branch.getLength(), end='\n')
+    print("Branches number ", len(case.getBranches()), end='\n')
+    for branch in case.getBranches():
+        tools.viewSurface(branch.getBranch())
+        print('Branch Length = ', branch.getLength(), end='\n')

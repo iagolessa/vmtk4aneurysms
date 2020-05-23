@@ -61,6 +61,28 @@ def writeSurface(surface, file_name, mode='binary'):
 #
 #     writer.Write()
 
+def writePolyData(polydata, file_name):
+
+    writer = vtk.vtkXMLPolyDataWriter()
+    writer.SetFileName(file_name)
+    writer.SetInputData(polydata)
+    writer.Write()
+
+def writePoints(points, file_name):
+    """Write vtkPoints to file."""
+
+    pointSet  = vtk.vtkPolyData()
+    cellArray = vtk.vtkCellArray()
+
+    for i in range(points.GetNumberOfPoints()):
+      cellArray.InsertNextCell(1)
+      cellArray.InsertCellPoint(i)
+
+    pointSet.SetPoints(points)
+    pointSet.SetVerts(cellArray)
+
+    writePolyData(pointSet, file_name)   
+
 
 def smoothSurface(surface):
     """Smooth surface based on Taubin's algorithm."""
@@ -251,3 +273,14 @@ class PickPointSeedSelector():
 
         if self.OwnRenderer:
             self.vmtkRenderer.Deallocate()
+
+def selectSurfacePoint(surface):
+    """Enable selection of aneurysm point."""
+
+    # Select aneurysm tip point
+    pickPoint = PickPointSeedSelector()
+    pickPoint.SetSurface(surface)
+    pickPoint.InputInfo("Select point on the aneurysm surface")
+    pickPoint.Execute()
+
+    return pickPoint.PickedSeeds.GetPoint(0)
