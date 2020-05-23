@@ -1,6 +1,7 @@
 """Provide functions to compute geometric properties of VTK poly data."""
 
 import vtk
+import math
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 
@@ -13,7 +14,7 @@ def distance(point1, point2):
                     point2
                 )
     
-    return np.sqrt(sqrDistance)
+    return math.sqrt(sqrDistance)
 
 radiusArrayName = 'Abscissas'
 
