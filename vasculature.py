@@ -8,6 +8,7 @@ or a file name.
 
 import sys
 import vtk
+import morphman
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
@@ -15,6 +16,7 @@ import aneurysm
 
 from constants import *
 import polydatatools as tools
+import polydatageometry as geo
 
 
 class Branch():
@@ -217,11 +219,8 @@ class Vasculature:
                 # Extract aneurysm neck plane
                 self._select_aneurysm_point()
 
-                # Compute daughter centerlines
-
-                # Compute clipping and diverging points
-
-                # Compute parent centerline reconstruction
+                # Generate parent centerline
+                self._generate_parent_centerlines()
 
                 # Find neck plane
 
@@ -497,6 +496,98 @@ class Vasculature:
             if branch.GetLength() != 0.0:
                 self._branches.append(Branch(branch))
 
+    def _generate_parent_centerlines(self):
+        """Compute parent artery centerlines.
+        
+        Uses the Morphman library to extract the
+        hypothetical parent artery centerlines. 
+        Uses the procedure originally proposed in 
+        
+            Ford et al. (2009). An objective approach 
+            to digital removal of saccular aneurysms: 
+            technique and applications. 
+            DOI: 10.1259/bjr/67593727
+            
+        and improved in
+        
+            Bergersen et al. (2019). 
+            Automated and Objective Removal of Bifurcation 
+            Aneurysms: Incremental Improvements, and Validation 
+            Against Healthy Controls. 
+            DOI: 10.1016/j.jbiomech.2019.109342
+        
+        """
+        # Compute daughter centerlines
+        # Build daughter centerlines
+        self._daughter_centerlines = list()
+
+        # First outlet centerline
+        self._daughter_centerlines.append(
+            self._generate_centerlines(
+                self._surface,
+                [self._outlet_centers[0]], 
+                [self._outlet_centers[1],
+                 self._aneurysm_point]
+            )
+        )
+
+        # Second outlet centerline
+        self._daughter_centerlines.append(
+            self._generate_centerlines(
+                self._surface, 
+                [self._outlet_centers[1]], 
+                [self._outlet_centers[0],
+                 self._aneurysm_point]
+            )
+        )
+
+        # Compute clipping and diverging points
+        centerlineSpacing = geo.distance(
+                self._centerlines.GetPoint(10), 
+                self._centerlines.GetPoint(11)
+            )
+
+        # Origianlly got from the scripts by Picinelli
+        divRatioToSpacingTolerance = 2.0
+        divTolerance = 0.1/10# centerlineSpacing/divRatioToSpacingTolerance   
+
+        # Compute clipping and divergence points
+        bifs = morphman.get_bifurcating_and_diverging_point_data(
+                self._centerlines, 
+                self._daughter_centerlines[0], 
+                divTolerance
+            )
+
+        # Store points 
+        self._clipping_points = vtk.vtkPoints()
+        self._diverging_points = vtk.vtkPoints()
+
+        for key in bifs.keys():
+            self._clipping_points.InsertNextPoint(
+                    bifs[key].get('end_point')
+                )
+
+            self._diverging_points.InsertNextPoint(
+                    bifs[key].get('div_point')
+                )
+
+        # Compute parent centerline reconstruction
+        patchCenterlines = morphman.create_parent_artery_patches(
+                self._centerlines, 
+                self._clipping_points, 
+                siphon=True, 
+                bif=True
+            )
+
+        tools.writeSurface(patchCenterlines, '/home/iagolessa/tmp_patch.vtp')
+        self._parent_centerlines = morphman.interpolate_patch_centerlines(
+                                        patchCenterlines,
+                                        self._centerlines,
+                                        additionalPoint=None,
+                                        lower='bif',
+                                        version=True
+                                    )
+
     def computeWallThicknessArray(self):
         """Add thickness array to the vascular surface."""
 
@@ -536,6 +627,12 @@ class Vasculature:
     def getBranches(self):
         return self._branches
 
+    def getClippingPoints(self):
+        return self._clipping_points
+
+    def getParentCenterlines(self):
+        return self._parent_centerlines
+
 
 if __name__ == '__main__':
     # Testing
@@ -544,7 +641,7 @@ if __name__ == '__main__':
     vasculatureSurface = tools.readSurface(filename)
 
     withAneurysm = True
-    manual = withAneurysm
+    manual = False
 
     case = Vasculature(
         vasculatureSurface,
@@ -562,19 +659,29 @@ if __name__ == '__main__':
 
     # If has aneurysm
     if withAneurysm:
-        tools.viewSurface(case.getAneurysm().getHullSurface())
+#         tools.viewSurface(case.getAneurysm().getHullSurface())
 
-        obj = case.getAneurysm()
+#         obj = case.getAneurysm()
 
-        print("Aneurysms parameters: ", end='\n')
-        for parameter in dir(obj):
-            if parameter.startswith('get'):
-                attribute = getattr(obj, parameter)()
+#         print("Aneurysms parameters: ", end='\n')
+#         for parameter in dir(obj):
+#             if parameter.startswith('get'):
+#                 attribute = getattr(obj, parameter)()
+#
+#                 if type(attribute) == float:
+#                     print(parameter.strip('get') +
+#                           ' = '+str(attribute), end='\n')
+# #                     message = f"the parameter is {attribute}"
+    
+        tools.writeSurface(case._daughter_centerlines[0],'/home/iagolessa/tmp_dau1.vtp')
+        tools.writeSurface(case._daughter_centerlines[1],'/home/iagolessa/tmp_dau2.vtp')
 
-                if type(attribute) == float:
-                    print(parameter.strip('get') +
-                          ' = '+str(attribute), end='\n')
-#                     message = f"the parameter is {attribute}"
+        # Save clippin points
+        tools.writePoints(case._clipping_points, '/home/iagolessa/tmp_clppoints.vtp')
+        tools.writePoints(case._diverging_points, '/home/iagolessa/tmp_divpoints.vtp')
+       
+        # Save interpolated centerlines
+        tools.writeSurface(case._parent_centerlines, '/home/iagolessa/tmp_parent.vtp')
 
     # Inlet and outlets
     print("Inlet: ", case.getInletCenters(), end='\n')
@@ -589,7 +696,7 @@ if __name__ == '__main__':
 #     tools.viewSurface(case.getSurface(),array_name="Thickness")
 
     # Inspect branches
-    print("Branches number ", len(case.getBranches()), end='\n')
-    for branch in case.getBranches():
-        tools.viewSurface(branch.getBranch())
-        print('Branch Length = ', branch.getLength(), end='\n')
+#     print("Branches number ", len(case.getBranches()), end='\n')
+#     for branch in case.getBranches():
+#         tools.viewSurface(branch.getBranch())
+#         print('Branch Length = ', branch.getLength(), end='\n')
