@@ -54,6 +54,9 @@ class Aneurysm:
         of triangles. Uses VMTK's script 'vmtksurfacecapper'. 
         """
 
+        # TODO: I noticed that sometimes (yes, this is subjective) the cap
+        # algorithm does not generate correct array values for each cap
+        # Investigate that
         cellEntityIdsArrayName = "CellEntityIds"
 
         capper = vtkvmtk.vtkvmtkCapPolyData()
@@ -61,7 +64,7 @@ class Aneurysm:
         capper.SetDisplacement(intZero)
         capper.SetInPlaneDisplacement(intZero)
         capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
-        capper.SetCellEntityIdOffset(intZero)
+        capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
         capper.Update()
 
         return capper.GetOutput()
@@ -138,14 +141,14 @@ class Aneurysm:
 
         # Get neck contour
         neckContour = self._neck_contour()
-        barycenter = geo.contourBarycenter(neckContour)
 
-        return barycenter
+        return geo.contourBarycenter(neckContour)
+
 
     def _neck_surface(self):
-        """Compute aneurysm neck plane."""
+        """Generate aneurysm neck plane."""
 
-        neckIndex = intOne
+        neckIndex = intZero
         CellEntityIdsArrayName = "CellEntityIds"
 
         # Use thrshold filter to get neck plane
@@ -249,10 +252,12 @@ class Aneurysm:
 
         """
 
-        # Get lenght of boundary neck (validate in ParaView)
         neckContour = self._neck_contour()
 
-        return geo.contourHydraulicDiameter(neckContour)
+        # Compute perimeter
+        neckPerimeter = geo.contourPerimeter(neckContour)
+
+        return intFour*self._neck_plane_area/neckPerimeter
 
     def getMaximumHeight(self):
         """Return maximum height.
@@ -324,6 +329,8 @@ class Aneurysm:
             if nVertices > intZero:
 
                 # Compute hydraulic diameter of cut line
+                # TODO: will the error to compute the cut surface area due 
+                # to open contour work here
                 hydraulicDiameter = geo.contourHydraulicDiameter(
                     cutWithPlane.GetOutput()
                 )

@@ -93,9 +93,12 @@ def _tube_surface(centerline, smooth=True):
     objects = []
 
     radiusArray = 'MaximumInscribedSphereRadius'
+
+    # TODO: adapt the bpox dimension to the input geometry
     boxDimensions = _dimensions*[128]
 
     # Build tube function of the centerlines
+    # TODO: what happens if the centerline does not have a radius array?
     tubeImage = vmtkscripts.vmtkCenterlineModeller()
     tubeImage.Centerlines = centerline
     tubeImage.RadiusArrayName = radiusArray

@@ -61,6 +61,8 @@ def contourPerimeter(contour):
 
 def contourBarycenter(contour):
     """Return contour barycenter."""
+
+    # For the barycenter, the contour can be open
     contourPoints = contour.GetPoints()
 
     barycenter = [0.0, 0.0, 0.0]
@@ -73,7 +75,10 @@ def contourBarycenter(contour):
 
 def contourPlaneArea(contour):
     """Compute plane surface area enclosed by a 3D contour path."""
+
     # Fill contour
+    # TODO: This algorithms seems to fail to triangulate the contour if
+    # it is not closed. Need to find alternatives
     fillContour = vtk.vtkContourTriangulator()
     fillContour.SetInputData(contour)
     fillContour.Update()
@@ -89,6 +94,17 @@ def contourPlaneArea(contour):
 
     return computeArea.GetSurfaceArea()
 
+    # if computeArea.GetSurfaceArea() == 0.0:
+        # raise ValueError
+    # else:
+        # return computeArea.GetSurfaceArea()
+#
+# except ValueError:
+    # # Alternative procedure based on closing the aneurysm
+    # pass
+
+## TODO: overload this functions: receive a surface closed too
+## investigate functionoverloading for modules in Python
 def contourHydraulicDiameter(contour):
     """Compute hydraulic diameter of a plane contour."""
 
