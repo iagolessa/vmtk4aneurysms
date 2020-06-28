@@ -1,8 +1,6 @@
-# .gitignore
+# .gitignore 
 
-__pycache__
 .ipynb_checkpoints
-surfaceAnalysis/
-surfaceExtract/
-volumeMeshing/
 *.ipynb
+__pycache__
+*.pyc

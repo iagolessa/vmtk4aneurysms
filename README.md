@@ -7,6 +7,14 @@ as possible) extract high quality intracranial aneurysms and vessels netwrok
 surface for CFD simulations using the Vacular Modeling Toolkit framework 
 (http://www.vmtk.org/).
 
+Aneurysms
+
+Also includes Python library of functions to calculate morphological and 
+hemodynamic parameters related to aneurysms geometry and hemodynamics using
+ParaView filters and VMTK.
+
+The library works with the paraview.simple module of ParaView. 
+
 ### How do I get set up? ###
 
 Use VMTK's Python library.
