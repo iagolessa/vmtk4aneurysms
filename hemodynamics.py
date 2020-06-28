@@ -155,8 +155,10 @@ def wss_surf_avg(foamCase,
 
         # Resample OpenFOAM data to clipped aneeurysm surface
         resample = pv.ResampleWithDataset()
-        resample.Input = magWSS
-        resample.Source = clipAneurysm
+        # resample.Input = magWSS
+        resample.SourceDataArrays = magWSS
+        # resample.Source = clipAneurysm
+        resample.DestinationMesh = clipAneurysm
         resample.PassCellArrays = 1
         resample.UpdatePipeline()
 
@@ -559,8 +561,10 @@ def lsa_instant(foamCase,
 
     # Resample OpenFOAM data to clipped aneeurysm surface
     resample = pv.ResampleWithDataset()
-    resample.Input = magWSS
-    resample.Source = clipAneurysm
+    # resample.Input = magWSS
+    resample.SourceDataArrays = magWSS
+    # resample.Source = clipAneurysm
+    resample.DestinationMesh = clipAneurysm
     resample.PassCellArrays = 1
     resample.UpdatePipeline()
 
@@ -933,8 +937,9 @@ def afi(foamCase,
 
     # Resample OpenFOAM data to clipped aneeurysm surface
     resample = pv.ResampleWithDataset()
-    resample.Input = timeStats
-    resample.Source = timeData
+    # resample.Input = timeStats
+    resample.SourceDataArrays = timeStats
+    resample.DestinationMesh = timeData
     resample.PassCellArrays = 1
     resample.PassCellArrays = 1
     resample.UpdatePipeline()
