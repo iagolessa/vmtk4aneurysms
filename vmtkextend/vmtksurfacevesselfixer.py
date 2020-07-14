@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import vtk
 import sys
 
+from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 from vmtk import pypes
@@ -45,15 +46,25 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
                           "fix joined regions of the vessels).")
 
         self.SetInputMembers([
-            ['Surface',	'i', 'vtkPolyData', 1, '', 'the input surface', 'vmtksurfacereader'],
-            ['vmtkRenderer', 'renderer', 'vmtkRenderer', 1, '', 'external renderer'],
-            ['Remesh' , 'remesh', 'bool', 1, '', 'to apply remeshing procedure after fixing it'],
-            ['Smooth' , 'smooth','bool',1,'','if surface must be smoothed before fixing'],
-            ['Clip'   , 'clip'  ,'bool',1,'','to clip surface with a box before fixing it'],
+            ['Surface',	'i', 'vtkPolyData', 1, '', 
+                'the input surface', 'vmtksurfacereader'],
+
+            ['vmtkRenderer', 'renderer', 'vmtkRenderer', 1, '', 
+                'external renderer'],
+
+            ['Remesh' , 'remesh', 'bool', 1, '', 
+                'to apply remeshing procedure after fixing it'],
+
+            ['Smooth' , 'smooth','bool',1,'',
+                'if surface must be smoothed before fixing'],
+
+            ['Clip'   , 'clip'  ,'bool',1,'',
+                'to clip surface with a box before fixing it'],
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 'the output surface', 'vmtksurfacewriter']
+            ['Surface', 'o', 'vtkPolyData', 1, '', 
+                'the output surface', 'vmtksurfacewriter']
         ])
 
 
@@ -84,11 +95,13 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
 
     def ScalarsCallback(self, obj):
-
-        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(self.ContourWidget.GetRepresentation())
+        """Update the scalar contours on the surface for fixing."""
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+                    self.ContourWidget.GetRepresentation()
+                )
 
         pointIds = vtk.vtkIdList()
-        self.Interpolator.GetContourPointIds(rep,pointIds)
+        self.Interpolator.GetContourPointIds(rep, pointIds)
 
         points = vtk.vtkPoints()
         points.SetNumberOfPoints(pointIds.GetNumberOfIds())
@@ -98,6 +111,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             point = self.Surface.GetPoint(pointId)
             points.SetPoint(i,point)
 
+        # Select the region inside or outside closed contour
         selectionFilter = vtk.vtkSelectPolyData()
         selectionFilter.SetInputData(self.Surface)
         selectionFilter.SetLoop(points)
@@ -105,23 +119,27 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         selectionFilter.SetSelectionModeToSmallestRegion()
         selectionFilter.Update()
 
+        # Get scalars create by selection filter
         selectionScalars = selectionFilter.GetOutput().GetPointData().GetScalars()
 
-        contourScalars = self.Surface.GetPointData().GetArray(self.ContourScalarsArrayName)
+        contourScalars = self.Surface.GetPointData().GetArray(
+                            self.ContourScalarsArrayName
+                        )
 
 	# Update field on surface to include closed region with InsideValue
         for i in range(contourScalars.GetNumberOfTuples()):
             selectionValue = selectionScalars.GetTuple1(i)
 
+            # If inside the closed contour
             if selectionValue < 0.0:
-                contourScalars.SetTuple1(i,self.InsideValue)
+                contourScalars.SetTuple1(i, self.InsideValue)
 
         self.Actor.GetMapper().SetScalarRange(contourScalars.GetRange(0))
         self.Surface.Modified()
         self.ContourWidget.Initialize()
 
 
-    def FixJoinedCallback(self,obj):
+    def FixJoinedCallback(self, obj):
         """ Function to clip and fix a region from glued parts of the vessels."""
 
 	# Clip surface on ContourScalars field
@@ -129,10 +147,9 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.clipper.SetInputData(self.Surface)
         self.clipper.GenerateClippedOutputOn()
 	
+        # Set active scalar to operate on by clipper
         self.Surface.GetPointData().SetActiveScalars(self.ContourScalarsArrayName)
-
         self.clipper.GenerateClipScalarsOff()
-
         
         # Clip value for generated field (mid value)
         clipValue = 0.5*(self.FillValue + self.InsideValue)
@@ -140,18 +157,34 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.clipper.Update()
 
 	# Fill holes with capping smooth method
-        surfaceFixer = vmtkscripts.vmtkSurfaceCapper()
-        surfaceFixer.Surface = self.clipper.GetOutput()
-        surfaceFixer.Method = 'smooth'
-        surfaceFixer.ConstraintFactor = 0.65
-        surfaceFixer.NumberOfRings = 20
-        surfaceFixer.Interactive = 0
-        surfaceFixer.Execute()
+        # Smooth cap setup (note that this parameter is local
+        # because is different fom the different types of fixes)
+        ConstraintFactor = 0.65
+        NumberOfRings = 20
         
+        # surfaceFixer = vmtkscripts.vmtkSurfaceCapper()
+        # surfaceFixer.Surface = self.clipper.GetOutput()
+        # surfaceFixer.Method = 'smooth'
+        # surfaceFixer.ConstraintFactor = 0.65
+        # surfaceFixer.NumberOfRings = 20
+        # surfaceFixer.Interactive = 0
+        # surfaceFixer.Execute()
+
+        triangle = vtk.vtkTriangleFilter()
+        triangle.SetInputData(self.clipper.GetOutput())
+        triangle.PassLinesOff()
+        triangle.PassVertsOff()
+        triangle.Update()
+
+        capper = vtkvmtk.vtkvmtkSmoothCapPolyData()
+        capper.SetInputConnection(triangle.GetOutputPort())
+        capper.SetConstraintFactor(ConstraintFactor)
+        capper.SetNumberOfRings(NumberOfRings)
+        capper.Update()
         
         # Update mapper
         self.vmtkRenderer.Renderer.RemoveActor(self.Actor)
-        self.mapper.SetInputData(surfaceFixer.Surface)
+        self.mapper.SetInputData(capper.GetOutput())
         self.mapper.ScalarVisibilityOn()
         self.mapper.Update()
         
@@ -162,7 +195,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Actor.Modified()
 
         # Get output
-        self.Surface = surfaceFixer.Surface
+        self.Surface = capper.GetOutput()
         self.ContourWidget.Initialize()
 
         # Call Representation to initialize contour widget 
@@ -171,7 +204,9 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
 
     def FixMarkedRegion(self, obj):
-        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(self.ContourWidget.GetRepresentation())
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+                    self.ContourWidget.GetRepresentation()
+                )
 		
 	# Get contour point of closed path
         pointIds = vtk.vtkIdList()
@@ -224,19 +259,35 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.clipper.SetValue(clipValue)
         self.clipper.Update()
 
-		# Fill holes with capping smooth method
-        surfaceFixer = vmtkscripts.vmtkSurfaceCapper()
-        surfaceFixer.Surface = self.clipper.GetOutput()
-        surfaceFixer.Method = 'smooth'
-        surfaceFixer.ConstraintFactor = 1.2
-        surfaceFixer.NumberOfRings = 20
-        surfaceFixer.Interactive = 0
-        surfaceFixer.Execute()
+ 	# Fill holes with capping smooth method
+        # Smooth cap setup (note that this parameter is local
+        # because is different fom the different types of fixes)
+        ConstraintFactor = 1.2
+        NumberOfRings = 20
         
+        # surfaceFixer = vmtkscripts.vmtkSurfaceCapper()
+        # surfaceFixer.Surface = self.clipper.GetOutput()
+        # surfaceFixer.Method = 'smooth'
+        # surfaceFixer.ConstraintFactor = 1.2
+        # surfaceFixer.NumberOfRings = 20
+        # surfaceFixer.Interactive = 0
+        # surfaceFixer.Execute()
+
+        triangle = vtk.vtkTriangleFilter()
+        triangle.SetInputData(self.clipper.GetOutput())
+        triangle.PassLinesOff()
+        triangle.PassVertsOff()
+        triangle.Update()
+
+        capper = vtkvmtk.vtkvmtkSmoothCapPolyData()
+        capper.SetInputConnection(triangle.GetOutputPort())
+        capper.SetConstraintFactor(ConstraintFactor)
+        capper.SetNumberOfRings(NumberOfRings)
+        capper.Update()       
         
         # Update mapper
         self.vmtkRenderer.Renderer.RemoveActor(self.Actor)
-        self.mapper.SetInputData(surfaceFixer.Surface)
+        self.mapper.SetInputData(capper.GetOutput())
         self.mapper.ScalarVisibilityOn()
         self.mapper.Update()
         
@@ -247,11 +298,11 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Actor.Modified()
 
         # Get output
-        self.Surface = surfaceFixer.Surface
+        self.Surface = capper.GetOutput()
         self.ContourWidget.Initialize()
 
-		# Call Representation to initialize contour widget 
-		# on new clipped surface
+        # Call Representation to initialize contour widget 
+        # on new clipped surface
         self.Representation()
 
     def Representation(self):
@@ -264,7 +315,9 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
 	# Add array to surface
         self.Surface.GetPointData().AddArray(contourScalars)
-        self.Surface.GetPointData().SetActiveScalars(self.ContourScalarsArrayName)
+        self.Surface.GetPointData().SetActiveScalars(
+                self.ContourScalarsArrayName
+            )
 
 	# Create mapper and actor to scene
         self.mapper = vtk.vtkPolyDataMapper()
@@ -278,9 +331,14 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
 	# Create representation to draw contour
         self.ContourWidget = vtk.vtkContourWidget()
-        self.ContourWidget.SetInteractor(self.vmtkRenderer.RenderWindowInteractor)
+        self.ContourWidget.SetInteractor(
+            self.vmtkRenderer.RenderWindowInteractor
+        )
 
-        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(self.ContourWidget.GetRepresentation())
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+                    self.ContourWidget.GetRepresentation()
+                )
+
         rep.GetLinesProperty().SetColor(1, 0.2, 0)
         rep.GetLinesProperty().SetLineWidth(3.0)
 
@@ -293,19 +351,39 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Interpolator.GetPolys().AddItem(self.Surface)
         rep.SetLineInterpolator(self.Interpolator)
 
-        self.vmtkRenderer.AddKeyBinding('i', 'Start intercation: select closed contour', self.InteractCallback)
-        self.vmtkRenderer.AddKeyBinding('m', 'Mark region to be fixed', self.ScalarsCallback)
-        self.vmtkRenderer.AddKeyBinding('f', 'Fix joined regions', self.FixJoinedCallback)
-        self.vmtkRenderer.AddKeyBinding('d', 'Delete contour \n', self.DeleteContourCallback)
-        self.vmtkRenderer.AddKeyBinding('space', 'Fix marked region (directly on closed contour)', self.FixMarkedRegion)
+        # Messages on the screen
+        self.vmtkRenderer.AddKeyBinding('i', 'Start interaction: select closed contour', 
+                                        self.InteractCallback)
 
-        self.vmtkRenderer.InputInfo('The available modes to fix the surface are:\n'
-                                    '- Select a closed region and press "space" to fix it;\n'
-                                    '- Select a region by interactively drawing closed contours\n'
-                                    '  in the region where vessels are joined and, after it, \n'
-                                    '  press "f" to fix it.\n'
-                                    '\n'
-                                    'All the available commands are shown on the left.\n')
+        self.vmtkRenderer.AddKeyBinding(
+            'm', 'Mark region to be fixed',
+            self.ScalarsCallback
+        )
+
+        self.vmtkRenderer.AddKeyBinding(
+            'f', 'Fix joined regions', 
+            self.FixJoinedCallback
+        )
+
+        self.vmtkRenderer.AddKeyBinding(
+            'd', 'Delete contour \n', 
+            self.DeleteContourCallback
+        )
+
+        self.vmtkRenderer.AddKeyBinding(
+            'space', 'Fix marked region (directly on closed contour)', 
+            self.FixMarkedRegion
+        )
+
+        self.vmtkRenderer.InputInfo(
+            'The available modes to fix the surface are:\n'
+            '- Select a closed region and press "space" to fix it;\n'
+            '- Select a region, first, by interactively drawing closed\n'
+            '  constours in the region where vessels are joined and, after it,\n'
+            '  press "f" to fix it.\n'
+            '\n'
+            'All the available commands are shown on the left.\n'
+        )
 
         self.Display()
        
@@ -355,17 +433,20 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             smoother.NumberOfIterations = 30
             smoother.Execute()
             
-            subdivider = vmtkscripts.vmtkSurfaceSubdivision()
-            subdivider.Surface = smoother.Surface
-            subdivider.Method  = 'butterfly'
-#           subdivider.NumberOfSubdivisions = 2
-            subdivider.Execute()
+            # subdivider = vmtkscripts.vmtkSurfaceSubdivision()
+            # subdivider.Surface = smoother.Surface
+            # subdivider.Method  = 'butterfly'
+            # # subdivider.NumberOfSubdivisions = 2
+            # subdivider.Execute()
             
             self.Surface = subdivider.Surface
 
         
-        # Start representation
-        self.Representation()        
+        # Start representation and access to all operations
+        self.Representation()
+
+        # Clean up surface arrays
+        self.Surface.GetPointData().RemoveArray(self.ContourScalarsArrayName)
 	
         # Remesh procedure to increase surface quality
         if self.Remesh:
