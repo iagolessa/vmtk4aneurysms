@@ -7,8 +7,13 @@ The library works with the paraview.simple module.
 """
 
 import sys
-import numpy as np
 import paraview.simple as pv
+
+import vtk
+import numpy as np
+from vtk.numpy_interface import dataset_adapter as dsa
+
+import polydatatools as tools
 
 # Attribute array names
 _Area = 'Area'
@@ -619,6 +624,7 @@ def lsa_instant(foamCase,
 
 def wss_stats_aneurysm(neckSurface,
                        neckArrayName,
+                       n_percentile,
                        neckIsoValue=0.5,
                        avgMagWSSArray=_WSSmag+'_average'):
     """
@@ -632,45 +638,45 @@ def wss_stats_aneurysm(neckSurface,
 
     try:
         # Try to read if file name is given
-        surface = pv.XMLPolyDataReader(FileName=neckSurface)
+        surface = tools.readSurface(neckSurface)
     except:
         surface = neckSurface
 
-    clipAneurysm = pv.Clip()
-    clipAneurysm.Input = surface
-    clipAneurysm.ClipType = 'Scalar'
-    clipAneurysm.Scalars = ['POINTS', neckArrayName]
-    # gets portion outside the clip function (values smaller than the clip value)
-    clipAneurysm.Invert = 1
-    clipAneurysm.Value = neckIsoValue
-    clipAneurysm.UpdatePipeline()
+    surface.GetPointData().SetActiveScalars(neckArrayName)
 
-    # Finaly we integrate over Sa
-    integrate = pv.IntegrateVariables()
-    integrate.Input = clipAneurysm
-    integrate.UpdatePipeline()
+    # Clip aneurysm surface
+    clipper = vtk.vtkClipPolyData()
+    clipper.SetInputData(surface)
+    clipper.SetValue(neckIsoValue)
+    clipper.SetInsideOut(1)
+    clipper.Update()
 
-    aneurysmArea = integrate.CellData.GetArray(_Area).GetRange()[0]
+    aneurysm = clipper.GetOutput()
 
-    WSSav = integrate.CellData.GetArray(avgMagWSSArray).GetRange()[
-        0]/aneurysmArea  # averaged
-    WSSmax = clipAneurysm.CellData.GetArray(avgMagWSSArray).GetRange()[
-        1]  # maximum value
-    WSSmin = clipAneurysm.CellData.GetArray(avgMagWSSArray).GetRange()[
-        0]  # minimum value
+    # Get aneurysm area
+    aneurysmProperties = vtk.vtkMassProperties()
+    aneurysmProperties.SetInputData(aneurysm)
+    aneurysmProperties.Update()
 
-    # Delete pv objects
-    pv.Delete(clipAneurysm)
-    del clipAneurysm
+    surfaceArea = aneurysmProperties.GetSurfaceArea()
 
-    pv.Delete(integrate)
-    del integrate
+    # Get Array
+    array = dsa.WrapDataObject(aneurysm)
 
-    return [aneurysmArea, WSSav, WSSmax, WSSmin]
+    wssArray = array.GetCellData().GetArray(avgMagWSSArray)
+
+    # WSS averaged
+    maximum = np.max(np.array(wssArray))
+    minimum = np.min(np.array(wssArray))
+    percentile = np.percentile(np.array(wssArray), n_percentile)
+    average = np.average(np.array(wssArray))
+
+    return [surfaceArea, average, maximum, minimum, percentile]
 
 
 def osi_stats_aneurysm(neckSurface,
                        neckArrayName,
+                       n_percentile,
                        neckIsoValue=0.5,
                        osiArrayName=_OSI):
     """
@@ -681,44 +687,42 @@ def osi_stats_aneurysm(neckSurface,
         Return list with aneurysm area, OSIav, OSImax, and 
         OSImin.
     """
-
     try:
         # Try to read if file name is given
-        surface = pv.XMLPolyDataReader(FileName=neckSurface)
+        surface = tools.readSurface(neckSurface)
     except:
         surface = neckSurface
 
-    clipAneurysm = pv.Clip()
-    clipAneurysm.Input = surface
-    clipAneurysm.ClipType = 'Scalar'
-    clipAneurysm.Scalars = ['POINTS', neckArrayName]
-    clipAneurysm.Invert = 1
-    # based on the definition of field ContourScalars
-    clipAneurysm.Value = neckIsoValue
-    clipAneurysm.UpdatePipeline()
+    surface.GetPointData().SetActiveScalars(neckArrayName)
 
-    # Finaly we integrate over Sa
-    integrate = pv.IntegrateVariables()
-    integrate.Input = clipAneurysm
-    integrate.UpdatePipeline()
+    # Clip aneurysm surface
+    clipper = vtk.vtkClipPolyData()
+    clipper.SetInputData(surface)
+    clipper.SetValue(neckIsoValue)
+    clipper.SetInsideOut(1)
+    clipper.Update()
 
-    aneurysmArea = integrate.CellData.GetArray(_Area).GetRange()[0]
+    aneurysm = clipper.GetOutput()
 
-    OSIav = integrate.CellData.GetArray(osiArrayName).GetRange()[
-        0]/aneurysmArea  # averaged
-    OSImax = clipAneurysm.CellData.GetArray(osiArrayName).GetRange()[
-        1]  # maximum value
-    OSImin = clipAneurysm.CellData.GetArray(osiArrayName).GetRange()[
-        0]  # minimum value
+    # Get aneurysm area
+    aneurysmProperties = vtk.vtkMassProperties()
+    aneurysmProperties.SetInputData(aneurysm)
+    aneurysmProperties.Update()
 
-    # Delete pv objects
-    pv.Delete(clipAneurysm)
-    del clipAneurysm
+    surfaceArea = aneurysmProperties.GetSurfaceArea()
 
-    pv.Delete(integrate)
-    del integrate
+    # Get Array
+    array = dsa.WrapDataObject(aneurysm)
 
-    return [aneurysmArea, OSIav, OSImax, OSImin]
+    osiArray = array.GetCellData().GetArray(osiArrayName)
+
+    # WSS averaged
+    maximum = np.max(np.array(osiArray))
+    minimum = np.min(np.array(osiArray))
+    percentile = np.percentile(np.array(osiArray), n_percentile)
+    average = np.average(np.array(osiArray))
+
+    return [surfaceArea, average, maximum, minimum, percentile]
 
 
 def lsa_wss_avg(neckSurface,
