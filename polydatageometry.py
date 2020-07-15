@@ -232,7 +232,6 @@ def surfaceCurvature(surface):
 
 
 if __name__ == '__main__':
-
     import sys
     import polydatatools as tools
 
