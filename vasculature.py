@@ -169,7 +169,9 @@ class Vasculature:
         """
 
         print('Initiating model.', end='\n')
-        self._surface = surface
+
+        # Computes the curvature of the vasculature
+        self._surface = geo.surfaceCurvature(surface)
         self._centerlines = None
         self._aneurysm_point = None
 
@@ -404,8 +406,8 @@ if __name__ == '__main__':
 
     vasculatureSurface = tools.readSurface(filename)
 
-    withAneurysm = True
-    manual = False
+    withAneurysm = False
+    manual = True
 
     case = Vasculature(
         vasculatureSurface,
@@ -414,8 +416,9 @@ if __name__ == '__main__':
     )
 
     # Inspection
-    tools.viewSurface(case.getSurface())
+    tools.viewSurface(case.getSurface(), array_name="Local_Shape_Type")
     tools.viewSurface(case.getCenterlines())
+
 
     print("Centerline arrays", end='\n')
     for index in range(case.getCenterlines().GetPointData().GetNumberOfArrays()):
@@ -448,11 +451,13 @@ if __name__ == '__main__':
     print(case.getBifurcations()[0].inPlaneVectors)
 
     # Compute wall thickness
-#     case.computeWallThicknessArray()
-#     tools.viewSurface(case.getSurface(),array_name="Thickness")
+    case.computeWallThicknessArray()
+    tools.viewSurface(case.getSurface(),array_name="Thickness")
+
+    tools.writeSurface(case.getSurface(), '/home/iagolessa/tmp.vtp')
 
     # Inspect branches
-#     print("Branches number ", len(case.getBranches()), end='\n')
-#     for branch in case.getBranches():
-#         tools.viewSurface(branch.getBranch())
-#         print('Branch Length = ', branch.getLength(), end='\n')
+    print("Branches number ", len(case.getBranches()), end='\n')
+    for branch in case.getBranches():
+        tools.viewSurface(branch.getBranch())
+        print('Branch Length = ', branch.getLength(), end='\n')
