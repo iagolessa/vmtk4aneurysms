@@ -350,7 +350,7 @@ class Vasculature:
             ).GetRange()
         )
 
-        for branchId in range(int(maxGroupId)):
+        for branchId in range(int(maxGroupId) + 1):
             branch = tools.extractPortion(
                 branches,
                 groupIdsArrayName,
