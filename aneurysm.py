@@ -425,79 +425,163 @@ class Aneurysm:
         """
         aneurysmVolume = self._volume
 
-        return intOne - aneurysmVolume/self._hull_volume
+    def getCurvatureMetrics(self):
+        """Compute curvature metrics.
 
+        Based on local mean and Gaussian curvatures,
+        compute their area-averaged values (MAA and GAA,
+        respectively) and their L2-norm (MLN and GLN),
+        as shown in
+
+            Ma et al. (2004).
+            Three-dimensional geometrical characterization
+            of cerebral aneurysms.
+
+        Return a tuple with the metrics in the order
+        (MAA, GAA, MLN, GLN).
+        """
+        # Get arrays on the aneurysm surface
+        nArrays = self._aneurysm_surface.GetCellData().GetNumberOfArrays()
+        aneurysmCellData = self._aneurysm_surface.GetCellData()
+
+        arrayNames = [aneurysmCellData.GetArray(array_id).GetName()
+                      for array_id in range(nArrays)]
+
+        curvatureArrays = {'Mean': 'Mean_Curvature',
+                           'Gauss': 'Gauss_Curvature'}
+
+        # Check if there is any curvature array on the aneurysm surface
+        if not all(array in arrayNames for array in curvatureArrays.values()):
+
+            # TODO: find a procedure to remove points close to boundary 
+            # of the computation
+            warningMessage = "Warning! I did not find any of the necessary " \
+                             "curvature arrays on the surface.\nI will "     \
+                             "compute them for the aneurysm surface, but "   \
+                             "mind that the curvature values close to the "  \
+                             "surface boundary are not correct and may "     \
+                             "impact the curvature metrics.\n"
+
+            print(warningMessage)
+
+            # Compute curvature arrays for aneurysm surface
+            curvatureSurface = geo.surfaceCurvature(self._aneurysm_surface)
+        else:
+            curvatureSurface = self._aneurysm_surface
+
+        aneurysmCellData = curvatureSurface.GetCellData()
+
+        # TODO: improve this patch with vtkIntegrateAttributes
+        # I don't know why the vtkIntegrateAttributes was not available in
+        # the python interface, so I had to improvise
+        # (this version was the most efficient that I got with 
+        # pure python -- I tried others more numpythonic as well)
+
+        # Helper functions
+        getArea = lambda id_: curvatureSurface.GetCell(id_).ComputeArea()
+        getValue = lambda id_, array: aneurysmCellData.GetArray(array).GetValue(id_)
+
+        def getCellCurvature(id_):
+            cellArea = getArea(id_)
+            GaussCurvature = getValue(id_, curvatureArrays.get('Gauss'))
+            MeanCurvature  = getValue(id_, curvatureArrays.get('Mean'))
+
+            return cellArea, MeanCurvature, GaussCurvature
+
+        integralSquareGaussCurvature = 0.0
+        integralSquareMeanCurvature  = 0.0
+        integralGaussCurvature = 0.0
+        integralMeanCurvature  = 0.0
+
+        cellIds = range(curvatureSurface.GetNumberOfCells())
+
+        # Map function to cell ids
+        for area, meanCurv, GaussCurv in map(getCellCurvature, cellIds):
+            integralGaussCurvature += area*GaussCurv
+            integralMeanCurvature  += area*meanCurv
+
+            integralSquareGaussCurvature += area*(GaussCurv**2)
+            integralSquareMeanCurvature  += area*(meanCurv**2)
+
+        # Compute L2-norm of Gauss and mean curvature (GLN and MLN)
+        # and their area averaged values (GAA and MAA)
+        MAA = integralMeanCurvature/self._surface_area
+        GAA = integralGaussCurvature/self._surface_area
+
+        MLN = np.sqrt(integralMeanCurvature)/(4.0*Pi)
+        GLN = np.sqrt(integralGaussCurvature*self._surface_area)/(4.0*Pi)
+
+        return MAA, GAA, MLN, GLN
 
 if __name__ == '__main__':
 
-    import glob
-    import pandas as pd
+    # Testing
+    filename = sys.argv[1]
 
-    HOME = '/home/iagolessa/'
-    aneurysmsDir = HOME + 'documents/unesp/doctorate/data/aneurysms/'
-    workingDir = aneurysmsDir + 'geometries/einsteinCases/'
+    aneurysmSurface = tools.readSurface(filename)
 
-    aneurysmsList = glob.glob(
-        workingDir + '*/*/*/*/*/case*aneurysm_plane_clipped.vtp')
+    print("Initializing aneurysm case model\n")
+    aneurysm = Aneurysm(aneurysmSurface, "terminal", "ruptured", "case2")
 
-    surface = tools.readSurface(aneurysmsList[0])
-    tools.viewSurface(surface)
+    tools.viewSurface(aneurysm.getSurface())
+    tools.viewSurface(aneurysm.getHullSurface())
 
-    aneurysm = aneurysms.Aneurysm(surface, "terminal", "ruptured", "case19")
+    obj = aneurysm
 
-    tools.viewSurface(aneurysm.aneurysmSurface)
+    print("Aneurysms parameters: ", end='\n')
+    for parameter in dir(obj):
+        if parameter.startswith('get'):
+            attribute = getattr(obj, parameter)()
 
-    ruptured = ['case1', 'case2', 'case4ruptured', 'case5']
-    unruptured = ['case11', 'case13', 'case4unruptured', 'case17']
+            if type(attribute) == float or type(attribute) == tuple:
+                print('\t' + parameter.strip('get') +
+                      ' = '+str(attribute), end='\n')
 
-    aneurysmsCases = {}
-    aneurysmType = 'terminal'
+    # for filename in aneurysmsList:
+        # # Get case label
+        # case = filename.split('/')[-2]
 
-    for filename in aneurysmsList:
-        # Get case label
-        case = filename.split('/')[-2]
+        # # Read surface
+        # surface = tools.readSurface(filename)
 
-        # Read surface
-        surface = tools.readSurface(filename)
+        # if case in ruptured:
+            # status = 'ruptured'
+        # else:
+            # status = 'unruptured'
 
-        if case in ruptured:
-            status = 'ruptured'
-        else:
-            status = 'unruptured'
+        # # Initialize aneurysm object
+        # aneurysm = aneurysms.Aneurysm(surface, aneurysmType, status, case)
 
-        # Initialize aneurysm object
-        aneurysm = aneurysms.Aneurysm(surface, aneurysmType, status, case)
+        # # Collect into dict
+        # aneurysmsCases[case] = aneurysm
 
-        # Collect into dict
-        aneurysmsCases[case] = aneurysm
+    # aneurysmsCases['case1'].aneurysmStatus
 
-    aneurysmsCases['case1'].aneurysmStatus
+    # dictMorphology = {case: {} for case in aneurysmsCases.keys()}
 
-    dictMorphology = {case: {} for case in aneurysmsCases.keys()}
+    # # Iterate over methods to get morphology of each case
+    # parameters = [param for param in dir(
+        # aneurysms.Aneurysm) if not param.startswith('_')]
+    # attributes = ['surfaceArea', 'volume', 'aneurysmStatus']
+    # parameters = parameters + attributes
 
-    # Iterate over methods to get morphology of each case
-    parameters = [param for param in dir(
-        aneurysms.Aneurysm) if not param.startswith('_')]
-    attributes = ['surfaceArea', 'volume', 'aneurysmStatus']
-    parameters = parameters + attributes
+    # for case in aneurysmsCases.keys():
+        # for param in parameters:
 
-    for case in aneurysmsCases.keys():
-        for param in parameters:
+            # # Aneurysm object
+            # obj = aneurysmsCases[case]
 
-            # Aneurysm object
-            obj = aneurysmsCases[case]
+    # #         try:
+            # if param in attributes:
+                # dictMorphology[case][param] = getattr(obj, param)
+            # else:
+                # dictMorphology[case][param] = getattr(obj, param)()
+    # #         except:
+    # #             print('Error for case'+case+' in param '+param)
 
-    #         try:
-            if param in attributes:
-                dictMorphology[case][param] = getattr(obj, param)
-            else:
-                dictMorphology[case][param] = getattr(obj, param)()
-    #         except:
-    #             print('Error for case'+case+' in param '+param)
+    # morphology = pd.DataFrame.from_dict(dictMorphology, orient='index')
 
-    morphology = pd.DataFrame.from_dict(dictMorphology, orient='index')
+    # morphology.sort_values(by='volume')
 
-    morphology.sort_values(by='volume')
-
-    morphology.sort_values(by='aneurysmStatus').to_csv('./morphology.csv',
-                                                       float_format="%3.4f")
+    # morphology.sort_values(by='aneurysmStatus').to_csv('./morphology.csv',
+                                                       # float_format="%3.4f")
