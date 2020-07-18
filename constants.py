@@ -1,6 +1,9 @@
 import math
+import vtk
 
 # Constants
+Pi = vtk.vtkMath.Pi()
+
 intZero = 0
 intOne = 1
 intTwo = 2

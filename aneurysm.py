@@ -31,16 +31,22 @@ class Aneurysm:
 
         # Triangulate vtkPolyData surface
         # (input is cleaned surface)
-        cleanedSurface = tools.cleaner(surface)
+        # cleanedSurface = tools.cleaner(surface)
+        self._aneurysm_surface = tools.cleaner(surface)
 
-        triangulate = vtk.vtkTriangleFilter()
-        triangulate.SetInputData(cleanedSurface)
-        triangulate.Update()
+        # triangulate = vtk.vtkTriangleFilter()
+        # triangulate.SetInputData(cleanedSurface)
+        # triangulate.Update()
 
-        self._aneurysm_surface = triangulate.GetOutput()
+        # self._aneurysm_surface = triangulate.GetOutput()
 
         # Compute neck surface area
+        # Compute areas...
+        self._surface_area = geo.surfaceArea(self._aneurysm_surface)
         self._neck_plane_area = geo.surfaceArea(self._neck_surface())
+
+        # ... and volume
+        self._volume = geo.surfaceVolume(self._cap_aneurysm())
 
         # Computing hull properties
         self._hull_surface_area = 0.0
@@ -222,15 +228,13 @@ class Aneurysm:
         return self._hull_surface
 
     def getAneurysmSurfaceArea(self):
-        return geo.surfaceArea(self._aneurysm_surface)
+        return self._surface_area
 
     def getNeckPlaneArea(self):
         return self._neck_plane_area
 
     def getAneurysmVolume(self):
-        cappedSurface = self._cap_aneurysm()
-
-        return geo.surfaceVolume(cappedSurface)
+        return self._volume
 
     def getHullSurfaceArea(self):
         return self._hull_surface_area
@@ -382,8 +386,8 @@ class Aneurysm:
         """
         factor = (18*np.pi)**(1./3.)
 
-        area = self.getAneurysmSurfaceArea()
-        volume = self.getAneurysmVolume()
+        area = self._surface_area
+        volume = self._volume
 
         return intOne - (factor/area)*(volume**(2./3.))
 
@@ -419,7 +423,7 @@ class Aneurysm:
         volume of its convex hull.
 
         """
-        aneurysmVolume = self.getAneurysmVolume()
+        aneurysmVolume = self._volume
 
         return intOne - aneurysmVolume/self._hull_volume
 
