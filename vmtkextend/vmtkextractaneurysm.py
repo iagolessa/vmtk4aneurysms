@@ -6,10 +6,10 @@
 import sys
 import vtk
 
+from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 from vmtk import pypes
-
 
 vmtkextractaneurysm = 'vmtkExtractAneurysm'
 
@@ -17,8 +17,6 @@ class vmtkExtractAneurysm(pypes.pypeScript):
     
     # Constructor
     def __init__(self):
-        # Calls base class constructor
-        # Extend constructor
         pypes.pypeScript.__init__(self)
         
         self.Surface = None
@@ -28,6 +26,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.OstiumSurface   = None
         self.AneurysmType    = None
         self.ManualMode      = True
+        self.ComputeOstium   = False
         self.vmtkRenderer    = None
         self.OwnRenderer     = 0
         
@@ -43,12 +42,16 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '', 
-             'the input surface', 
-             'vmtksurfacereader'],
+                'the input surface', 'vmtksurfacereader'],
+
             ['AneurysmType','type', 'str', 1,'["lateral", "terminal"]', 
-             'aneurysm type'],
+                'aneurysm type'],
+
             ['ManualMode','manual', 'bool', 1,'', 
-             'enable manual mode (works for both types, however is mandatory for terminal case)']
+                'enable manual mode (works for both types, however is mandatory for terminal case)'],
+            
+            ['ComputeOstium','computeostium', 'bool', 1,'', 
+                'do not generate ostium surface']
         ])
         
         self.SetOutputMembers([
@@ -158,29 +161,43 @@ class vmtkExtractAneurysm(pypes.pypeScript):
     def GenerateOstium(self):
         """ Generate an ostium surface based on the aneurysm neck array."""
 
-        capper = vmtkscripts.vmtkSurfaceCapper()
-        capper.Surface = self.AneurysmSurface
-        capper.Method = 'centerpoint'
-        capper.Interactive = 0
-        capper.Execute()
+        cellEntityIdsArrayName = "CellEntityIds"
+        method = 'centerpoint' # or simple
 
-        convertNumpy = vmtkscripts.vmtkSurfaceToNumpy()
-        convertNumpy.Surface = capper.Surface
-        convertNumpy.Execute()
+        if method == 'simple':
+            capper = vtkvmtk.vtkvmtkSimpleCapPolyData()
+            capper.SetInputData(self.AneurysmSurface)
+        else:
+            capper = vtkvmtk.vtkvmtkCapPolyData()
+            capper.SetInputData(self.AneurysmSurface)
+            capper.SetDisplacement(0.0)
+            capper.SetInPlaneDisplacement(0.0)
 
-        ostiumId = max(convertNumpy.ArrayDict['CellData']['CellEntityIds'])
+        capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
+        capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
+        capper.Update()
 
-        ostiumExtractor = vmtkscripts.vmtkThreshold()
-        ostiumExtractor.Surface = capper.Surface
-        ostiumExtractor.LowThreshold = ostiumId
-        ostiumExtractor.HighThreshold = ostiumId
-        ostiumExtractor.Execute()
+        # Get maximum id of the surfaces
+        ids = capper.GetOutput().GetCellData().GetArray(cellEntityIdsArrayName).GetRange()
+        ostiumId = max(ids)
+
+        ostiumExtractor = vtk.vtkThreshold()
+        ostiumExtractor.SetInputData(capper.GetOutput())
+        ostiumExtractor.SetInputArrayToProcess(0, 0, 0, 1, cellEntityIdsArrayName)
+        ostiumExtractor.ThresholdBetween(ostiumId, ostiumId)
+        ostiumExtractor.Update()
+
+        # Converts vtkUnstructuredGrid -> vtkPolyData
+        gridToSurfaceFilter = vtk.vtkGeometryFilter()
+        gridToSurfaceFilter.SetInputData(ostiumExtractor.GetOutput())
+        gridToSurfaceFilter.Update()
 
         ostiumRemesher = vmtkscripts.vmtkSurfaceRemeshing()
-        ostiumRemesher.Surface = ostiumExtractor.Surface
+        ostiumRemesher.Surface = gridToSurfaceFilter.GetOutput()
         ostiumRemesher.ElementSizeMode = 'edgelength'
         ostiumRemesher.TargetEdgeLength = 0.1
         ostiumRemesher.TargetEdgeLengthFactor = 1.0
+        ostiumRemesher.PreserveBoundaryEdges = 1
         ostiumRemesher.Execute()
 
         ostiumSmoother = vmtkscripts.vmtkSurfaceSmoothing()
@@ -188,6 +205,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         ostiumSmoother.Method = 'taubin'
         ostiumSmoother.NumberOfIterations = 30
         ostiumSmoother.PassBand = 0.1
+        ostiumSmoother.BoundarySmoothing = 0
         ostiumSmoother.Execute()
 
         self.OstiumSurface = ostiumSmoother.Surface
@@ -434,7 +452,8 @@ class vmtkExtractAneurysm(pypes.pypeScript):
             self.PrintError('Aneurysm type not recognized.')
            
         # Generate ostium surface
-        self.GenerateOstium()
+        if self.ComputeOstium:
+            self.GenerateOstium()
                         
         if self.OwnRenderer:
             self.vmtkRenderer.Deallocate() 
