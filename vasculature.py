@@ -411,6 +411,8 @@ if __name__ == '__main__':
     withAneurysm = int(sys.argv[2])
     manual = int(sys.argv[3])
 
+    renderSurfaces = int(sys.argv[4])
+
     case = Vasculature(
         vasculatureSurface,
         with_aneurysm=withAneurysm,
@@ -418,8 +420,9 @@ if __name__ == '__main__':
     )
 
     # Inspection
-    tools.viewSurface(case.getSurface(), array_name="Local_Shape_Type")
-    tools.viewSurface(case.getCenterlines())
+    if renderSurfaces:
+        tools.viewSurface(case.getSurface(), array_name="Local_Shape_Type")
+        tools.viewSurface(case.getCenterlines())
 
     print("Centerline arrays", end='\n')
     for index in range(case.getCenterlines().GetPointData().GetNumberOfArrays()):
@@ -440,8 +443,8 @@ if __name__ == '__main__':
     pprint(case.getBifurcations()[0].inPlaneVectors)
 
     # Compute wall thickness
-    case.computeWallThicknessArray()
-    tools.viewSurface(case.getSurface(),array_name="Thickness")
+    # case.computeWallThicknessArray()
+    # tools.viewSurface(case.getSurface(),array_name="Thickness")
     # tools.writeSurface(case.getSurface(), '/home/iagolessa/tmp.vtp')
 
     print('\n')
@@ -449,15 +452,17 @@ if __name__ == '__main__':
     print("Branches number = ", len(case.getBranches()), end='\n')
 
     for branch in case.getBranches():
-        tools.viewSurface(branch.getBranch())
+        if renderSurfaces:
+            tools.viewSurface(branch.getBranch())
         print('\tBranch Length = ', branch.getLength(), end='\n')
 
     print('\n')
     # If has aneurysm
-    print("Showing aneurysm properties", end='\n')
     if withAneurysm:
-        tools.viewSurface(case.getAneurysm().getSurface())
-        tools.viewSurface(case.getAneurysm().getHullSurface())
+        print("Showing aneurysm properties", end='\n')
+        if renderSurfaces:
+            tools.viewSurface(case.getAneurysm().getSurface())
+            tools.viewSurface(case.getAneurysm().getHullSurface())
 
         obj = case.getAneurysm()
 
