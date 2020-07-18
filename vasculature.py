@@ -6,7 +6,6 @@ input is a surface model of the vasculature as a vtkPolyData
 or a file name.
 """
 
-import sys
 import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -401,13 +400,16 @@ class Vasculature:
         return self._branches
 
 if __name__ == '__main__':
-    # Testing
+    # Testing: generate a report on the vasculature being loaded
+    import sys
+    from pprint import pprint
+
     filename = sys.argv[1]
 
     vasculatureSurface = tools.readSurface(filename)
 
-    withAneurysm = False
-    manual = True
+    withAneurysm = int(sys.argv[2])
+    manual = int(sys.argv[3])
 
     case = Vasculature(
         vasculatureSurface,
@@ -419,45 +421,51 @@ if __name__ == '__main__':
     tools.viewSurface(case.getSurface(), array_name="Local_Shape_Type")
     tools.viewSurface(case.getCenterlines())
 
-
     print("Centerline arrays", end='\n')
     for index in range(case.getCenterlines().GetPointData().GetNumberOfArrays()):
-        print(case.getCenterlines().GetPointData().GetArray(index).GetName())
+        print('\t'+case.getCenterlines().GetPointData().GetArray(index).GetName(),
+              end='\n')
 
+    # Inlet and outlets
+    print("Inlet:", end='\n')
+    pprint(case.getInletCenters())
+
+    print("Outlets: ", end='\n')
+    pprint(case.getOutletCenters())
+
+    print('\n')
+
+    # Bifurcations
+    print("Bifurcation number = ", case.getNumberOfBifurcations(), end='\n')
+    pprint(case.getBifurcations()[0].inPlaneVectors)
+
+    # Compute wall thickness
+    case.computeWallThicknessArray()
+    tools.viewSurface(case.getSurface(),array_name="Thickness")
+    # tools.writeSurface(case.getSurface(), '/home/iagolessa/tmp.vtp')
+
+    print('\n')
+    # Inspect branches
+    print("Branches number = ", len(case.getBranches()), end='\n')
+
+    for branch in case.getBranches():
+        tools.viewSurface(branch.getBranch())
+        print('\tBranch Length = ', branch.getLength(), end='\n')
+
+    print('\n')
     # If has aneurysm
+    print("Showing aneurysm properties", end='\n')
     if withAneurysm:
         tools.viewSurface(case.getAneurysm().getSurface())
         tools.viewSurface(case.getAneurysm().getHullSurface())
 
         obj = case.getAneurysm()
 
-        print("Aneurysms parameters: ", end='\n')
+        print("\tAneurysms parameters: ", end='\n')
         for parameter in dir(obj):
             if parameter.startswith('get'):
                 attribute = getattr(obj, parameter)()
 
-                if type(attribute) == float:
-                    print(parameter.strip('get') +
+                if type(attribute) == float or type(attribute) == tuple:
+                    print('\t'+ parameter.strip('get') +
                           ' = '+str(attribute), end='\n')
-#                     message = f"the parameter is {attribute}"
-    
-
-    # Inlet and outlets
-    print("Inlet: ", case.getInletCenters(), end='\n')
-    print("Outlets: ", case.getOutletCenters(), end='\n')
-
-    # Bifurcations
-    print("Bifurcation number = ", case.getNumberOfBifurcations(), end='\n')
-    print(case.getBifurcations()[0].inPlaneVectors)
-
-    # Compute wall thickness
-    case.computeWallThicknessArray()
-    tools.viewSurface(case.getSurface(),array_name="Thickness")
-
-    tools.writeSurface(case.getSurface(), '/home/iagolessa/tmp.vtp')
-
-    # Inspect branches
-    print("Branches number ", len(case.getBranches()), end='\n')
-    for branch in case.getBranches():
-        tools.viewSurface(branch.getBranch())
-        print('Branch Length = ', branch.getLength(), end='\n')
