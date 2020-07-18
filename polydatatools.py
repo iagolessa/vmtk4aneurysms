@@ -13,11 +13,15 @@ def readSurface(file_name):
     Arguments: 
     file_name -- complete path with file name
     """
-    reader = vmtkscripts.vmtkSurfaceReader()
-    reader.InputFileName = file_name
-    reader.Execute()
+    reader = vtk.vtkXMLPolyDataReader()
+    reader.SetFileName(file_name)
+    reader.Update()
+
+    # reader = vmtkscripts.vmtkSurfaceReader()
+    # reader.InputFileName = file_name
+    # reader.Execute()
     
-    return reader.Surface
+    return reader.GetOutput()
 
 
 def viewSurface(surface, array_name=None):
