@@ -3,8 +3,6 @@
 import vtk
 import math
 from vmtk import vtkvmtk
-from vmtk import vmtkscripts
-from vmtk import vmtkrenderer
 
 from constants import *
 
