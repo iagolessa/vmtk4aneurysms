@@ -640,7 +640,6 @@ def lsa_wss_avg(neckSurface,
 # way as the aneurysm neck is beuild. So, I will assume
 # in this function that the surface is already cut to in-
 # clude only the parent artery portion and that includes
-
 def wss_parent_vessel(parentArterySurface,
                       parentArteryArrayName,
                       parentArteryIsoValue=0.5):

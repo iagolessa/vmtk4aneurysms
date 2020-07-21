@@ -26,7 +26,7 @@ def distance(point1, point2):
     return math.sqrt(sqrDistance)
 
 
-def surfaceArea(surface):
+def surfaceArea(surface: _polyDataType) -> float:
     """Compute the surface area of an input surface."""
 
     surface_area = vtk.vtkMassProperties()
@@ -36,7 +36,7 @@ def surfaceArea(surface):
     return surface_area.GetSurfaceArea()
 
 
-def surfaceVolume(surface):
+def surfaceVolume(surface: _polyDataType) -> float:
     """Compute voluem of closed surface.
 
     Computes the volume of an assumed orientable 
