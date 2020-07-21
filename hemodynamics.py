@@ -476,7 +476,7 @@ def wss_stats_aneurysm(neckSurface,
                        neckArrayName,
                        n_percentile,
                        neckIsoValue=0.5,
-                       avgMagWSSArray=_WSSmag+'_average'):
+                       avgMagWSSArray=_TAWSS):
     """
         Computes surface-averaged and maximum value 
         of time-averaged WSS for an aneurysm surface.
@@ -1119,6 +1119,9 @@ if __name__ == '__main__':
     import sys
     import polydatatools as tools
 
+    from vmtk import vmtkscripts
+    from vmtkextend import customscripts
+
     foamCase = sys.argv[1]
     outFile = sys.argv[2]
 
@@ -1133,13 +1136,20 @@ if __name__ == '__main__':
                                        compute_gon=True, 
                                        compute_afi=True)
 
-    #     extractAneurysm = customscripts.vmtkExtractAneurysm()
-                # extractAneurysm.Surface = self._surface
-                # extractAneurysm.Execute()
+    scaling = vmtkscripts.vmtkSurfaceScaling()
+    scaling.Surface = hemodynamicsSurface
+    scaling.ScaleFactor = 1000.0
+    scaling.Execute()
 
-                # aneurysm_surface = extractAneurysm.AneurysmSurface
+    extractAneurysm = customscripts.vmtkExtractAneurysm()
+    extractAneurysm.Surface = scaling.Surface
+    extractAneurysm.Execute()
 
-    # # Computes WSS and OSI statistics
-    # wss_stats_aneurysm(hemodynamicsSurface, neckArrayName, 95)
-    # osi_stats_aneurysm(fileName, neckArrayName, 95)
-    tools.writeSurface(hemodynamicsSurface, outFile)
+    surface = extractAneurysm.Surface
+
+    # Computes WSS and OSI statistics
+    neckArrayName = 'AneurysmNeckContourArray'
+    print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+
+    tools.writeSurface(surface, outFile)
