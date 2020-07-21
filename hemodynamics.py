@@ -321,7 +321,89 @@ def HadamardDot(np_array1, np_array2):
     # Seems that multiply is faster than a*b
     return np.multiply(np_array1, np_array2).sum(axis=1)
 
-def hemodynamics(surface):
+def _GON(np_surface,
+         temporal_wss, 
+         p_hat_array,
+         q_hat_array,
+         time_steps):
+
+    setArray = np_surface.CellData.append
+    delArray = np_surface.GetCellData().RemoveArray
+    getArray = np_surface.CellData.GetArray
+    
+#     time_steps = list(temporal_wss.keys())
+
+    # # Sort list of time steps
+    # time_steps.sort()
+    
+    GVecOverTime = []
+    addInstantGVec = GVecOverTime.append
+
+    # Array names
+    _GON = 'GON'
+    _SWSSG = 'SWSSG'+_avg
+    _SWSSGmag = 'SWSSG_mag'+_avg
+    _WSSDotP = 'WSSDotP'
+    _WSSDotQ = 'WSSDotQ'
+
+    for time in time_steps:
+        wssVecDotQHat = HadamardDot(temporal_wss.get(time), q_hat_array)
+        wssVecDotPHat = HadamardDot(temporal_wss.get(time), p_hat_array)
+
+        setArray(wssVecDotPHat, _WSSDotP)
+        setArray(wssVecDotQHat, _WSSDotQ)
+
+        # Compute the surface gradient of (wss dot p) and (wss dot q)
+        surfaceWithSGrad = surfaceGradient(np_surface.VTKObject, _WSSDotP)
+        surfaceWithSGrad = surfaceGradient(surfaceWithSGrad, _WSSDotQ)
+
+        tSurface = dsa.WrapDataObject(surfaceWithSGrad)
+
+        # Now project each surface gradient on coordinate direction
+        sGradDotPHat = HadamardDot(tSurface.CellData.GetArray(_WSSDotP+_sgrad), p_hat_array)
+        sGradDotQHat = HadamardDot(tSurface.CellData.GetArray(_WSSDotQ+_sgrad), q_hat_array)
+
+        tGVector = []
+        append = tGVector.append
+
+        for pComp, qComp in zip(sGradDotPHat, sGradDotQHat):
+            append([pComp, qComp])
+
+        addInstantGVec(dsa.VTKArray(tGVector))
+
+    GVecOverTime = dsa.VTKArray(GVecOverTime)
+
+    # Compute the norm of the averaged G vector 
+    period = max(time_steps) - min(time_steps)
+    timeStep = period/len(time_steps)
+
+    avgGVecArray = simps(GVecOverTime, dx=timeStep, axis=0)
+    magAvgGVecArray = np.linalg.norm(avgGVecArray, ord=2, axis=1)
+
+    # Compute the average of the magnitude of G vec
+    magGVecArray = np.linalg.norm(GVecOverTime, ord=2, axis=2)
+    avgMagGVecArray = simps(magGVecArray, dx=timeStep, axis=0)
+
+    GON = 1.0 - magAvgGVecArray/avgMagGVecArray
+
+    # Array clean-up
+    delArray(_WSSDotP)
+    delArray(_WSSDotQ)
+    delArray(_WSSDotP+_sgrad)
+    delArray(_WSSDotQ+_sgrad)
+
+    setArray(GON, _GON)
+    setArray(avgGVecArray, _SWSSG)
+    setArray(avgMagGVecArray, _SWSSGmag)
+
+def hemodynamics(foam_case: str,
+                 t_peak_systole: float,
+                 t_low_diastole: float,
+                 density=_density,  # kg/m3
+                 field=_foamWSS,
+                 patch=_wallPatch,
+                 compute_gon=False,
+                 compute_afi=False) -> _polyDataType:
     """Compute hemodynamics of WSS field.
     
     Based on the temporal statistics of the WSS field
@@ -334,17 +416,28 @@ def hemodynamics(surface):
     surface. The triad (p, q, n) is a suitable coordi-
     nate system defined on the vascular surface.
     """
+    # Get WSS over time
+    surface, temporalWss = _wss_over_time(foam_case,
+                                          density=density,
+                                          field=field,
+                                          patch=patch)
+    
+    # Compute WSS time statistics
+    surface = _wss_time_stats(surface, 
+                              temporalWss,
+                              t_peak_systole,
+                              t_low_diastole)
     
     # Compute normals and gradient of TAWSS
     surfaceWithNormals  = surfaceNormals(surface)
-    surfaceWithGradient = spatialGradient(surfaceWithNormals, _TAWSS)
+    surfaceWithGradient = surfaceGradient(surfaceWithNormals, _TAWSS)
 
     # Convert VTK polydata to numpy object
     numpySurface = dsa.WrapDataObject(surfaceWithGradient)
     
     # Functions to interface with the numpy vtk wrapper
     getArray = numpySurface.GetCellData().GetArray
-    appendToSurface = numpySurface.CellData.append
+    setArray = numpySurface.CellData.append
     
     # Get arrays currently on the surface
     # that will be used for the calculations
@@ -353,51 +446,90 @@ def hemodynamics(surface):
     maxMagWSSArray = getArray(_WSSmag + _max)
     minMagWSSArray = getArray(_WSSmag + _min)
     normalsArray   = getArray(_normals)
-    gradientArray  = getArray(_TAWSS + _grad)
+    sGradientArray = getArray(_TAWSS + _sgrad)
 
     # Compute the magnitude of the WSS vector time average
     magAvgVecWSSArray = np.linalg.norm(avgVecWSSArray, ord=2, axis=1)
     
+    # Several array will be stored at the end
+    # of this procedure. So, create list to 
+    # store the array and its name (name, array).
+    arraysToBeStored = []
+    storeArray = arraysToBeStored.append
+    
     # Compute WSS derived quantities
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    
-    WSSPI = (maxMagWSSArray - minMagWSSArray)/avgMagWSSArray
+    storeArray(
+        (_WSSPI, (maxMagWSSArray - minMagWSSArray)/avgMagWSSArray)
+    )
 
-    OSI = 0.5*(1 - magAvgVecWSSArray/avgMagWSSArray)
     
-    RRT = 1.0/((1.0 - 2.0*OSI)*avgMagWSSArray)
+    OSIArray = 0.5*(1 - magAvgVecWSSArray/avgMagWSSArray)
+    storeArray(
+        (_OSI, OSIArray)
+    )
+    
+    storeArray(
+        (_RRT, 1.0/((1.0 - 2.0*OSIArray)*avgMagWSSArray))
+    )
     
     # Calc surface orthogonal vectors
     # -> p: timeAvg WSS vector
-    pHat = avgVecWSSArray/avgMagWSSArray
+    pHatArray = avgVecWSSArray/avgMagWSSArray
+    storeArray(
+        (_pHat, pHatArray)
+    )
 
     # -> q: perpendicular to p and normal
-    qHat = np.cross(pHat, normalsArray)
-
-    # Compute the normal gradient = vec(n) dot grad(TAWSS)
-    normalGradient = HadamardDot(normalsArray, gradientArray)
-
-    # Compute the surface gradient
-    surfaceGradTAWSS = gradientArray - normalGradient*normalsArray
+    qHatArray = np.cross(pHatArray, normalsArray)
+    storeArray(
+        (_qHat, qHatArray)
+    )
 
     # Compute the TAWSSG = surfaceGradTAWSS dot p
-    TAWSSG = HadamardDot(pHat, surfaceGradTAWSS)
+    storeArray(
+        (_TAWSSG, HadamardDot(pHatArray, sGradientArray))
+    )
 
-    # AFI at peak-systole
-    psWSS = getArray(_PSWSS)
-    psWSSmag = np.linalg.norm(psWSS, axis=1)
+    if compute_afi:
+        # AFI at peak-systole
+        psWSS = getArray(_PSWSS)
+        psWSSmag = np.linalg.norm(psWSS, ord=2, axis=1)
+
+        storeArray(
+            (_AFI + '_peak_systole', 
+             HadamardDot(pHatArray, psWSS)/psWSSmag)
+        )
     
-    # Compute AFI at peak systole
-    psAFI = HadamardDot(pHat, psWSS)/psWSSmag
+    # Get time step list (ordered)
+    timeSteps = list(temporalWss.keys())
 
-    # Store new fields in surface
-    appendToSurface(OSI, _OSI)
-    appendToSurface(RRT, _RRT)
-    appendToSurface(pHat, _pHat)
-    appendToSurface(qHat, _qHat)
-    appendToSurface(WSSPI, _WSSPI)
-    appendToSurface(TAWSSG, _TAWSSG)
-    appendToSurface(psAFI, _AFI + '_peak_systole')
+    # Sort list of time steps
+    timeSteps.sort()
+    period = max(timeSteps) - min(timeSteps)
+    timeStep = period/len(timeSteps)
+
+    if compute_gon:
+        _GON(numpySurface, 
+             temporalWss, pHatArray, qHatArray,
+             timeSteps)
+
+    # TransWss = tavg(abs(wssVecOverTime dot qHat))
+    # I had to compute the transWSS here because it needs
+    # an averaged array (qHat) and a time-dependent array
+    wssVecDotQHatProd = lambda time: abs(HadamardDot(temporalWss.get(time), qHatArray))
+    
+    # Get array with product
+    wssVecDotQHat = dsa.VTKArray([wssVecDotQHatProd(time) 
+                                  for time in timeSteps])
+
+    storeArray(
+        (_transWSS, 
+         simps(wssVecDotQHat, dx=timeStep, axis=0)/period)
+    )
+    
+    for name, array in arraysToBeStored:
+        setArray(array, name)
     
     return numpySurface.VTKObject
 
@@ -511,6 +643,8 @@ def osi_stats_aneurysm(neckSurface,
 
     return [surfaceArea, average, maximum, minimum, percentile]
 
+# TODO: the following functions still depends on ParaView
+# Eliminate that!
 def lsa_wss_avg(neckSurface,
                 neckArrayName,
                 lowWSS,
@@ -1044,27 +1178,21 @@ if __name__ == '__main__':
 
     # Testing: computes hemodynamcis given an aneurysm OF case
     import sys
+    import polydatatools as tools
 
     foamCase = sys.argv[1]
     outFile = sys.argv[2]
 
     density = 1056.0
-    timeIndexRange = [0,100]
-    timeStep = 0.01
     peakSystoleTime = 2.09
-    lowDiastoleTime = 2.90
-
-    # Get temporal statistics of WSS field
-    print("Computing WSS stats", end='\n')
-    timeStatsSurface = wss_time_stats(
-                           foamCase, 
-                           timeIndexRange, 
-                           peakSystoleTime, 
-                           lowDiastoleTime
-                       )
+    lowDiastoleTime = 2.80
 
     print("Computing hemodynamics", end='\n')
-    hemodynamicsSurface = hemodynamics(timeStatsSurface)
+    hemodynamicsSurface = hemodynamics(foamCase, 
+                                       peakSystoleTime, 
+                                       lowDiastoleTime, 
+                                       compute_gon=True, 
+                                       compute_afi=True)
 
     #     extractAneurysm = customscripts.vmtkExtractAneurysm()
                 # extractAneurysm.Surface = self._surface
@@ -1075,8 +1203,4 @@ if __name__ == '__main__':
     # # Computes WSS and OSI statistics
     # wss_stats_aneurysm(hemodynamicsSurface, neckArrayName, 95)
     # osi_stats_aneurysm(fileName, neckArrayName, 95)
-
-    writer = vtk.vtkXMLPolyDataWriter()
-    writer.SetInputData(hemodynamicsSurface)
-    writer.SetFileName(outFile)
-    writer.Update()
+    tools.writeSurface(hemodynamicsSurface, outFile)
