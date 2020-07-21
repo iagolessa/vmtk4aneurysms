@@ -568,13 +568,11 @@ def osi_stats_aneurysm(neckSurface,
 
     return [average, maximum, minimum, percentile]
 
-# TODO: the following functions still depends on ParaView
-# Eliminate that!
 def lsa_wss_avg(neckSurface,
                 neckArrayName,
                 lowWSS,
                 neckIsoValue=0.5,
-                avgMagWSSArray=_WSSmag+'_average'):
+                avgMagWSSArray=_TAWSS):
     """ 
     Calculates the LSA (low WSS area ratio) for aneurysms
     simulations performed in OpenFOAM. Thi input is a sur-
@@ -584,67 +582,57 @@ def lsa_wss_avg(neckSurface,
     and the area where the WSS is lower than a reference 
     value provided by the user.
     """
-
     try:
         # Try to read if file name is given
-        surface = pv.XMLPolyDataReader(FileName=neckSurface)
+        reader = vtk.vtkXMLPolyDataReader()
+        reader.SetFileName(neckSurface)
+        reader.Update()
+
+        surface = reader.GetOutput()
     except:
         surface = neckSurface
 
+    surface.GetPointData().SetActiveScalars(neckArrayName)
+
     # Clip aneurysm surface
-    clipAneurysm = pv.Clip()
-    clipAneurysm.Input = surface
-    clipAneurysm.ClipType = 'Scalar'
-    clipAneurysm.Scalars = ['POINTS', neckArrayName]
-    clipAneurysm.Invert = 1             # gets smaller portion
-    # based on the definition of field ContourScalars
-    clipAneurysm.Value = neckIsoValue
-    clipAneurysm.UpdatePipeline()
+    aneurysmClipper = vtk.vtkClipPolyData()
+    aneurysmClipper.SetInputData(surface)
+    aneurysmClipper.SetValue(neckIsoValue)
+    aneurysmClipper.SetInsideOut(1)
+    aneurysmClipper.Update()
 
-    # Integrate to get aneurysm surface area
-    integrateOverAneurysm = pv.IntegrateVariables()
-    integrateOverAneurysm.Input = clipAneurysm
-    integrateOverAneurysm.UpdatePipeline()
+    aneurysm = aneurysmClipper.GetOutput()
 
-    aneurysmArea = integrateOverAneurysm.CellData.GetArray(_Area).GetRange()[
-        0]  # m2
+    # Get aneurysm area
+    aneurysmArea = geo.surfaceArea(aneurysm)
+
+    # Convert to point data (apparently, the clipper
+    # only cuts point data)
+    pointdata = vtk.vtkCellDataToPointData()
+    pointdata.SetInputData(aneurysm)
+    pointdata.Update()
+
+    aneurysm = pointdata.GetOutput()
+
+    # Change active array
+    aneurysm.GetPointData().SetActiveScalars(avgMagWSSArray)
 
     # Clip the aneurysm surface in the lowWSSValue
     # ang gets portion smaller than it
-    clipLSA = pv.Clip()
-    clipLSA.Input = clipAneurysm
-    clipLSA.ClipType = 'Scalar'
-    clipLSA.Scalars = ['CELLS', avgMagWSSArray]
-    clipLSA.Invert = 1   # gets portion smaller than the value
-    clipLSA.Value = lowWSS
-    clipLSA.UpdatePipeline()
+    clipLSA = vtk.vtkClipPolyData()
+    clipLSA.SetInputData(aneurysm)
+    clipLSA.SetValue(lowWSS)
+    clipLSA.SetInsideOut(1)
+    clipLSA.Update()
 
-    # Integrate to get area of lowWSSValue
-    integrateOverLSA = pv.IntegrateVariables()
-    integrateOverLSA.Input = clipLSA
-    integrateOverLSA.UpdatePipeline()
-
-    area = integrateOverLSA.CellData.GetArray(_Area)
-    if area == None:
-        lsaArea = 0.0
-    else:
-        lsaArea = integrateOverLSA.CellData.GetArray(_Area).GetRange()[0]
-
-    # Delete pv objects
-    pv.Delete(clipAneurysm)
-    del clipAneurysm
-
-    pv.Delete(integrateOverAneurysm)
-    del integrateOverAneurysm
-
-    pv.Delete(clipLSA)
-    del clipLSA
-
-    pv.Delete(integrateOverLSA)
-    del integrateOverLSA
+    lsaPortion = clipLSA.GetOutput()
+    lsaArea = geo.surfaceArea(lsaPortion)
 
     return lsaArea/aneurysmArea
 
+
+# TODO: the following functions still depends on ParaView
+# Eliminate that!
 
 # This calculation depends on the WSS defined only on the
 # parent artery surface. I think the easiest way to com-
@@ -1119,8 +1107,8 @@ if __name__ == '__main__':
     hemodynamicsSurface = hemodynamics(foamCase, 
                                        peakSystoleTime, 
                                        lowDiastoleTime, 
-                                       compute_gon=True, 
-                                       compute_afi=True)
+                                       compute_gon=False, 
+                                       compute_afi=False)
 
     scaling = vmtkscripts.vmtkSurfaceScaling()
     scaling.Surface = hemodynamicsSurface
@@ -1137,5 +1125,6 @@ if __name__ == '__main__':
     neckArrayName = 'AneurysmNeckContourArray'
     print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
     print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    print(lsa_wss_avg(surface, neckArrayName, 1.5), end='\n')
 
     tools.writeSurface(surface, outFile)
