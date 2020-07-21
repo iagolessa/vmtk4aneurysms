@@ -6,11 +6,19 @@ filters.
 The library works with the paraview.simple module. 
 """
 
-import paraview.simple as pv
+# import paraview.simple as pv
 
 import vtk
 import numpy as np
+
 from vtk.numpy_interface import dataset_adapter as dsa
+from scipy.integrate import simps
+
+# Attribute array names
+_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
+_multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
+
+_density = 1056.0 # SI units
 
 # Attribute array names
 _Area = 'Area'
@@ -36,7 +44,7 @@ _normals = 'Normals'
 # Other attributes
 _foamWSS = 'wallShearComponent'
 _wallPatch = 'wall'
-_aneurysmArray = 'AneurysmNeckContourArray'
+_aneurysmArray = 'AneurysmNeckArray'
 _parentArteryArray = 'ParentArteryArray'
 
 # ParaView auxiliary variables
@@ -47,10 +55,13 @@ _avg = '_average'
 _min = '_minimum'
 _max = '_maximum'
 _grad = '_gradient'
+_sgrad = '_sgradient'
 
-_cellDataMode = 'Cell Data'
-_pointDataMode = 'Point Data'
+# _cellDataMode = 'Cell Data'
+# _pointDataMode = 'Point Data'
 
+def normL2(array, axis):
+    """Compute L2-norm of an array along an axis."""
 
     return np.linalg.norm(array, ord=2, axis=axis)
 
@@ -257,6 +268,48 @@ def spatialGradient(surface: _polyDataType,
     gradient.Update()
 
     return gradient.GetOutput()
+
+def surfaceGradient(surface: _polyDataType, 
+                    field_name: str) -> _polyDataType:
+    """Compute surface gradient of field on a surface.
+    
+    Given the surface (vtkPolyData) and the scalar 
+    field name, compute the tangential or surface 
+    gradient of it on the surface."""
+    
+    cellData = surface.GetCellData()
+    nArrays  = cellData.GetNumberOfArrays()
+    
+    # Compute normals, if necessary
+    arrays = [cellData.GetArray(id_).GetName()
+              for id_ in range(nArrays)]
+    
+    if _normals not in arrays:
+        surface = surfaceNormals(surface)
+        
+    # Compute spatial gradient (adds field)
+    surfaceWithGradient = spatialGradient(surface, field_name)
+    
+    # GetArrays
+    npSurface = dsa.WrapDataObject(surfaceWithGradient)
+    getArray = npSurface.GetCellData().GetArray
+    
+    normalsArray  = getArray(_normals)
+    gradientArray = getArray(field_name + _grad)
+    
+    # Compute the normal gradient = vec(n) dot grad(field)
+    normalGradient = HadamardDot(normalsArray, gradientArray)
+
+    # Compute the surface gradient
+    surfaceGrad = gradientArray - normalGradient*normalsArray
+    
+    npSurface.CellData.append(surfaceGrad, 
+                              field_name + _sgrad)
+    
+    # Clean up
+    npSurface.GetCellData().RemoveArray(field_name + _grad)
+    
+    return npSurface.VTKObject
 
 def HadamardDot(np_array1, np_array2):
     """Computes dot product in a Hadamard product way.
