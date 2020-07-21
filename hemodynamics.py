@@ -11,8 +11,11 @@ The library works with the paraview.simple module.
 import vtk
 import numpy as np
 
+from constants import *
 from vtk.numpy_interface import dataset_adapter as dsa
 from scipy.integrate import simps
+
+import polydatageometry as geo
 
 # Attribute array names
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
@@ -39,15 +42,8 @@ _WSS_surf_avg = 'WSS_surf_avg'
 # Local coordinate system
 _pHat = 'pHat'
 _qHat = 'qHat'
+
 _normals = 'Normals'
-
-# Other attributes
-_foamWSS = 'wallShearComponent'
-_wallPatch = 'wall'
-_aneurysmArray = 'AneurysmNeckArray'
-_parentArteryArray = 'ParentArteryArray'
-
-# ParaView auxiliary variables
 _xAxis = '_X'
 _yAxis = '_Y'
 _zAxis = '_Z'
@@ -56,6 +52,12 @@ _min = '_minimum'
 _max = '_maximum'
 _grad = '_gradient'
 _sgrad = '_sgradient'
+
+# Other attributes
+_foamWSS = 'wallShearComponent'
+_wallPatch = 'wall'
+_aneurysmArray = 'AneurysmNeckArray'
+_parentArteryArray = 'ParentArteryArray'
 
 # _cellDataMode = 'Cell Data'
 # _pointDataMode = 'Point Data'
@@ -257,82 +259,6 @@ def _wss_time_stats(surface: _polyDataType,
     
     return npSurface.VTKObject
 
-def surfaceNormals(surface: _polyDataType) -> _polyDataType:
-    """Compute outward surface normals."""
-    
-    normals = vtk.vtkPolyDataNormals()
-    
-    normals.ComputeCellNormalsOn()
-    normals.ComputePointNormalsOff()
-    # normals.AutoOrientNormalsOff()
-    # normals.FlipNormalsOn()
-    normals.SetInputData(surface)
-    normals.Update()
-    
-    return normals.GetOutput()
-
-def spatialGradient(surface: _polyDataType, 
-                    field_name: str) -> _polyDataType:
-    """Compute gradient of field on a surface."""
-    
-    gradient = vtk.vtkGradientFilter()
-    gradient.SetInputData(surface)
-
-    # TODO: Make check of type of field
-    # scalar or vector
-    # 1 is the field type: means vector
-    gradient.SetInputScalars(1, field_name)
-    gradient.SetResultArrayName(field_name+_grad)
-    gradient.ComputeDivergenceOff()
-    gradient.ComputeGradientOn()
-    gradient.ComputeQCriterionOff()
-    gradient.ComputeVorticityOff()
-    gradient.Update()
-
-    return gradient.GetOutput()
-
-def surfaceGradient(surface: _polyDataType, 
-                    field_name: str) -> _polyDataType:
-    """Compute surface gradient of field on a surface.
-    
-    Given the surface (vtkPolyData) and the scalar 
-    field name, compute the tangential or surface 
-    gradient of it on the surface."""
-    
-    cellData = surface.GetCellData()
-    nArrays  = cellData.GetNumberOfArrays()
-    
-    # Compute normals, if necessary
-    arrays = [cellData.GetArray(id_).GetName()
-              for id_ in range(nArrays)]
-    
-    if _normals not in arrays:
-        surface = surfaceNormals(surface)
-        
-    # Compute spatial gradient (adds field)
-    surfaceWithGradient = spatialGradient(surface, field_name)
-    
-    # GetArrays
-    npSurface = dsa.WrapDataObject(surfaceWithGradient)
-    getArray = npSurface.GetCellData().GetArray
-    
-    normalsArray  = getArray(_normals)
-    gradientArray = getArray(field_name + _grad)
-    
-    # Compute the normal gradient = vec(n) dot grad(field)
-    normalGradient = _HadamardDot(normalsArray, gradientArray)
-
-    # Compute the surface gradient
-    surfaceGrad = gradientArray - normalGradient*normalsArray
-    
-    npSurface.CellData.append(surfaceGrad, 
-                              field_name + _sgrad)
-    
-    # Clean up
-    npSurface.GetCellData().RemoveArray(field_name + _grad)
-    
-    return npSurface.VTKObject
-
 
 def _GON(np_surface,
          temporal_wss, 
@@ -367,8 +293,8 @@ def _GON(np_surface,
         setArray(wssVecDotQHat, _WSSDotQ)
 
         # Compute the surface gradient of (wss dot p) and (wss dot q)
-        surfaceWithSGrad = surfaceGradient(np_surface.VTKObject, _WSSDotP)
-        surfaceWithSGrad = surfaceGradient(surfaceWithSGrad, _WSSDotQ)
+        surfaceWithSGrad = geo.surfaceGradient(np_surface.VTKObject, _WSSDotP)
+        surfaceWithSGrad = geo.surfaceGradient(surfaceWithSGrad, _WSSDotQ)
 
         tSurface = dsa.WrapDataObject(surfaceWithSGrad)
 
@@ -442,8 +368,8 @@ def hemodynamics(foam_case: str,
                               t_low_diastole)
     
     # Compute normals and gradient of TAWSS
-    surfaceWithNormals  = surfaceNormals(surface)
-    surfaceWithGradient = surfaceGradient(surfaceWithNormals, _TAWSS)
+    surfaceWithNormals  = geo.surfaceNormals(surface)
+    surfaceWithGradient = geo.surfaceGradient(surfaceWithNormals, _TAWSS)
 
     # Convert VTK polydata to numpy object
     numpySurface = dsa.WrapDataObject(surfaceWithGradient)

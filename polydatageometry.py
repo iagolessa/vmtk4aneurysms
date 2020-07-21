@@ -2,10 +2,20 @@
 
 import vtk
 import math
+
 from vmtk import vtkvmtk
+from numpy import multiply
+from vtk.numpy_interface import dataset_adapter as dsa
 
 from constants import *
 
+# Attribute array names
+_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
+_multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
+
+_normals = 'Normals'
+_grad = '_gradient'
+_sgrad = '_sgradient'
 
 def distance(point1, point2):
     sqrDistance = vtk.vtkMath.Distance2BetweenPoints(
@@ -40,6 +50,81 @@ def surfaceVolume(surface):
 
     return volume.GetVolume()
 
+def surfaceNormals(surface: _polyDataType) -> _polyDataType:
+    """Compute outward surface normals."""
+    
+    normals = vtk.vtkPolyDataNormals()
+    
+    normals.ComputeCellNormalsOn()
+    normals.ComputePointNormalsOff()
+    # normals.AutoOrientNormalsOff()
+    # normals.FlipNormalsOn()
+    normals.SetInputData(surface)
+    normals.Update()
+    
+    return normals.GetOutput()
+
+def spatialGradient(surface: _polyDataType, 
+                    field_name: str) -> _polyDataType:
+    """Compute gradient of field on a surface."""
+    
+    gradient = vtk.vtkGradientFilter()
+    gradient.SetInputData(surface)
+
+    # TODO: Make check of type of field
+    # scalar or vector
+    # 1 is the field type: means vector
+    gradient.SetInputScalars(1, field_name)
+    gradient.SetResultArrayName(field_name+_grad)
+    gradient.ComputeDivergenceOff()
+    gradient.ComputeGradientOn()
+    gradient.ComputeQCriterionOff()
+    gradient.ComputeVorticityOff()
+    gradient.Update()
+
+    return gradient.GetOutput()
+
+def surfaceGradient(surface: _polyDataType, 
+                    field_name: str) -> _polyDataType:
+    """Compute surface gradient of field on a surface.
+    
+    Given the surface (vtkPolyData) and the scalar 
+    field name, compute the tangential or surface 
+    gradient of it on the surface."""
+    
+    cellData = surface.GetCellData()
+    nArrays  = cellData.GetNumberOfArrays()
+    
+    # Compute normals, if necessary
+    arrays = [cellData.GetArray(id_).GetName()
+              for id_ in range(nArrays)]
+    
+    if _normals not in arrays:
+        surface = surfaceNormals(surface)
+        
+    # Compute spatial gradient (adds field)
+    surfaceWithGradient = spatialGradient(surface, field_name)
+    
+    # GetArrays
+    npSurface = dsa.WrapDataObject(surfaceWithGradient)
+    getArray = npSurface.GetCellData().GetArray
+    
+    normalsArray  = getArray(_normals)
+    gradientArray = getArray(field_name + _grad)
+    
+    # Compute the normal gradient = vec(n) dot grad(field)
+    normalGradient = multiply(normalsArray, gradientArray).sum(axis=1)
+
+    # Compute the surface gradient
+    surfaceGrad = gradientArray - normalGradient*normalsArray
+    
+    npSurface.CellData.append(surfaceGrad, 
+                              field_name + _sgrad)
+    
+    # Clean up
+    npSurface.GetCellData().RemoveArray(field_name + _grad)
+    
+    return npSurface.VTKObject
 
 def contourPerimeter(contour):
     """Compute the perimeter of a contour defined in 3D space."""
