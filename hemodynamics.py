@@ -65,6 +65,11 @@ def _normL2(array, axis):
 
     return np.linalg.norm(array, ord=2, axis=axis)
 
+def _time_average(array, step, period):
+    """Compute temporal average of a time-dependent variable."""
+    
+    return simps(array, dx=step, axis=0)/period
+
 def _get_wall_surface(multi_block: _multiBlockType) -> _polyDataType:
 
     # Get blocks and surface patch
@@ -217,10 +222,10 @@ def _wss_time_stats(surface: _polyDataType,
 
     # Compute the time-average of the WSS vector
     # assumes uniform time-step (calculated above)
-    saveArray((simps(wssVecOverTime, dx=timeStep, axis=0)/period,
+    saveArray((_time_average(wssVecOverTime, timeStep, period),
                _WSS + _avg))
                
-    saveArray((simps(wssMagOverTime, dx=timeStep, axis=0)/period,
+    saveArray((_time_average(wssMagOverTime, timeStep, period),
                _TAWSS))
 
     saveArray((wssMagOverTime.max(axis=0),
@@ -377,12 +382,12 @@ def _GON(np_surface,
     period = max(time_steps) - min(time_steps)
     timeStep = period/len(time_steps)
 
-    avgGVecArray = simps(GVecOverTime, dx=timeStep, axis=0)
+    avgGVecArray = _time_average(GVecOverTime, timeStep, period)
     magAvgGVecArray = _normL2(avgGVecArray, 1)
 
     # Compute the average of the magnitude of G vec
     magGVecArray = _normL2(GVecOverTime, 2)
-    avgMagGVecArray = simps(magGVecArray, dx=timeStep, axis=0)
+    avgMagGVecArray = _time_average(magGVecArray, timeStep, period)
 
     GON = 1.0 - magAvgGVecArray/avgMagGVecArray
 
@@ -525,7 +530,7 @@ def hemodynamics(foam_case: str,
 
     storeArray(
         (_transWSS, 
-         simps(wssVecDotQHat, dx=timeStep, axis=0)/period)
+         _time_average(wssVecDotQHat, timeStep, period))
     )
     
     for name, array in arraysToBeStored:
