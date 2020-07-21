@@ -70,6 +70,16 @@ def _time_average(array, step, period):
     
     return simps(array, dx=step, axis=0)/period
 
+def _HadamardDot(np_array1, np_array2):
+    """Computes dot product in a Hadamard product way.
+    
+    Given two Numpy arrays representing arrays of vectors
+    on a surface, compute the vector-wise dot product 
+    between each element.
+    """
+    # Seems that multiply is faster than a*b
+    return np.multiply(np_array1, np_array2).sum(axis=1)
+
 def _get_wall_surface(multi_block: _multiBlockType) -> _polyDataType:
 
     # Get blocks and surface patch
@@ -150,7 +160,6 @@ def _wss_over_time(foam_case: str,
 
     return baseNpSurface.VTKObject, wssVecOverTime
 
-
 def _wss_time_stats(surface: _polyDataType,
                     temporal_wss: dict,
                     t_peak_systole: float,
@@ -207,11 +216,11 @@ def _wss_time_stats(surface: _polyDataType,
     # List of tuples to store stats arrays and their name
     # [(array1, name1), ... (array_n, name_n)]
     arraysToBeStored = []
-    saveArray = arraysToBeStored.append
+    storeArray = arraysToBeStored.append
     
     # Get peak-systole and low-diastole WSS
-    saveArray((temporal_wss[t_peak_systole], _PSWSS))
-    saveArray((temporal_wss[t_low_diastole], _LDWSS))
+    storeArray((temporal_wss[t_peak_systole], _PSWSS))
+    storeArray((temporal_wss[t_low_diastole], _LDWSS))
     
     # Get period of time steps
     period = lastTimeStep - firstTimeStep
@@ -222,17 +231,25 @@ def _wss_time_stats(surface: _polyDataType,
 
     # Compute the time-average of the WSS vector
     # assumes uniform time-step (calculated above)
-    saveArray((_time_average(wssVecOverTime, timeStep, period),
-               _WSS + _avg))
+    storeArray(
+        (_time_average(wssVecOverTime, timeStep, period),
+         _WSS + _avg)
+    )
                
-    saveArray((_time_average(wssMagOverTime, timeStep, period),
-               _TAWSS))
+    storeArray(
+        (_time_average(wssMagOverTime, timeStep, period),
+         _TAWSS)
+    )
 
-    saveArray((wssMagOverTime.max(axis=0),
-               _WSSmag + _max))
+    storeArray(
+        (wssMagOverTime.max(axis=0),
+         _WSSmag + _max)
+    )
 
-    saveArray((wssMagOverTime.min(axis=0),
-               _WSSmag + _min))
+    storeArray(
+        (wssMagOverTime.min(axis=0),
+         _WSSmag + _min)
+    )
     
     # Finally, append all arrays to surface
     for array, name in arraysToBeStored:
@@ -303,7 +320,7 @@ def surfaceGradient(surface: _polyDataType,
     gradientArray = getArray(field_name + _grad)
     
     # Compute the normal gradient = vec(n) dot grad(field)
-    normalGradient = HadamardDot(normalsArray, gradientArray)
+    normalGradient = _HadamardDot(normalsArray, gradientArray)
 
     # Compute the surface gradient
     surfaceGrad = gradientArray - normalGradient*normalsArray
@@ -316,15 +333,6 @@ def surfaceGradient(surface: _polyDataType,
     
     return npSurface.VTKObject
 
-def HadamardDot(np_array1, np_array2):
-    """Computes dot product in a Hadamard product way.
-    
-    Given two Numpy arrays representing arrays of vectors
-    on a surface, compute the vector-wise dot product 
-    between each element.
-    """
-    # Seems that multiply is faster than a*b
-    return np.multiply(np_array1, np_array2).sum(axis=1)
 
 def _GON(np_surface,
          temporal_wss, 
@@ -352,8 +360,8 @@ def _GON(np_surface,
     _WSSDotQ = 'WSSDotQ'
 
     for time in time_steps:
-        wssVecDotQHat = HadamardDot(temporal_wss.get(time), q_hat_array)
-        wssVecDotPHat = HadamardDot(temporal_wss.get(time), p_hat_array)
+        wssVecDotQHat = _HadamardDot(temporal_wss.get(time), q_hat_array)
+        wssVecDotPHat = _HadamardDot(temporal_wss.get(time), p_hat_array)
 
         setArray(wssVecDotPHat, _WSSDotP)
         setArray(wssVecDotQHat, _WSSDotQ)
@@ -365,8 +373,8 @@ def _GON(np_surface,
         tSurface = dsa.WrapDataObject(surfaceWithSGrad)
 
         # Now project each surface gradient on coordinate direction
-        sGradDotPHat = HadamardDot(tSurface.CellData.GetArray(_WSSDotP+_sgrad), p_hat_array)
-        sGradDotQHat = HadamardDot(tSurface.CellData.GetArray(_WSSDotQ+_sgrad), q_hat_array)
+        sGradDotPHat = _HadamardDot(tSurface.CellData.GetArray(_WSSDotP+_sgrad), p_hat_array)
+        sGradDotQHat = _HadamardDot(tSurface.CellData.GetArray(_WSSDotQ+_sgrad), q_hat_array)
 
         tGVector = []
         append = tGVector.append
@@ -493,7 +501,7 @@ def hemodynamics(foam_case: str,
 
     # Compute the TAWSSG = surfaceGradTAWSS dot p
     storeArray(
-        (_TAWSSG, HadamardDot(pHatArray, sGradientArray))
+        (_TAWSSG, _HadamardDot(pHatArray, sGradientArray))
     )
 
     if compute_afi:
@@ -503,7 +511,7 @@ def hemodynamics(foam_case: str,
 
         storeArray(
             (_AFI + '_peak_systole', 
-             HadamardDot(pHatArray, psWSS)/psWSSmag)
+             _HadamardDot(pHatArray, psWSS)/psWSSmag)
         )
     
     # Get time step list (ordered)
@@ -522,7 +530,7 @@ def hemodynamics(foam_case: str,
     # TransWss = tavg(abs(wssVecOverTime dot qHat))
     # I had to compute the transWSS here because it needs
     # an averaged array (qHat) and a time-dependent array
-    wssVecDotQHatProd = lambda time: abs(HadamardDot(temporalWss.get(time), qHatArray))
+    wssVecDotQHatProd = lambda time: abs(_HadamardDot(temporalWss.get(time), qHatArray))
     
     # Get array with product
     wssVecDotQHat = dsa.VTKArray([wssVecDotQHatProd(time) 
