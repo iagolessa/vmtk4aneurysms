@@ -60,7 +60,7 @@ _sgrad = '_sgradient'
 # _cellDataMode = 'Cell Data'
 # _pointDataMode = 'Point Data'
 
-def normL2(array, axis):
+def _normL2(array, axis):
     """Compute L2-norm of an array along an axis."""
 
     return np.linalg.norm(array, ord=2, axis=axis)
@@ -179,7 +179,7 @@ def _wss_time_stats(surface: _polyDataType,
                                    for time in timeSteps])
 
     # Compute the time-average of the magnitude of the WSS vector
-    wssMagOverTime = np.linalg.norm(wssVecOverTime, ord=2, axis=2)
+    wssMagOverTime = _normL2(wssVecOverTime, 2)
 
     # Check if low diastole or peak systoel not in time list    
     lastTimeStep = max(timeSteps)
@@ -378,10 +378,10 @@ def _GON(np_surface,
     timeStep = period/len(time_steps)
 
     avgGVecArray = simps(GVecOverTime, dx=timeStep, axis=0)
-    magAvgGVecArray = np.linalg.norm(avgGVecArray, ord=2, axis=1)
+    magAvgGVecArray = _normL2(avgGVecArray, 1)
 
     # Compute the average of the magnitude of G vec
-    magGVecArray = np.linalg.norm(GVecOverTime, ord=2, axis=2)
+    magGVecArray = _normL2(GVecOverTime, 2)
     avgMagGVecArray = simps(magGVecArray, dx=timeStep, axis=0)
 
     GON = 1.0 - magAvgGVecArray/avgMagGVecArray
@@ -449,7 +449,7 @@ def hemodynamics(foam_case: str,
     sGradientArray = getArray(_TAWSS + _sgrad)
 
     # Compute the magnitude of the WSS vector time average
-    magAvgVecWSSArray = np.linalg.norm(avgVecWSSArray, ord=2, axis=1)
+    magAvgVecWSSArray = _normL2(avgVecWSSArray, 1)
     
     # Several array will be stored at the end
     # of this procedure. So, create list to 
@@ -494,7 +494,7 @@ def hemodynamics(foam_case: str,
     if compute_afi:
         # AFI at peak-systole
         psWSS = getArray(_PSWSS)
-        psWSSmag = np.linalg.norm(psWSS, ord=2, axis=1)
+        psWSSmag = _normL2(psWSS, axis=1)
 
         storeArray(
             (_AFI + '_peak_systole', 
