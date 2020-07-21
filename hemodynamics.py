@@ -52,22 +52,101 @@ _cellDataMode = 'Cell Data'
 _pointDataMode = 'Point Data'
 
 
-def wss_time_stats(foamCase,
-                   timeIndexRange,
-                   peakSystole,
-                   lowDiastole,
-                   timeStep=0.01,
-                   density=1056.0,  # kg/m3
-                   field=_foamWSS,
-                   patch=_wallPatch):
-    """Compute WSS time statistics: averaged, peak systole and low diastole.
+    return np.linalg.norm(array, ord=2, axis=axis)
 
+def _get_wall_surface(multi_block: _multiBlockType) -> _polyDataType:
+
+    # Get blocks and surface patch
+    # TODO: I need to fetch oatch by name. How?
+    nBlocks = multi_block.GetNumberOfBlocks()
+
+    # Get outer surface (include inlet and outlets)
+    surface = multi_block.GetBlock(nBlocks - 1)
+
+    # Find wall patch (largest number of cells)
+    SMALL = -1e10
+    wallPatch = None
+    nMaxCells = SMALL
+
+    for block_id in range(surface.GetNumberOfBlocks()):
+        patch = surface.GetBlock(block_id)
+
+        # Get patch with largest number of cells
+        # (forcely, the wall)
+        nCells = patch.GetNumberOfCells()
+        if nCells > nMaxCells:
+            nMaxCells = nCells
+            wallPatch = patch
+
+    # Remove U and p arrays
+    wallPatch.GetCellData().RemoveArray("U")
+    wallPatch.GetCellData().RemoveArray("p")
+
+    return wallPatch
+
+def _wss_over_time(foam_case: str,
+                   density=_density,
+                   field=_foamWSS,
+                   patch=_wallPatch) -> tuple:
+
+    ofReader = vtk.vtkPOpenFOAMReader()
+
+    # Apparently, it needs to be ran 2 times
+    # to load the data
+    for _ in range(2):
+        ofReader.SetFileName(foam_case)
+        ofReader.AddDimensionsToArrayNamesOff()
+        ofReader.DecomposePolyhedraOff()
+        ofReader.SkipZeroTimeOn()
+        ofReader.CreateCellToPointOff()
+
+        # Apparently, this is important to load the
+        # external surface
+        ofReader.EnableAllPatchArrays()
+        ofReader.Update()
+
+    # Get list with time steps
+    nTimeSteps = ofReader.GetTimeValues().GetNumberOfValues()
+    timeSteps = [ofReader.GetTimeValues().GetValue(id_)
+                 for id_ in range(nTimeSteps)]
+
+    # Get WSS data
+    wssVecOverTime = {}
+    addInstantWss = wssVecOverTime.update
+
+    # I will store one surface for reference here
+    # to hold the final data
+    baseSurface = None
+
+    # for surface in map(readSurface, glob.glob(folder + '*.vtk')):
+    for time in timeSteps:
+        ofReader.UpdateTimeStep(time)
+        surface = _get_wall_surface(ofReader.GetOutput())
+
+        # Convert to Numpy object for efficiency
+        npSurface = dsa.WrapDataObject(surface)
+        tWssArray = density*npSurface.GetCellData().GetArray(_foamWSS)
+        addInstantWss({time: tWssArray})
+
+        # Store last surface
+        # (for moving domain, should I use the first?)
+        baseNpSurface = npSurface
+
+    return baseNpSurface.VTKObject, wssVecOverTime
+
+
+def _wss_time_stats(surface: _polyDataType,
+                    temporal_wss: dict,
+                    t_peak_systole: float,
+                    t_low_diastole: float) -> _polyDataType:
+    """Compute WSS time statistocs from OpenFOAM data.
+    
     Get time statistics of wall shear stress field defined on 
     a surface S over time for a cardiac cycle, generated with
-    OpenFOAM. Outputs a surface with: time-averaged and peak 
-    time (peak systole) WSS magnitude.
-    Since this function use OpenFOAM data, 
-    please specify the density considered.
+    OpenFOAM. Outputs a surface with: time-averaged WSS, 
+    maximum and minimum over time, peak-systole and low-diastole
+    WSS vector fields. Since this function use OpenFOAM data, 
+    specify the density considered.
 
     Input args:
     - OpenFOAM case file (str): name of OpenFOAM .foam case;
@@ -76,154 +155,76 @@ def wss_time_stats(foamCase,
         onent");
     - patchName (str, optional): patch name where to calculate 
         the OSI (default="wall");
-    - timeIndexRange (list): list of initial and final time-
-        steps indices limits of the integral [Ti, Tf];
-    - outputFileName (str): file name for the output file with 
-        osi field (must be a .vtp file).
     - blood density (float, optional): default 1056.0 kg/m3
     """
-    ofData = pv.OpenFOAMReader(FileName=foamCase)
-
-    # First we define only the field that are going
-    # to be used: the WSS on the aneurysm wall
-    ofData.CellArrays = [field]
-    ofData.MeshRegions = [patch]
-    ofData.Createcelltopointfiltereddata = 0
-    ofData.SkipZeroTime = 1
-    ofData.UpdatePipeline()
-
-    mergeBlocks = pv.MergeBlocks()
-    mergeBlocks.Input = ofData
-    mergeBlocks.UpdatePipeline()
-
-    extractSurface = pv.ExtractSurface()
-    extractSurface.Input = mergeBlocks
-    extractSurface.UpdatePipeline()
-
-    # triangulate = pv.Triangulate()
-    # triangulate.Input = extractSurface
-    # triangulate.UpdatePipeline()
-
-    # Multiplying WSS per density
-    calcWSS = pv.Calculator()
-    calcWSS.Input = extractSurface
-    calcWSS.AttributeType = _cellDataMode
-    calcWSS.ResultArrayName = _WSS
-    calcWSS.Function = str(density) + '*' + field
-    calcWSS.UpdatePipeline()
-
-    # Calculating the magnitude of the wss vector
-    calcMagWSS = pv.Calculator()
-    calcMagWSS.Input = calcWSS
-    calcMagWSS.AttributeType = _cellDataMode
-    calcMagWSS.ResultArrayName = _WSSmag
-    calcMagWSS.Function = 'mag(' + _WSS + ')'
-    calcMagWSS.UpdatePipeline()
-
-    # Delete objects
-    pv.Delete(ofData)
-    del ofData
-
-    pv.Delete(mergeBlocks)
-    del mergeBlocks
-
-    pv.Delete(extractSurface)
-    del extractSurface
-
-    pv.Delete(calcWSS)
-    del calcWSS
-
-    # Extract desired time range
-    timeInterval = pv.ExtractTimeSteps()
-    timeInterval.Input = calcMagWSS
-    timeInterval.SelectionMode = 'Select Time Range'
-    timeInterval.TimeStepRange = timeIndexRange
-    timeInterval.UpdatePipeline()
-
-    # Now compute the temporal statistics
-    # filter computes the average values of all fields
-    calcAvgWSS = pv.TemporalStatistics()
-    calcAvgWSS.Input = timeInterval
-    calcAvgWSS.ComputeAverage = 1
-    calcAvgWSS.ComputeMinimum = 1
-    calcAvgWSS.ComputeMaximum = 1
-    calcAvgWSS.ComputeStandardDeviation = 0
-    calcAvgWSS.UpdatePipeline()
-
-    # Change name of WSS_magnitude_average to TAWSS
-    includeTAWSS = pv.Calculator()
-    includeTAWSS.Input = calcAvgWSS
-    includeTAWSS.Function = _WSSmag + _avg
-    includeTAWSS.AttributeType = _cellDataMode
-    includeTAWSS.ResultArrayName = _TAWSS
-    includeTAWSS.UpdatePipeline()
+    npSurface = dsa.WrapDataObject(surface)
     
-    # Get peak systole WSS
-    peakSystoleWSS = pv.Calculator()
-    peakSystoleWSS.Input = calcMagWSS
-    peakSystoleWSS.Function = _WSS
-    peakSystoleWSS.AttributeType = _cellDataMode
-    peakSystoleWSS.ResultArrayName = _PSWSS
-    peakSystoleWSS.UpdatePipeline(time=peakSystole)
-
-    # Get low diastole WSS
-    lowDiastoleWSS = pv.Calculator()
-    lowDiastoleWSS.Input = calcMagWSS
-    lowDiastoleWSS.Function = _WSS
-    lowDiastoleWSS.AttributeType = _cellDataMode
-    lowDiastoleWSS.ResultArrayName = _LDWSS
-    lowDiastoleWSS.UpdatePipeline(time=lowDiastole)
-
-    merge = pv.AppendAttributes()
-    merge.Input = [includeTAWSS, peakSystoleWSS, lowDiastoleWSS]
-    merge.UpdatePipeline()
-
-    extractSurface = pv.ExtractSurface()
-    extractSurface.Input = merge
-    extractSurface.UpdatePipeline()
-
-    # Field clean up
-    # TODO: find a better way to extract the vtkPolyData 
-    # from paraview (in the mean time use this write and read)
-    # Horrible
-    outputFile = "/tmp/surface_wss_stats.vtp"
-    pv.SaveData(outputFile, extractSurface)
+    # Get WSS over time in ordered manner
+    timeSteps = list(temporal_wss.keys())
     
-    # The only I found so far: to write and read the surface!
-    # Very ineficient
-    reader = vtk.vtkXMLPolyDataReader()
-    reader.SetFileName(outputFile)
-    reader.Update()
-    
-    surface = reader.GetOutput()
-    
-    # Clean-up unnecessary arrays
-    arraysForDeletion = [field, field+_avg, field+_max, field+_min, field+'_input_2', 
-                         _WSSmag, _WSSmag+_avg, _WSSmag+'_input_2',
-                         _WSS, _WSS+_min, _WSS+_max, _WSS+'_input_2']
-    
-    for array in arraysForDeletion:
-        surface.GetCellData().RemoveArray(array)
+    # Sort list of time steps
+    timeSteps.sort()
+    wssVecOverTime = dsa.VTKArray([temporal_wss.get(time) 
+                                   for time in timeSteps])
 
-    # Delete objects
-    pv.Delete(calcAvgWSS)
-    del calcAvgWSS
-    
-    pv.Delete(includeTAWSS)
-    del includeTAWSS
-    
-    pv.Delete(timeInterval)
-    del timeInterval
+    # Compute the time-average of the magnitude of the WSS vector
+    wssMagOverTime = np.linalg.norm(wssVecOverTime, ord=2, axis=2)
 
-    pv.Delete(peakSystoleWSS)
-    del peakSystoleWSS
-
-    pv.Delete(lowDiastoleWSS)
-    del lowDiastoleWSS
+    # Check if low diastole or peak systoel not in time list    
+    lastTimeStep = max(timeSteps)
+    firstTimeStep = min(timeSteps)
     
-    return surface
+    if t_low_diastole not in timeSteps:
+        warningMsg = "Low diastole instant not in " \
+                     "time-steps list. Using last time-step."
+        print(warningMsg, end='\n')
 
-def surfaceNormals(surface):
+        t_low_diastole = lastTimeStep
+    
+    elif t_peak_systole not in timeSteps:
+        warningMsg = "Peak-systole instant not in " \
+                     "time-steps list. Using first time-step."
+        print(warningMsg, end='\n')
+
+        t_peak_systole = firstTimeStep
+
+    # List of tuples to store stats arrays and their name
+    # [(array1, name1), ... (array_n, name_n)]
+    arraysToBeStored = []
+    saveArray = arraysToBeStored.append
+    
+    # Get peak-systole and low-diastole WSS
+    saveArray((temporal_wss[t_peak_systole], _PSWSS))
+    saveArray((temporal_wss[t_low_diastole], _LDWSS))
+    
+    # Get period of time steps
+    period = lastTimeStep - firstTimeStep
+    timeStep = period/len(timeSteps)
+    
+    # Append to the numpy surface wrap
+    appendToSurface = npSurface.CellData.append
+
+    # Compute the time-average of the WSS vector
+    # assumes uniform time-step (calculated above)
+    saveArray((simps(wssVecOverTime, dx=timeStep, axis=0)/period,
+               _WSS + _avg))
+               
+    saveArray((simps(wssMagOverTime, dx=timeStep, axis=0)/period,
+               _TAWSS))
+
+    saveArray((wssMagOverTime.max(axis=0),
+               _WSSmag + _max))
+
+    saveArray((wssMagOverTime.min(axis=0),
+               _WSSmag + _min))
+    
+    # Finally, append all arrays to surface
+    for array, name in arraysToBeStored:
+        appendToSurface(array, name)
+    
+    return npSurface.VTKObject
+
+def surfaceNormals(surface: _polyDataType) -> _polyDataType:
     """Compute outward surface normals."""
     
     normals = vtk.vtkPolyDataNormals()
@@ -237,7 +238,8 @@ def surfaceNormals(surface):
     
     return normals.GetOutput()
 
-def spatialGradient(surface, field_name):
+def spatialGradient(surface: _polyDataType, 
+                    field_name: str) -> _polyDataType:
     """Compute gradient of field on a surface."""
     
     gradient = vtk.vtkGradientFilter()
