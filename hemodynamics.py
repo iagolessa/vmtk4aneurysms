@@ -507,13 +507,6 @@ def wss_stats_aneurysm(neckSurface,
 
     aneurysm = clipper.GetOutput()
 
-    # Get aneurysm area
-    aneurysmProperties = vtk.vtkMassProperties()
-    aneurysmProperties.SetInputData(aneurysm)
-    aneurysmProperties.Update()
-
-    surfaceArea = aneurysmProperties.GetSurfaceArea()
-
     # Get Array
     array = dsa.WrapDataObject(aneurysm)
 
@@ -525,7 +518,7 @@ def wss_stats_aneurysm(neckSurface,
     percentile = np.percentile(np.array(wssArray), n_percentile)
     average = np.average(np.array(wssArray))
 
-    return [surfaceArea, average, maximum, minimum, percentile]
+    return [average, maximum, minimum, percentile]
 
 
 def osi_stats_aneurysm(neckSurface,
@@ -562,13 +555,6 @@ def osi_stats_aneurysm(neckSurface,
 
     aneurysm = clipper.GetOutput()
 
-    # Get aneurysm area
-    aneurysmProperties = vtk.vtkMassProperties()
-    aneurysmProperties.SetInputData(aneurysm)
-    aneurysmProperties.Update()
-
-    surfaceArea = aneurysmProperties.GetSurfaceArea()
-
     # Get Array
     array = dsa.WrapDataObject(aneurysm)
 
@@ -580,7 +566,7 @@ def osi_stats_aneurysm(neckSurface,
     percentile = np.percentile(np.array(osiArray), n_percentile)
     average = np.average(np.array(osiArray))
 
-    return [surfaceArea, average, maximum, minimum, percentile]
+    return [average, maximum, minimum, percentile]
 
 # TODO: the following functions still depends on ParaView
 # Eliminate that!
