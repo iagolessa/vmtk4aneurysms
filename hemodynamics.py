@@ -39,6 +39,11 @@ _WSSmag = 'WSS_magnitude'
 _WSSGrad = 'WSSGradient'
 _transWSS = 'transWSS'
 _WSS_surf_avg = 'WSS_surf_avg'
+_GON = 'GON'
+_SWSSG = 'SWSSG'+_avg
+_SWSSGmag = 'SWSSG_mag'+_avg
+_WSSDotP = 'WSSDotP'
+_WSSDotQ = 'WSSDotQ'
 
 # Local coordinate system
 _pHat = 'pHat'
@@ -271,20 +276,8 @@ def _GON(np_surface,
     delArray = np_surface.GetCellData().RemoveArray
     getArray = np_surface.CellData.GetArray
     
-#     time_steps = list(temporal_wss.keys())
-
-    # # Sort list of time steps
-    # time_steps.sort()
-    
     GVecOverTime = []
     addInstantGVec = GVecOverTime.append
-
-    # Array names
-    _GON = 'GON'
-    _SWSSG = 'SWSSG'+_avg
-    _SWSSGmag = 'SWSSG_mag'+_avg
-    _WSSDotP = 'WSSDotP'
-    _WSSDotQ = 'WSSDotQ'
 
     for time in time_steps:
         wssVecDotQHat = _HadamardDot(temporal_wss.get(time), q_hat_array)
