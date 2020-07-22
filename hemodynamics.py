@@ -16,6 +16,7 @@ from vtk.numpy_interface import dataset_adapter as dsa
 from scipy.integrate import simps
 
 import polydatageometry as geo
+import polydatatools as tools
 
 # Attribute array names
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
@@ -488,24 +489,12 @@ def wss_stats_aneurysm(neckSurface,
 
     try:
         # Try to read if file name is given
-        reader = vtk.vtkXMLPolyDataReader()
-        reader.SetFileName(neckSurface)
-        reader.Update()
-
-        surface = reader.GetOutput()
+        surface = tools.readSurface(neckSurface)
     except:
         surface = neckSurface
 
-    surface.GetPointData().SetActiveScalars(neckArrayName)
-
-    # Clip aneurysm surface
-    clipper = vtk.vtkClipPolyData()
-    clipper.SetInputData(surface)
-    clipper.SetValue(neckIsoValue)
-    clipper.SetInsideOut(1)
-    clipper.Update()
-
-    aneurysm = clipper.GetOutput()
+    # Get aneurysm 
+    aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
 
     # Get Array
     array = dsa.WrapDataObject(aneurysm)
@@ -536,24 +525,13 @@ def osi_stats_aneurysm(neckSurface,
     """
     try:
         # Try to read if file name is given
-        reader = vtk.vtkXMLPolyDataReader()
-        reader.SetFileName(neckSurface)
-        reader.Update()
+        surface = tools.readSurface(neckSurface)
 
-        surface = reader.GetOutput()
     except:
         surface = neckSurface
 
-    surface.GetPointData().SetActiveScalars(neckArrayName)
-
-    # Clip aneurysm surface
-    clipper = vtk.vtkClipPolyData()
-    clipper.SetInputData(surface)
-    clipper.SetValue(neckIsoValue)
-    clipper.SetInsideOut(1)
-    clipper.Update()
-
-    aneurysm = clipper.GetOutput()
+    # Get aneurysm 
+    aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
 
     # Get Array
     array = dsa.WrapDataObject(aneurysm)
@@ -584,48 +562,18 @@ def lsa_wss_avg(neckSurface,
     """
     try:
         # Try to read if file name is given
-        reader = vtk.vtkXMLPolyDataReader()
-        reader.SetFileName(neckSurface)
-        reader.Update()
-
-        surface = reader.GetOutput()
+        surface = tools.readSurface(neckSurface)
     except:
         surface = neckSurface
 
-    surface.GetPointData().SetActiveScalars(neckArrayName)
-
-    # Clip aneurysm surface
-    aneurysmClipper = vtk.vtkClipPolyData()
-    aneurysmClipper.SetInputData(surface)
-    aneurysmClipper.SetValue(neckIsoValue)
-    aneurysmClipper.SetInsideOut(1)
-    aneurysmClipper.Update()
-
-    aneurysm = aneurysmClipper.GetOutput()
+    # Get aneurysm 
+    aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
 
     # Get aneurysm area
     aneurysmArea = geo.surfaceArea(aneurysm)
 
-    # Convert to point data (apparently, the clipper
-    # only cuts point data)
-    pointdata = vtk.vtkCellDataToPointData()
-    pointdata.SetInputData(aneurysm)
-    pointdata.Update()
-
-    aneurysm = pointdata.GetOutput()
-
-    # Change active array
-    aneurysm.GetPointData().SetActiveScalars(avgMagWSSArray)
-
-    # Clip the aneurysm surface in the lowWSSValue
-    # ang gets portion smaller than it
-    clipLSA = vtk.vtkClipPolyData()
-    clipLSA.SetInputData(aneurysm)
-    clipLSA.SetValue(lowWSS)
-    clipLSA.SetInsideOut(1)
-    clipLSA.Update()
-
-    lsaPortion = clipLSA.GetOutput()
+    # Get low shear area
+    lsaPortion = tools.clipWithScalar(aneurysm, avgMagWSSArray, lowWSS)
     lsaArea = geo.surfaceArea(lsaPortion)
 
     return lsaArea/aneurysmArea
@@ -1120,10 +1068,18 @@ if __name__ == '__main__':
 
     surface = extractAneurysm.Surface
 
+    # project = vmtkscripts.vmtkSurfaceProjection()
+    # project.Surface = scaling.Surface
+    # project.ReferenceSurfaceInputFileName = '/home/iagolessa/surface_with_aneurysm_array.vtp'
+    # project.IORead()
+    # project.Execute()
+
+    # surface = project.Surface
+
     # Computes WSS and OSI statistics
     neckArrayName = 'AneurysmNeckContourArray'
     print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
     print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
     print(lsa_wss_avg(surface, neckArrayName, 1.5), end='\n')
 
-    tools.writeSurface(surface, outFile)
+    # tools.writeSurface(scaling.Surface, outFile)

@@ -7,6 +7,10 @@ from vmtk import vmtkrenderer
 
 from constants import *
 
+# Types
+_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
+_multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
+
 def readSurface(file_name):
     """Read surface file to VTK object.
                
@@ -171,6 +175,62 @@ def extractConnectedRegion(regions, method, closest_point=None):
     connectivity.Update()
 
     return connectivity.GetOutput()
+
+def clipWithScalar(surface: _polyDataType,
+                   array_name: str,
+                   value: float,
+                   inside_out=True) -> _polyDataType:
+    """ Clip surface with scalar field.
+
+    Provided a surface (vtkPolyData), a point
+    scalar array and a 'value' of this array, 
+    clip the surface portion that have the
+    condition 'scalar_array < value'. If 
+    inside out is 'True', than the oposite
+    will be output.
+    """
+    # Get point data and cell data
+    pointArrays = getPointArrays(surface)
+    cellArrays = getCellArrays(surface)
+
+    # TODO: Cannot use a try-statement here because the
+    # vtkClipPolyData filter does not throw any
+    # exception if error occurs (investigate why, 
+    # I think I have to activate like an 'error' 
+    # handler in the filter).
+
+    if array_name not in pointArrays and array_name in cellArrays:
+        # Convert cell to point
+        pointdata = vtk.vtkCellDataToPointData()
+        pointdata.SetInputData(surface)
+        pointdata.Update()
+
+        surface = pointdata.GetOutput()
+
+    elif array_name not in pointArrays and array_name not in cellArrays:
+        errorMsg = 'I cannot find ' + array_name + 'on the surface.'
+        print(errorMsg, end='\n')
+
+    else:
+        pass
+
+    # Change active array
+    surface.GetPointData().SetActiveScalars(array_name)
+
+    # Clip the aneurysm surface in the lowWSSValue
+    # ang gets portion smaller than it
+    clipper = vtk.vtkClipPolyData()
+    clipper.SetInputData(surface)
+    clipper.SetValue(value)
+
+    if inside_out: 
+        clipper.SetInsideOut(1)
+    else:
+        clipper.SetInsideOut(0)
+
+    clipper.Update()
+
+    return clipper.GetOutput()
 
 def clipWithPlane(surface, plane_center, plane_normal, inside_out=False):
     """ Clip a surface with a plane defined with a point and its normal."""
