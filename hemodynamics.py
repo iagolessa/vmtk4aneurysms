@@ -55,6 +55,7 @@ _SWSSG = 'SWSSG'+_avg
 _SWSSGmag = 'SWSSG_mag'+_avg
 _WSSDotP = 'WSSDotP'
 _WSSDotQ = 'WSSDotQ'
+_WSSTG = 'WSSTG'
 
 # Local coordinate system
 _pHat = 'pHat'
@@ -494,6 +495,17 @@ def hemodynamics(foam_case: str,
          _time_average(wssVecDotQHat, timeStep, period))
     )
     
+    # Compute the WSSTG = max(dWSSdt) over time
+    magWssOverTime = np.array([_normL2(temporalWss.get(time), axis=1)
+                               for time in timeSteps])
+
+    dWssdt = np.gradient(magWssOverTime, timeStep, axis=0)
+
+    storeArray(
+        (_WSSTG,
+         dWssdt.max(axis=0))
+    )
+
     for name, array in arraysToBeStored:
         setArray(array, name)
     
@@ -1060,7 +1072,7 @@ if __name__ == '__main__':
     print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
     print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
 
-    print(wss_surf_avg(foamCase), end='\n')#, scaling.Surface, neckArrayName), end='\n')
+    # print(wss_surf_avg(foamCase), end='\n')#, scaling.Surface, neckArrayName), end='\n')
 
 
-    # tools.writeSurface(scaling.Surface, outFile)
+    tools.writeSurface(hemodynamicsSurface, outFile)
