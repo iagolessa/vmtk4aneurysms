@@ -731,6 +731,12 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(self.Surface)
+        cleaner.Update()
+        
+        self.Surface = cleaner.GetOutput()
+
         # Initialize renderer
         if not self.vmtkRenderer:
             self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
