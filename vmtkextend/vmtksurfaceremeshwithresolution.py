@@ -70,10 +70,29 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         surfaceRemesh.ElementSizeMode = 'edgelengtharray'
         surfaceRemesh.TargetEdgeLengthArrayName = resolutionArraySmoothing.SurfaceArrayName
         surfaceRemesh.TargetEdgeLengthFactor = 1
+        surfaceRemesh.PreserveBoundaryEdges = 1
         surfaceRemesh.OutputText("Remeshing... \n")
         surfaceRemesh.Execute()
 
         self.Surface = surfaceRemesh.Surface
+
+        # Remove spourious array from final surface
+        cellData = self.Surface.GetCellData()
+        pointData = self.Surface.GetPointData()
+
+        cellArrays = [ cellData.GetArray(id_).GetName() 
+                       for id_ in range(cellData.GetNumberOfArrays()) ]
+
+        pointArrays = [ pointData.GetArray(id_).GetName() 
+                       for id_ in range(pointData.GetNumberOfArrays()) ]
+
+
+        for array in pointArrays:
+            pointData.RemoveArray(array)
+
+        for array in cellArrays:
+            cellData.RemoveArray(array)
+
 
 
 if __name__=='__main__':
