@@ -405,13 +405,13 @@ if __name__ == '__main__':
     from pprint import pprint
 
     filename = sys.argv[1]
-
-    vasculatureSurface = tools.readSurface(filename)
-
     withAneurysm = int(sys.argv[2])
     manual = int(sys.argv[3])
-
     renderSurfaces = int(sys.argv[4])
+    outFile = sys.argv[5]
+
+    print("-------------- Processing file "+filename+" -------------", end='\n')
+    vasculatureSurface = tools.readSurface(filename)
 
     case = Vasculature(
         vasculatureSurface,
@@ -445,6 +445,7 @@ if __name__ == '__main__':
     # Compute wall thickness
     # case.computeWallThicknessArray()
     # tools.viewSurface(case.getSurface(),array_name="Thickness")
+    tools.writeSurface(case.getSurface(), outFile)
     # tools.writeSurface(case.getSurface(), '/home/iagolessa/tmp.vtp')
 
     print('\n')
@@ -464,6 +465,10 @@ if __name__ == '__main__':
             tools.viewSurface(case.getAneurysm().getSurface())
             tools.viewSurface(case.getAneurysm().getHullSurface())
 
+        # Get aneurysm filename 
+        aneurysmFileName = filename.replace('model.vtp', 'aneurysm.vtp')
+
+        # tools.writeSurface(case.getAneurysm().getSurface(), aneurysmFileName)
         obj = case.getAneurysm()
 
         print("\tAneurysms parameters: ", end='\n')
