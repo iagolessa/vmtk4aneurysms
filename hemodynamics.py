@@ -25,41 +25,43 @@ _multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 
 _density = 1056.0 # SI units
 
-_xAxis = '_X'
-_yAxis = '_Y'
-_zAxis = '_Z'
+# Field suffixes
 _avg = '_average'
 _min = '_minimum'
 _max = '_maximum'
+_mag = '_magnitude'
 _grad = '_gradient'
 _sgrad = '_sgradient'
-_normals = 'Normals'
 
 # Attribute array names
-_Area = 'Area'
 _WSS = 'WSS'
-_TAWSS = 'TAWSS'
 _OSI = 'OSI'
 _RRT = 'RRT'
 _AFI = 'AFI'
-_WSSPI = 'WSSPI'
-_TAWSSG = 'TAWSSG'
-_PSWSS = 'PSWSS'
-_LDWSS = 'LDWSS'
-_WSSmag = 'WSS_magnitude'
-_WSSGrad = 'WSSGradient'
-_transWSS = 'transWSS'
-_WSS_surf_avg = 'WSS_surf_avg'
 _GON = 'GON'
-_SWSSG = 'SWSSG'+_avg
-_SWSSGmag = 'SWSSG_mag'+_avg
+_TAWSS = 'TAWSS'
+_WSSPI = 'WSSPI'
+_WSSTG = 'WSSTG'
+_TAWSSG = 'TAWSSG'
+_transWSS = 'transWSS'
+
+_WSSmag = _WSS + _mag
+_peakSystoleWSS = 'PSWSS'
+_lowDiastoleWSS = 'LDWSS'
+
+_WSSSG = 'WSSSG' + _avg
+_WSSSGmag = 'WSSSG' + _mag +_avg
 _WSSDotP = 'WSSDotP'
 _WSSDotQ = 'WSSDotQ'
-_WSSTG = 'WSSTG'
+
+# Possibly deprecated
+_WSSGrad = 'WSSGradient'
+_WSS_surf_avg = 'WSS_surf_avg'
 
 # Local coordinate system
 _pHat = 'pHat'
 _qHat = 'qHat'
+_normals = 'Normals'
 
 # Other attributes
 _foamWSS = 'wallShearComponent'
@@ -67,8 +69,6 @@ _wallPatch = 'wall'
 _aneurysmArray = 'AneurysmNeckArray'
 _parentArteryArray = 'ParentArteryArray'
 
-# _cellDataMode = 'Cell Data'
-# _pointDataMode = 'Point Data'
 
 def _normL2(array, axis):
     """Compute L2-norm of an array along an axis."""
@@ -279,8 +279,8 @@ def _wss_time_stats(surface: _polyDataType,
     storeArray = arraysToBeStored.append
     
     # Get peak-systole and low-diastole WSS
-    storeArray((temporal_wss[t_peak_systole], _PSWSS))
-    storeArray((temporal_wss[t_low_diastole], _LDWSS))
+    storeArray((temporal_wss[t_peak_systole], _peakSystoleWSS))
+    storeArray((temporal_wss[t_low_diastole], _lowDiastoleWSS))
     
     # Get period of time steps
     period = lastTimeStep - firstTimeStep
@@ -318,11 +318,11 @@ def _wss_time_stats(surface: _polyDataType,
     return npSurface.VTKObject
 
 
-def _GON(np_surface,
-         temporal_wss, 
-         p_hat_array,
-         q_hat_array,
-         time_steps):
+def _compute_gon(np_surface,
+                 temporal_wss, 
+                 p_hat_array,
+                 q_hat_array,
+                 time_steps):
 
     setArray = np_surface.CellData.append
     delArray = np_surface.GetCellData().RemoveArray
@@ -345,8 +345,15 @@ def _GON(np_surface,
         tSurface = dsa.WrapDataObject(surfaceWithSGrad)
 
         # Now project each surface gradient on coordinate direction
-        sGradDotPHat = _HadamardDot(tSurface.CellData.GetArray(_WSSDotP+_sgrad), p_hat_array)
-        sGradDotQHat = _HadamardDot(tSurface.CellData.GetArray(_WSSDotQ+_sgrad), q_hat_array)
+        sGradDotPHat = _HadamardDot(
+                            tSurface.CellData.GetArray(_WSSDotP+_sgrad), 
+                            p_hat_array
+                        )
+
+        sGradDotQHat = _HadamardDot(
+                            tSurface.CellData.GetArray(_WSSDotQ+_sgrad), 
+                            q_hat_array
+                        )
 
         tGVector = []
         append = tGVector.append
@@ -378,8 +385,8 @@ def _GON(np_surface,
     delArray(_WSSDotQ+_sgrad)
 
     setArray(GON, _GON)
-    setArray(avgGVecArray, _SWSSG)
-    setArray(avgMagGVecArray, _SWSSGmag)
+    setArray(avgGVecArray, _WSSSG)
+    setArray(avgMagGVecArray, _WSSSGmag)
 
 def hemodynamics(foam_case: str,
                  t_peak_systole: float,
@@ -478,7 +485,7 @@ def hemodynamics(foam_case: str,
 
     if compute_afi:
         # AFI at peak-systole
-        psWSS = getArray(_PSWSS)
+        psWSS = getArray(_peakSystoleWSS)
         psWSSmag = _normL2(psWSS, axis=1)
 
         storeArray(
@@ -495,9 +502,9 @@ def hemodynamics(foam_case: str,
     timeStep = period/len(timeSteps)
 
     if compute_gon:
-        _GON(numpySurface, 
-             temporalWss, pHatArray, qHatArray,
-             timeSteps)
+        _compute_gon(numpySurface, 
+                     temporalWss, pHatArray, qHatArray,
+                     timeSteps)
 
     # TransWss = tavg(abs(wssVecOverTime dot qHat))
     # I had to compute the transWSS here because it needs
@@ -1047,47 +1054,46 @@ if __name__ == '__main__':
     lowDiastoleTime = 2.80
 
     print("Computing hemodynamics", end='\n')
-    try:
-        hemodynamicsSurface = hemodynamics(foamCase,
-                                           peakSystoleTime,
-                                           lowDiastoleTime,
-                                           compute_gon=False,
-                                           compute_afi=False)
+    hemodynamicsSurface = hemodynamics(foamCase,
+                                       peakSystoleTime,
+                                       lowDiastoleTime,
+                                       compute_gon=True,
+                                       compute_afi=True)
 
-        tools.writeSurface(hemodynamicsSurface, outFile)
+    tools.writeSurface(hemodynamicsSurface, outFile)
 
-        # scaling = vmtkscripts.vmtkSurfaceScaling()
-        # scaling.Surface = hemodynamicsSurface
-        # scaling.ScaleFactor = 1000.0
-        # scaling.Execute()
+    # scaling = vmtkscripts.vmtkSurfaceScaling()
+    # scaling.Surface = hemodynamicsSurface
+    # scaling.ScaleFactor = 1000.0
+    # scaling.Execute()
 
-        # extractAneurysm = customscripts.vmtkExtractAneurysm()
-        # extractAneurysm.Surface = scaling.Surface
-        # extractAneurysm.Execute()
+    # extractAneurysm = customscripts.vmtkExtractAneurysm()
+    # extractAneurysm.Surface = scaling.Surface
+    # extractAneurysm.Execute()
 
-        # surface = extractAneurysm.Surface
+    # surface = extractAneurysm.Surface
 
-        # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
-        # surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
-        # surfaceProjection.SetInputData(scaling.Surface)
-        # surfaceProjection.SetReferenceSurface(neckSurface)
-        # surfaceProjection.Update()
-        # surface = surfaceProjection.GetOutput()
+    # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
+    # surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
+    # surfaceProjection.SetInputData(scaling.Surface)
+    # surfaceProjection.SetReferenceSurface(neckSurface)
+    # surfaceProjection.Update()
+    # surface = surfaceProjection.GetOutput()
 
-        # # Computes WSS and OSI statistics
-        # # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
-        # scaling = vmtkscripts.vmtkSurfaceScaling()
-        # scaling.Surface = neckSurface
-        # scaling.ScaleFactor = 0.001
-        # scaling.Execute()
+    # # Computes WSS and OSI statistics
+    # # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
+    # scaling = vmtkscripts.vmtkSurfaceScaling()
+    # scaling.Surface = neckSurface
+    # scaling.ScaleFactor = 0.001
+    # scaling.Execute()
 
-        # neckArrayName = 'AneurysmNeckContourArray'
+    # neckArrayName = 'AneurysmNeckContourArray'
 
-        # print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-        # print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-        # print(wss_surf_avg(foamCase), end='\n')#, scaling.Surface, neckArrayName), end='\n')
+    # print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    # print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    # print(wss_surf_avg(foamCase), end='\n')#, scaling.Surface, neckArrayName), end='\n')
 
-    except:
-        print("Error for case "+foamCase, end='\n')
+    # except:
+        # print("Error for case "+foamCase, end='\n')
 
 
