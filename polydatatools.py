@@ -1,5 +1,8 @@
 """Provide functions to work with VTK poly data."""
 
+import os
+import sys
+
 import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -11,20 +14,30 @@ from constants import *
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
 _multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 
-def readSurface(file_name):
+def readSurface(file_name: str) -> _polyDataType:
     """Read surface file to VTK object.
                
     Arguments: 
     file_name -- complete path with file name
     """
-    reader = vtk.vtkXMLPolyDataReader()
+    # Get extension
+    extension = os.path.splitext(file_name)[-1]
+
+    if extension == '.vtp':
+        reader = vtk.vtkXMLPolyDataReader()
+
+    elif extension == '.vtk':
+        reader = vtk.vtkPolyDataReader()
+
+    elif extension == '.stl':
+        reader = vtk.vtkSTLReader()
+
+    else:
+        sys.exit('Unrecognized file format.')
+
     reader.SetFileName(file_name)
     reader.Update()
 
-    # reader = vmtkscripts.vmtkSurfaceReader()
-    # reader.InputFileName = file_name
-    # reader.Execute()
-    
     return reader.GetOutput()
 
 
@@ -43,7 +56,8 @@ def viewSurface(surface, array_name=None):
     
     viewer.Execute()
     
-def writeSurface(surface, file_name, mode='binary'):
+def writeSurface(surface: _polyDataType, 
+                 file_name: str) -> None:
     """Write surface vtkPolyData. 
         
     Arguments:
@@ -53,29 +67,23 @@ def writeSurface(surface, file_name, mode='binary'):
     Optional arguments:
     mode -- mode to write file (ASCII or binary, default binary)
     """
-    writer = vmtkscripts.vmtkSurfaceWriter()
-    writer.Surface = surface
-    writer.Mode = mode
-    writer.OutputFileName = file_name
-    writer.Execute()
+    extension = os.path.splitext(file_name)[-1]
 
-#     writer = vtk.vtkPolyDataWriter()
-#     writer.SetFileName(file_name)
-#     writer.SetInputData(surface)
-#
-#     if mode == 'binary':
-#         writer.SetFileTypeToBinary()
-#     elif mode == 'ascii':
-#         writer.SetFileTypeToASCII()
-#
-#     writer.Write()
+    if extension == '.vtp':
+        writer = vtk.vtkXMLPolyDataWriter()
 
-def writePolyData(polydata, file_name):
-    """Write surface vtkPolyData."""
+    elif extension == '.vtk':
+        writer = vtk.vtkPolyDataWriter()
 
-    writer = vtk.vtkXMLPolyDataWriter()
+    elif extension == '.stl':
+        writer = vtk.vtkSTLWriter()
+
+    else:
+        sys.exit('Unrecognized file format.')
+
+    writer.SetInputData(surface)
     writer.SetFileName(file_name)
-    writer.SetInputData(polydata)
+    writer.Update()
     writer.Write()
 
 def writePoints(points, file_name):
@@ -92,7 +100,6 @@ def writePoints(points, file_name):
     pointSet.SetVerts(cellArray)
 
     writePolyData(pointSet, file_name)   
-
 
 def smoothSurface(surface):
     """Smooth surface based on Taubin's algorithm."""
