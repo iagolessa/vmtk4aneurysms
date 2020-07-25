@@ -6,14 +6,14 @@ filters.
 The library works with the paraview.simple module. 
 """
 
-# import paraview.simple as pv
+import os
+import sys
+import numpy as np
+from scipy.integrate import simps
 
 import vtk
 from vmtk import vtkvmtk
 from vtk.numpy_interface import dataset_adapter as dsa
-
-import numpy as np
-from scipy.integrate import simps
 
 from constants import *
 import polydatatools as tools
@@ -156,6 +156,14 @@ def _wss_over_time(foam_case: str,
                    density=_density,
                    field=_foamWSS,
                    patch=_wallPatch) -> tuple:
+
+    # Check if file or folder
+    extension = os.path.splitext(foam_case)[-1]
+
+    if not os.path.isfile(foam_case) and extension != '.foam':
+        sys.exit("Unrecognized file format (must be .foam).")
+    else:
+        pass
 
     ofReader = vtk.vtkPOpenFOAMReader()
 
@@ -1021,58 +1029,55 @@ if __name__ == '__main__':
     from vmtkextend import customscripts
 
     foamCase = sys.argv[1]
-    outFile = sys.argv[2]
+
+    outFile = foamCase.replace('.foam', '_Hemodynamics.vtp')
 
     density = 1056.0
     peakSystoleTime = 2.09
     lowDiastoleTime = 2.80
 
     print("Computing hemodynamics", end='\n')
-    hemodynamicsSurface = hemodynamics(foamCase,
-                                       peakSystoleTime,
-                                       lowDiastoleTime,
-                                       compute_gon=False,
-                                       compute_afi=False)
+    try:
+        hemodynamicsSurface = hemodynamics(foamCase,
+                                           peakSystoleTime,
+                                           lowDiastoleTime,
+                                           compute_gon=False,
+                                           compute_afi=False)
 
-    scaling = vmtkscripts.vmtkSurfaceScaling()
-    scaling.Surface = hemodynamicsSurface
-    scaling.ScaleFactor = 1000.0
-    scaling.Execute()
+        tools.writeSurface(hemodynamicsSurface, outFile)
 
-    # extractAneurysm = customscripts.vmtkExtractAneurysm()
-    # extractAneurysm.Surface = scaling.Surface
-    # extractAneurysm.Execute()
+        # scaling = vmtkscripts.vmtkSurfaceScaling()
+        # scaling.Surface = hemodynamicsSurface
+        # scaling.ScaleFactor = 1000.0
+        # scaling.Execute()
 
-    # surface = extractAneurysm.Surface
+        # extractAneurysm = customscripts.vmtkExtractAneurysm()
+        # extractAneurysm.Surface = scaling.Surface
+        # extractAneurysm.Execute()
 
-    neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
-    surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
-    surfaceProjection.SetInputData(scaling.Surface)
-    surfaceProjection.SetReferenceSurface(neckSurface)
-    surfaceProjection.Update()
-    surface = surfaceProjection.GetOutput()
+        # surface = extractAneurysm.Surface
 
-    # project = vmtkscripts.vmtkSurfaceProjection()
-    # project.Surface = scaling.Surface
-    # project.ReferenceSurfaceInputFileName = '/home/iagolessa/surface_with_aneurysm_array.vtp'
-    # project.IORead()
-    # project.Execute()
+        # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
+        # surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
+        # surfaceProjection.SetInputData(scaling.Surface)
+        # surfaceProjection.SetReferenceSurface(neckSurface)
+        # surfaceProjection.Update()
+        # surface = surfaceProjection.GetOutput()
 
-    # surface = project.Surface
+        # # Computes WSS and OSI statistics
+        # # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
+        # scaling = vmtkscripts.vmtkSurfaceScaling()
+        # scaling.Surface = neckSurface
+        # scaling.ScaleFactor = 0.001
+        # scaling.Execute()
 
-    # Computes WSS and OSI statistics
-    # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
-    scaling = vmtkscripts.vmtkSurfaceScaling()
-    scaling.Surface = neckSurface
-    scaling.ScaleFactor = 0.001
-    scaling.Execute()
+        # neckArrayName = 'AneurysmNeckContourArray'
 
-    neckArrayName = 'AneurysmNeckContourArray'
+        # print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+        # print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+        # print(wss_surf_avg(foamCase), end='\n')#, scaling.Surface, neckArrayName), end='\n')
 
-    print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-    print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-
-    # print(wss_surf_avg(foamCase), end='\n')#, scaling.Surface, neckArrayName), end='\n')
+    except:
+        print("Error for case "+foamCase, end='\n')
 
 
-    tools.writeSurface(hemodynamicsSurface, outFile)
