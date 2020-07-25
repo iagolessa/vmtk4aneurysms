@@ -122,7 +122,9 @@ def _HadamardDot(np_array1, np_array2):
     # Seems that multiply is faster than a*b
     return np.multiply(np_array1, np_array2).sum(axis=1)
 
-def _get_wall_surface(multi_block: _multiBlockType) -> _polyDataType:
+def _get_wall_with_wss(multi_block: _multiBlockType,
+                       patch: str,
+                       field: str) -> _polyDataType:
 
     # Get blocks and surface patch
     # TODO: I need to fetch oatch by name. How?
@@ -147,8 +149,13 @@ def _get_wall_surface(multi_block: _multiBlockType) -> _polyDataType:
             wallPatch = patch
 
     # Remove U and p arrays
-    wallPatch.GetCellData().RemoveArray("U")
-    wallPatch.GetCellData().RemoveArray("p")
+    arrays = tools.getCellArrays(wallPatch)
+
+    # Remove arrays except field (WSS)
+    arrays.remove(field)
+
+    for array in arrays:
+        wallPatch.GetCellData().RemoveArray(array)
 
     return wallPatch
 
@@ -197,7 +204,10 @@ def _wss_over_time(foam_case: str,
     # for surface in map(readSurface, glob.glob(folder + '*.vtk')):
     for time in timeSteps:
         ofReader.UpdateTimeStep(time)
-        surface = _get_wall_surface(ofReader.GetOutput())
+
+        surface = _get_wall_with_wss(ofReader.GetOutput(),
+                                     patch=_wallPatch,
+                                     field=_foamWSS)
 
         # Convert to Numpy object for efficiency
         npSurface = dsa.WrapDataObject(surface)
