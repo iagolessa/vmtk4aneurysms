@@ -68,7 +68,7 @@ _normals = 'Normals'
 # Other attributes
 _foamWSS = 'wallShearComponent'
 _wallPatch = 'wall'
-_aneurysmArray = 'AneurysmNeckContourArray'
+_aneurysmNeckArray = 'AneurysmNeckContourArray'
 _parentArteryArray = 'ParentArteryContourArray'
 
 
@@ -645,78 +645,6 @@ def lsa_wss_avg(neckSurface,
 
     return lsaArea/aneurysmArea
 
-def wss_surf_avg(foam_case,
-                 neckSurface=None,
-                 neckArrayName=None,
-                 neckIsoValue=0.5,
-                 density=_density,
-                 field=_foamWSS,
-                 patch=_wallPatch):
-    """
-        Function to compute surface integrals of WSS over 
-        an aneurysm or vessels surface. It takes the Open-
-        FOAM case file and an optional surface where it is 
-        stored a field with the aneurysm neck line loaded 
-        as a ParaView PolyData surface. If the surface is
-        None, it computes the integral over the entire sur-
-        face. It is essential that the surface with the ne-
-        ck array be the same as the wall surface of the 
-        OpenFOAM case, i.e. they are the same mesh.
-    """
-    surface, temporalWss = _wss_over_time(foam_case,
-                                          density=density,
-                                          field=field,
-                                          patch=patch)
-
-    # Get WSS over time in ordered manner
-    timeSteps = list(temporalWss.keys())
-    
-    # Sort list of time steps
-    timeSteps.sort()
-
-    wssVecOverTime = dsa.VTKArray([temporalWss.get(time) 
-                                   for time in timeSteps])
-
-    # Compute the time-average of the magnitude of the WSS vector
-    wssMagOverTime = _normL2(wssVecOverTime, 2)
-
-    surfAvgWSSList = []
-    append = surfAvgWSSList.append
-
-    for array in wssMagOverTime:
-
-        # Add WSSt array on surface
-        npSurface = dsa.WrapDataObject(surface)
-        npSurface.CellData.append(array, 'WSSt')
-
-        if neckSurface is not None and neckArrayName is not None:
-            # Map neck array field into current surface
-            # (aneurysmExtract triangulas the surface)
-            # Important: both surface must match the scaling
-
-            surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
-            surfaceProjection.SetInputData(npSurface.VTKObject)
-            surfaceProjection.SetReferenceSurface(neckSurface)
-            surfaceProjection.Update()
-
-            surface = surfaceProjection.GetOutput()
-
-            # Clip aneurysm portion
-            aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
-            npAneurysm = dsa.WrapDataObject(aneurysm)
-            surfaceToComputeAvg = npAneurysm
-
-        else:
-            surfaceToComputeAvg = npSurface
-     
-        areaAverage = _area_average(surfaceToComputeAvg.VTKObject, 'WSSt')
-        append(areaAverage)
-
-    return surfAvgWSSList
-
-
-# TODO: the following functions still depends on ParaView
-# Eliminate that!
 
 # This calculation depends on the WSS defined only on the
 # parent artery surface. I think the easiest way to com-
@@ -781,6 +709,74 @@ def wss_parent_vessel(parent_artery_surface: _polyDataType,
     # average = np.average(np.array(wssArray))
     return _area_average(parentArtery, wss_field)
 
+def wss_surf_avg(foam_case: str,
+                 neck_surface: _polyDataType = None,
+                 neck_array_name: str = _aneurysmNeckArray,
+                 neck_iso_value: float = 0.5,
+                 density: float = _density,
+                 field: str = _foamWSS,
+                 patch: str = _wallPatch):
+    """
+        Function to compute surface integrals of WSS over 
+        an aneurysm or vessels surface. It takes the Open-
+        FOAM case file and an optional surface where it is 
+        stored a field with the aneurysm neck line loaded 
+        as a ParaView PolyData surface. If the surface is
+        None, it computes the integral over the entire sur-
+        face. It is essential that the surface with the ne-
+        ck array be the same as the wall surface of the 
+        OpenFOAM case, i.e. they are the same mesh.
+    """
+    # define condition to compute on aneurysm portion
+    computeOnAneurysm = neck_surface is not None and neck_array_name is not None
+
+    surface, temporalWss = _wss_over_time(foam_case,
+                                          density=density,
+                                          field=field,
+                                          patch=patch)
+
+    # Map neck array into surface
+    if computeOnAneurysm:
+        # Map neck array field into current surface
+        # (aneurysmExtract triangulas the surface)
+        # Important: both surface must match the scaling
+
+        surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
+        surfaceProjection.SetInputData(surface)
+        surfaceProjection.SetReferenceSurface(neck_surface)
+        surfaceProjection.Update()
+
+        surface = surfaceProjection.GetOutput()
+    else:
+        pass
+
+    surfAvgWSSList = {}
+    addAvgWSS = surfAvgWSSList.update
+
+    npSurface = dsa.WrapDataObject(surface)
+
+    for time, wsst in temporalWss.items():
+
+        # Add WSSt array on surface
+        npSurface.CellData.append(_normL2(wsst, 1), 'WSSt')
+
+        if computeOnAneurysm:
+            # Clip aneurysm portion
+            aneurysm = tools.clipWithScalar(npSurface.VTKObject, 
+                                            neck_array_name, 
+                                            neck_iso_value)
+
+            npAneurysm = dsa.WrapDataObject(aneurysm)
+            surfaceToComputeAvg = npAneurysm
+
+        else:
+            surfaceToComputeAvg = npSurface
+     
+        areaAverage = _area_average(surfaceToComputeAvg.VTKObject, 'WSSt')
+        addAvgWSS({time: areaAverage})
+
+    return surfAvgWSSList
+
 def lsa_instant(foam_case: str,
                 neck_surface: _polyDataType,
                 neck_array_name: str,
@@ -832,30 +828,19 @@ def lsa_instant(foam_case: str,
 
     surface = surfaceProjection.GetOutput()
 
-    # else:
-        # sys.exit("Provided surfaces do not match!")
-
-    # Get WSS over time in ordered manner
-    timeSteps = list(temporalWss.keys())
-    timeSteps.sort()
-
-    # Compute the time-average of the magnitude of the WSS vector
-    wssVecOverTime = dsa.VTKArray([temporalWss.get(time) 
-                                   for time in timeSteps])
-
-    wssMagOverTime = _normL2(wssVecOverTime, 2)
-
-    lsaOverTime = []
-    appendLsa = lsaOverTime.append
+    lsaOverTime = {}
+    appendLsa = lsaOverTime.update
 
     # Iterate over the wss fields over time
-    for array in wssMagOverTime:
+    npSurface = dsa.WrapDataObject(surface)
+    for time, wsst in temporalWss.items():
 
-        npSurface = dsa.WrapDataObject(surface)
-        npSurface.CellData.append(array, _WSSmag)
+        npSurface.CellData.append(_normL2(wsst, 1), _WSSmag)
     
         # Clip aneurysm portion
-        aneurysm = tools.clipWithScalar(surface, neck_array_name, neck_iso_value)
+        aneurysm = tools.clipWithScalar(npSurface.VTKObject, 
+                                        neck_array_name, 
+                                        neck_iso_value)
 
         # Get low shear area
         # Wonder: does the surface project works in only a portion of the 
@@ -863,148 +848,9 @@ def lsa_instant(foam_case: str,
         lsaPortion = tools.clipWithScalar(aneurysm, _WSSmag, low_wss)
         lsaArea = geo.surfaceArea(lsaPortion)
 
-        appendLsa(lsaArea/aneurysmArea)
+        appendLsa({time: lsaArea/aneurysmArea})
 
     return lsaOverTime
-
-# def afi(foamCase,
-        # timeIndexRange,
-        # instant,
-        # outputFile,
-        # density=1056.0,  # kg/m3
-        # field=_foamWSS,
-        # patch=_wallPatch):
-
-    # try:
-        # # Try to read if file name is given
-        # ofData = pv.OpenFOAMReader(FileName=foamCase)
-    # except:
-        # ofData = foamCase
-
-    # # First we define only the field that are going
-    # # to be used: the WSS on the aneurysm wall
-    # ofData.CellArrays = [field]
-    # ofData.MeshRegions = [patch]
-    # ofData.Createcelltopointfiltereddata = 0
-    # ofData.SkipZeroTime = 1
-    # ofData.UpdatePipeline()
-
-    # mergeBlocks = pv.MergeBlocks()
-    # mergeBlocks.Input = ofData
-    # mergeBlocks.UpdatePipeline()
-
-    # extractSurface = pv.ExtractSurface()
-    # extractSurface.Input = mergeBlocks
-    # extractSurface.UpdatePipeline()
-
-    # triangulate = pv.Triangulate()
-    # triangulate.Input = extractSurface
-    # triangulate.UpdatePipeline()
-
-    # # Multiplying WSS per density
-    # calcWSS = pv.Calculator()
-    # calcWSS.Input = triangulate
-    # calcWSS.AttributeType = 'Cell Data'
-    # calcWSS.ResultArrayName = _WSS
-    # calcWSS.Function = str(density) + '*' + field
-    # calcWSS.UpdatePipeline()
-
-    # # Calculating the magnitude of the wss vector
-    # calcMagWSS = pv.Calculator()
-    # calcMagWSS.Input = calcWSS
-    # calcMagWSS.AttributeType = 'Cell Data'
-    # calcMagWSS.ResultArrayName = _WSSmag
-    # calcMagWSS.Function = 'mag(' + _WSS + ')'
-    # calcMagWSS.UpdatePipeline()
-
-    # timeData = pv.ExtractSurface()
-    # timeData.Input = calcMagWSS
-    # timeData.UpdatePipeline()
-
-    # # Delete objects
-    # pv.Delete(ofData)
-    # del ofData
-
-    # pv.Delete(mergeBlocks)
-    # del mergeBlocks
-
-    # pv.Delete(extractSurface)
-    # del extractSurface
-
-    # pv.Delete(calcWSS)
-    # del calcWSS
-
-    # # Extract desired time range
-    # timeInterval = pv.ExtractTimeSteps()
-    # timeInterval.Input = calcMagWSS
-    # timeInterval.SelectionMode = 'Select Time Range'
-    # timeInterval.TimeStepRange = timeIndexRange
-    # timeInterval.UpdatePipeline()
-
-    # # Now compute the temporal statistics
-    # # filter computes the average values of all fields
-    # calcTimeStats = pv.TemporalStatistics()
-    # calcTimeStats.Input = timeInterval
-    # calcTimeStats.ComputeAverage = 1
-    # calcTimeStats.ComputeMinimum = 0
-    # calcTimeStats.ComputeMaximum = 0
-    # calcTimeStats.ComputeStandardDeviation = 0
-    # calcTimeStats.UpdatePipeline()
-
-    # timeStats = pv.ExtractSurface()
-    # timeStats.Input = calcTimeStats
-    # timeStats.UpdatePipeline()
-
-    # # Resample OpenFOAM data to clipped aneeurysm surface
-    # resample = pv.ResampleWithDataset()
-    # # resample.Input = timeStats
-    # resample.SourceDataArrays = timeStats
-    # resample.DestinationMesh = timeData
-    # resample.PassCellArrays = 1
-    # resample.PassCellArrays = 1
-    # resample.UpdatePipeline()
-
-    # pointToCell = pv.PointDatatoCellData()
-    # pointToCell.Input = resample
-    # pointToCell.UpdatePipeline()
-
-    # # Calculates OSI
-    # calcAFI = pv.Calculator()
-    # calcAFI.Input = pointToCell
-    # calcAFI.AttributeType = 'Cell Data'
-    # calcAFI.ResultArrayName = _AFI
-
-    # # AFI calculation
-    # # AFI = (vecWSSt dot meanVecWSS)/(magWSSt dot magMeanVecWSS)
-    # calcAFI.Function = '(' + _WSS+'_X * '+_WSS+'_average_X +' + \
-        # _WSS+'_Y * '+_WSS+'_average_Y +' + \
-        # _WSS+'_Z * '+_WSS+'_average_Z)/' + \
-        # '(mag('+_WSS+') * mag('+_WSS+'_average))'
-
-    # calcAFI.UpdatePipeline(time=instant)
-
-    # pv.SaveData(outputFile, proxy=calcAFI)
-
-    # # Delete other fields
-    # # This is some sort of redudancy, but it was
-    # # the only way I found to isolate the resulting field
-    # surface = pv.XMLPolyDataReader(FileName=outputFile)
-    # surface.CellArrayStatus = [_WSS,
-                               # _WSSmag,
-                               # _WSS + '_average',
-                               # _AFI]
-
-    # pv.SaveData(outputFile, proxy=surface)
-
-    # # Delete objects
-    # pv.Delete(calcAFI)
-    # del calcAFI
-
-    # pv.Delete(timeInterval)
-    # del timeInterval
-
-    # pv.Delete(resample)
-    # del resample
 
 
 if __name__ == '__main__':
@@ -1062,11 +908,11 @@ if __name__ == '__main__':
     neckArrayName = 'AneurysmNeckContourArray'
     parentArteryArrayName = 'ParentArteryContourArray'
 
-    print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-    print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-    print(wss_parent_vessel(surface, parentArteryArrayName), end='\n')
-    # print(wss_surf_avg(foamCase, scaleNeckSurface.Surface, neckArrayName), end='\n')
-    # print(lsa_instant(foamCase, scaleNeckSurface.Surface, neckArrayName, 1.5), end='\n')
+    # print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    # print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    # print(wss_parent_vessel(surface, parentArteryArrayName), end='\n')
+    print(wss_surf_avg(foamCase, scaleNeckSurface.Surface, neckArrayName), end='\n')
+    print(lsa_instant(foamCase, scaleNeckSurface.Surface, neckArrayName, 1.5), end='\n')
 
     # except:
         # print("Error for case "+foamCase, end='\n')
