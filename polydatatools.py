@@ -124,23 +124,17 @@ def getCellArrays(polydata):
     """Return the names and number of arrays for a vtkPolyData."""
     
     nCellArrays = polydata.GetCellData().GetNumberOfArrays()
-    names = list()
-    
-    for id_ in range(nCellArrays):
-        names.append(polydata.GetCellData().GetArray(id_).GetName())
-        
-    return names
+
+    return [polydata.GetCellData().GetArray(id_).GetName()
+            for id_ in range(nCellArrays)]
 
 def getPointArrays(polydata):
     """Return the names of point arrays for a vtkPolyData."""
     
     nPointArrays = polydata.GetPointData().GetNumberOfArrays()
-    names = list()
     
-    for id_ in range(nPointArrays):
-        names.append(polydata.GetPointData().GetArray(id_).GetName())
-        
-    return names
+    return [polydata.GetPointData().GetArray(id_).GetName()
+            for id_ in range(nPointArrays)]
 
 def extractPortion(polydata, array_name, isovalue):
     """Extract portion of vtkPolyData based on array."""
