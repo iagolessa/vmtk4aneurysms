@@ -29,8 +29,12 @@ def distance(point1, point2):
 def surfaceArea(surface: _polyDataType) -> float:
     """Compute the surface area of an input surface."""
 
+    triangulate = vtk.vtkTriangleFilter()
+    triangulate.SetInputData(surface)
+    triangulate.Update()
+
     surface_area = vtk.vtkMassProperties()
-    surface_area.SetInputData(surface)
+    surface_area.SetInputData(triangulate.GetOutput())
     surface_area.Update()
 
     return surface_area.GetSurfaceArea()
@@ -44,8 +48,12 @@ def surfaceVolume(surface: _polyDataType) -> float:
     assumes that the surface is closed. 
     """
 
+    triangulate = vtk.vtkTriangleFilter()
+    triangulate.SetInputData(surface)
+    triangulate.Update()
+
     volume = vtk.vtkMassProperties()
-    volume.SetInputData(surface)
+    volume.SetInputData(triangulate.GetOutput())
     volume.Update()
 
     return volume.GetVolume()
