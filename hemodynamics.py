@@ -13,6 +13,7 @@ from scipy.integrate import simps
 
 import vtk
 from vmtk import vtkvmtk
+from vmtk import vmtkscripts
 from vtk.numpy_interface import dataset_adapter as dsa
 
 from constants import *
@@ -67,8 +68,8 @@ _normals = 'Normals'
 # Other attributes
 _foamWSS = 'wallShearComponent'
 _wallPatch = 'wall'
-_aneurysmArray = 'AneurysmNeckArray'
-_parentArteryArray = 'ParentArteryArray'
+_aneurysmArray = 'AneurysmNeckContourArray'
+_parentArteryArray = 'ParentArteryContourArray'
 
 
 def _normL2(array, axis):
@@ -81,7 +82,7 @@ def _time_average(array, step, period):
     
     return simps(array, dx=step, axis=0)/period
 
-def _area_average(surface, array):
+def _area_average(surface, array_name):
     """Compute area-averaged array over surface with first-order accuracy."""
 
     triangulate = vtk.vtkTriangleFilter()
@@ -93,11 +94,11 @@ def _area_average(surface, array):
     # Helper functions
     cellData = surface.GetCellData()
     getArea = lambda id_: surface.GetCell(id_).ComputeArea()
-    getValue = lambda id_, array_name: cellData.GetArray(array_name).GetValue(id_)
+    getValue = lambda id_, name: cellData.GetArray(name).GetValue(id_)
 
     def getCellValue(id_):
         cellArea = getArea(id_)
-        arrayValue = getValue(id_, array)
+        arrayValue = getValue(id_, array_name)
 
         return cellArea, arrayValue
 
@@ -561,9 +562,9 @@ def wss_stats_aneurysm(neckSurface,
     aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
 
     # Get Array
-    array = dsa.WrapDataObject(aneurysm)
+    npAneurysm = dsa.WrapDataObject(aneurysm)
 
-    wssArray = array.GetCellData().GetArray(avgMagWSSArray)
+    wssArray = npAneurysm.GetCellData().GetArray(avgMagWSSArray)
 
     # WSS averaged
     maximum = np.max(np.array(wssArray))
@@ -599,9 +600,9 @@ def osi_stats_aneurysm(neckSurface,
     aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
 
     # Get Array
-    array = dsa.WrapDataObject(aneurysm)
+    npAneurysm = dsa.WrapDataObject(aneurysm)
 
-    osiArray = array.GetCellData().GetArray(osiArrayName)
+    osiArray = npAneurysm.GetCellData().GetArray(osiArrayName)
 
     # WSS averaged
     maximum = np.max(np.array(osiArray))
@@ -723,48 +724,62 @@ def wss_surf_avg(foam_case,
 # way as the aneurysm neck is beuild. So, I will assume
 # in this function that the surface is already cut to in-
 # clude only the parent artery portion and that includes
-# def wss_parent_vessel(parentArterySurface,
-                      # parentArteryArrayName,
-                      # parentArteryIsoValue=0.5):
-    # """
-        # Calculates the surface averaged WSS value
-        # over the parent artery surface.
-    # """
+def _parent_artery_portion(surface: _polyDataType) -> _polyDataType:
+    """Compute array masking the parent vessel region."""
+    parentArteryDrawer = vmtkscripts.vmtkSurfaceRegionDrawing()
+    parentArteryDrawer.Surface = surface
+    parentArteryDrawer.InsideValue = 0.0
+    parentArteryDrawer.OutsideValue = 1.0
+    parentArteryDrawer.ContourScalarsArrayName = _parentArteryArray
+    parentArteryDrawer.Execute()
 
-    # try:
-        # # Try to read if file name is given
-        # surface = pv.XMLPolyDataReader(FileName=parentArterySurface)
-    # except:
-        # surface = parentArterySurface
+    smoother = vmtkscripts.vmtkSurfaceArraySmoothing()
+    smoother.Surface = parentArteryDrawer.Surface
+    smoother.Connexity = 1
+    smoother.Iterations = 10
+    smoother.SurfaceArrayName = parentArteryDrawer.ContourScalarsArrayName
+    smoother.Execute()
 
-    # clipParentArtery = pv.Clip()
-    # clipParentArtery.Input = surface
-    # clipParentArtery.ClipType = 'Scalar'
-    # clipParentArtery.Scalars = ['POINTS', parentArteryArrayName]
-    # clipParentArtery.Invert = 1                     # gets smaller portion
-    # # based on the definition of field ContourScalars
-    # clipParentArtery.Value = parentArteryIsoValue
-    # clipParentArtery.UpdatePipeline()
+    return smoother.Surface
 
-    # # Finaly we integrate over Sa
-    # integrateOverArtery = pv.IntegrateVariables()
-    # integrateOverArtery.Input = clipParentArtery
-    # integrateOverArtery.UpdatePipeline()
+def wss_parent_vessel(parent_artery_surface: _polyDataType,
+                      parent_artery_array: str,
+                      parent_artery_iso_value=0.5,
+                      wss_field=_TAWSS) -> float:
+    """
+        Calculates the surface averaged WSS value
+        over the parent artery surface.
+    """
 
-    # parentArteryArea = integrateOverArtery.CellData.GetArray(_Area).GetRange()[
-        # 0]
-    # parentArteryWSS = integrateOverArtery.CellData.GetArray(
-        # _WSSmag+'_average').GetRange()[0]
+    try:
+        # Try to read if file name is given
+        surface = tools.readSurface(parent_artery_surface)
+    except:
+        surface = parent_artery_surface
 
-    # # Delete pv objects
-    # pv.Delete(clipParentArtery)
-    # del clipParentArtery
+    # Check if surface has parent artery contour array
+    pointArrays = tools.getPointArrays(surface)
 
-    # pv.Delete(integrateOverArtery)
-    # del integrateOverArtery
+    if parent_artery_array not in pointArrays:
+        # Compute parent artery portion
+        surface = _parent_artery_portion(surface)
+    else:
+        pass
 
-    # return parentArteryWSS/parentArteryArea
+    # Get parent artery portion 
+    parentArtery = tools.clipWithScalar(surface,
+                                        parent_artery_array, 
+                                        parent_artery_iso_value)
 
+    # Get Array
+    # npParentArtery = dsa.WrapDataObject(parentArtery)
+    # wssArray = npParentArtery.GetCellData().GetArray(wss_field)
+    # WSS averaged
+    # maximum = np.max(np.array(wssArray))
+    # minimum = np.min(np.array(wssArray))
+    # percentile = np.percentile(np.array(wssArray), n_percentile)
+    # average = np.average(np.array(wssArray))
+    return _area_average(parentArtery, wss_field)
 
 def lsa_instant(foam_case: str,
                 neck_surface: _polyDataType,
@@ -1045,11 +1060,13 @@ if __name__ == '__main__':
     scaleNeckSurface.Execute()
 
     neckArrayName = 'AneurysmNeckContourArray'
+    parentArteryArrayName = 'ParentArteryContourArray'
 
     print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
     print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    print(wss_parent_vessel(surface, parentArteryArrayName), end='\n')
     # print(wss_surf_avg(foamCase, scaleNeckSurface.Surface, neckArrayName), end='\n')
-    print(lsa_instant(foamCase, scaleNeckSurface.Surface, neckArrayName, 1.5), end='\n')
+    # print(lsa_instant(foamCase, scaleNeckSurface.Surface, neckArrayName, 1.5), end='\n')
 
     # except:
         # print("Error for case "+foamCase, end='\n')
