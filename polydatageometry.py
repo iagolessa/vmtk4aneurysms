@@ -213,6 +213,7 @@ def contourHydraulicDiameter(contour):
     return intFour*area/perimeter
 
 
+# TODO: review this function to check closed contour
 def contourIsClosed(contour):
     """Check if contour (vtkPolyData) is closed."""
     nVertices = contour.GetNumberOfPoints()

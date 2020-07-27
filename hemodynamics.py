@@ -538,10 +538,60 @@ def hemodynamics(foam_case: str,
     
     return numpySurface.VTKObject
 
-def wss_stats_aneurysm(neckSurface,
-                       neckArrayName,
+def aneurysm_stats(neck_surface: _polyDataType,
+                   neck_array_name: str,
+                   array_name: str,
+                   n_percentile: float = 95,
+                   neck_iso_value: float = 0.5) -> list:
+    """Compute statistics of array on aneurysm surface."""
+
+    pointArrays = tools.getPointArrays(surface)
+    cellArrays = tools.getCellArrays(surface)
+
+    arrayInSurface = array_name in pointArrays or \
+                     array_name in cellArrays
+
+    neckArrayInSurface = neck_array_name in pointArrays or \
+                            neck_array_name in cellArrays
+
+    # Check if arrays are on surface
+    if not arrayInSurface:
+        sys.exit(array_name + " not found in the surface.")
+    else:
+        pass
+
+    if not neckArrayInSurface:
+        sys.exit("Array with neck line not found.")
+        # Maybe compute it here on the fly
+    else:
+        pass
+
+    # Get aneurysm 
+    aneurysm = tools.clipWithScalar(
+                    neck_surface, 
+                    neck_array_name, 
+                    neck_iso_value
+                )
+
+    # Get Array
+    npAneurysm = dsa.WrapDataObject(aneurysm)
+
+    arrayOnAneurysm = npAneurysm.GetCellData().GetArray(array_name)
+
+    # WSS averaged
+    maximum = np.max(arrayOnAneurysm)
+    minimum = np.min(np.array(arrayOnAneurysm))
+    average = np.average(np.array(arrayOnAneurysm))
+    percentile  = np.percentile(np.array(arrayOnAneurysm), n_percentile)
+    areaAverage = _area_average(aneurysm, array_name)
+
+    return [areaAverage, average, maximum, minimum, percentile]
+
+
+def wss_stats_aneurysm(neck_surface,
+                       neck_array_name,
                        n_percentile,
-                       neckIsoValue=0.5,
+                       neck_iso_value=0.5,
                        avgMagWSSArray=_TAWSS):
     """
         Computes surface-averaged and maximum value 
@@ -554,12 +604,12 @@ def wss_stats_aneurysm(neckSurface,
 
     try:
         # Try to read if file name is given
-        surface = tools.readSurface(neckSurface)
+        surface = tools.readSurface(neck_surface)
     except:
-        surface = neckSurface
+        surface = neck_surface
 
     # Get aneurysm 
-    aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
+    aneurysm = tools.clipWithScalar(surface, neck_array_name, neck_iso_value)
 
     # Get Array
     npAneurysm = dsa.WrapDataObject(aneurysm)
@@ -576,10 +626,10 @@ def wss_stats_aneurysm(neckSurface,
     return [areaAverage, average, maximum, minimum, percentile]
 
 
-def osi_stats_aneurysm(neckSurface,
-                       neckArrayName,
+def osi_stats_aneurysm(neck_surface,
+                       neck_array_name,
                        n_percentile,
-                       neckIsoValue=0.5,
+                       neck_iso_value=0.5,
                        osiArrayName=_OSI):
     """
         Computes surface-averaged and maximum value 
@@ -591,13 +641,13 @@ def osi_stats_aneurysm(neckSurface,
     """
     try:
         # Try to read if file name is given
-        surface = tools.readSurface(neckSurface)
+        surface = tools.readSurface(neck_surface)
 
     except:
-        surface = neckSurface
+        surface = neck_surface
 
     # Get aneurysm 
-    aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
+    aneurysm = tools.clipWithScalar(surface, neck_array_name, neck_iso_value)
 
     # Get Array
     npAneurysm = dsa.WrapDataObject(aneurysm)
@@ -613,10 +663,10 @@ def osi_stats_aneurysm(neckSurface,
 
     return [areaAverage, average, maximum, minimum, percentile]
 
-def lsa_wss_avg(neckSurface,
-                neckArrayName,
+def lsa_wss_avg(neck_surface,
+                neck_array_name,
                 lowWSS,
-                neckIsoValue=0.5,
+                neck_iso_value=0.5,
                 avgMagWSSArray=_TAWSS):
     """ 
     Calculates the LSA (low WSS area ratio) for aneurysms
@@ -629,12 +679,12 @@ def lsa_wss_avg(neckSurface,
     """
     try:
         # Try to read if file name is given
-        surface = tools.readSurface(neckSurface)
+        surface = tools.readSurface(neck_surface)
     except:
-        surface = neckSurface
+        surface = neck_surface
 
     # Get aneurysm 
-    aneurysm = tools.clipWithScalar(surface, neckArrayName, neckIsoValue)
+    aneurysm = tools.clipWithScalar(surface, neck_array_name, neck_iso_value)
 
     # Get aneurysm area
     aneurysmArea = geo.surfaceArea(aneurysm)
@@ -908,11 +958,14 @@ if __name__ == '__main__':
     neckArrayName = 'AneurysmNeckContourArray'
     parentArteryArrayName = 'ParentArteryContourArray'
 
-    # print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-    # print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
+    print(aneurysm_stats(surface, neckArrayName, 'TAWSS'), end='\n')
+    print(aneurysm_stats(surface, neckArrayName, 'OSI'), end='\n')
+    print(aneurysm_stats(surface, neckArrayName, 'RRT'), end='\n')
     # print(wss_parent_vessel(surface, parentArteryArrayName), end='\n')
-    print(wss_surf_avg(foamCase, scaleNeckSurface.Surface, neckArrayName), end='\n')
-    print(lsa_instant(foamCase, scaleNeckSurface.Surface, neckArrayName, 1.5), end='\n')
+    # print(wss_surf_avg(foamCase, scaleNeckSurface.Surface, neckArrayName), end='\n')
+    # print(lsa_instant(foamCase, scaleNeckSurface.Surface, neckArrayName, 1.5), end='\n')
 
     # except:
         # print("Error for case "+foamCase, end='\n')
