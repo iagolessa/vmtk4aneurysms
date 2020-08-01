@@ -38,7 +38,8 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.AneurysmNeckArrayName = 'AneurysmNeckContourArray'
         
         self.SetScriptName('vmtkextractaneurysm')
-        self.SetScriptDoc('extract aneurysm from surface and compute geometric data.')
+        self.SetScriptDoc('extract aneurysm from surface and compute geometric'
+                          'data.')
         
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '', 
@@ -128,9 +129,14 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
 	# Create representation to draw contour
         self.ContourWidget = vtk.vtkContourWidget()
-        self.ContourWidget.SetInteractor(self.vmtkRenderer.RenderWindowInteractor)
+        self.ContourWidget.SetInteractor(
+            self.vmtkRenderer.RenderWindowInteractor
+        )
 
-        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(self.ContourWidget.GetRepresentation())
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+                self.ContourWidget.GetRepresentation()
+            )
+
         rep.GetLinesProperty().SetColor(1, 0.2, 0)
         rep.GetLinesProperty().SetLineWidth(3.0)
 
@@ -217,7 +223,9 @@ class vmtkExtractAneurysm(pypes.pypeScript):
             Interactively select the aneurysm neck to be clipped.
             Obviously, works with both aneurysms types.
         """
-        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(self.ContourWidget.GetRepresentation())
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+                self.ContourWidget.GetRepresentation()
+            )
 		
 	# Get contour point of closed path
         pointIds = vtk.vtkIdList()
@@ -243,7 +251,9 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         selectionScalars = selectionFilter.GetOutput().GetPointData().GetScalars()
 
 	# Get scalars defined on surface
-        contourScalars = self.Surface.GetPointData().GetArray(self.AneurysmNeckArrayName)
+        contourScalars = self.Surface.GetPointData().GetArray(
+                            self.AneurysmNeckArrayName
+                        )
 
 	# Update field on surface to include closed region with InsideValue
         for i in range(contourScalars.GetNumberOfTuples()):
@@ -295,10 +305,12 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         volume = self.Volume()
         surfaceArea = self.SurfaceArea()
         
-        self.vmtkRenderer.InputInfo('Done.\n'
-                                    'Aneurysm volume = '+str(round(volume,2))+' mm3\n'
-                                    'Surface area = '+str(round(surfaceArea,2))+' mm2\n'
-                                    'Press q to exit')
+        self.vmtkRenderer.InputInfo(
+            'Done.\n'
+            'Aneurysm volume = '+str(round(volume,2))+' mm3\n'
+            'Surface area = '+str(round(surfaceArea,2))+' mm2\n'
+            'Press q to exit'
+        )
         
         
     def ClipLateralAneurysm(self):
@@ -310,83 +322,83 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         largest radius.
         """
         pass        
-#         # Get surface inlet and outlet patches' reference systems
-#         surfaceRefSystem = vmtkscripts.vmtkBoundaryReferenceSystems()
-#         surfaceRefSystem.Surface = self.Surface
-#         surfaceRefSystem.Execute()
-# 
-#         # Store patch info in python dictionary using vmtksurfacetonumpy
-#         vmtkToNumpy = vmtkscripts.vmtkSurfaceToNumpy()
-#         vmtkToNumpy.Surface = surfaceRefSystem.ReferenceSystems
-#         vmtkToNumpy.Execute()
-#         dictPatchData = vmtkToNumpy.ArrayDict
-#         
-#         # Get inlet by maximum radius condition
-#         # ~~~~
-#         # Get max radius and its index
-#         maxRadius = max(dictPatchData['PointData']['BoundaryRadius'])
-#         index,    = np.where( dictPatchData['PointData']['BoundaryRadius'] == maxRadius )
-#         inletBarycenterArray = dictPatchData['Points'][int(index)]
-# 
-#         # Build condition array where centers are not equal to inlet center
-#         # therefore, outlet centers
-#         notInlet = (dictPatchData['Points'] != inletBarycenterArray)
-#         
-#         # Inlet and outlet centers
-#         inletBarycenters  = dictPatchData['Points'][int(index)].tolist()
-#         outletBarycenters = np.extract(notInlet, dictPatchData['Points']).tolist()
-# 
-#         # Computing centerlines
-#         centerlines = vmtkscripts.vmtkCenterlines()
-#         centerlines.Surface = self.Surface
-#         centerlines.SeedSelectorName = 'pointlist'
-#         centerlines.SourcePoints     = inletBarycenters
-#         centerlines.TargetPoints     = outletBarycenters
-#         centerlines.Execute()
-# 
-#         # Check if centerline is ok
-#         vmtk_functions.viewCenterline(centerlines.Centerlines,None)
-#         surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
-#         surfaceViewer.Surface = self.Surface
-#         surfaceViewer.Opacity = 0.3
-#         surfaceViewer.Execute()
-#         
-#         # Multiply radius by a constant
-#         arrayOperation = vmtkscripts.vmtkSurfaceArrayOperation()
-#         arrayOperation.Surface   = centerlines.Centerlines
-#         arrayOperation.Operation = 'multiplybyc'
-#         arrayOperation.Constant  = 1.25
-#         arrayOperation.InputArrayName  = centerlines.RadiusArrayName
-#         arrayOperation.ResultArrayName = 'ModifiedRadius' #centerlines.RadiusArrayName
-#         arrayOperation.Execute()
-# 
-#         # Calculate distance to centerlines array
-#         distanceToCenterlines = vmtkscripts.vmtkDistanceToCenterlines()
-#         distanceToCenterlines.Surface     = centerlines.Surface
-#         distanceToCenterlines.Centerlines = arrayOperation.Surface
-#         distanceToCenterlines.UseRadiusInformation = 1
-#         distanceToCenterlines.EvaluateTubeFunction = 1
-#         distanceToCenterlines.ProjectPointArrays   = 1
-#         distanceToCenterlines.EvaluateCenterlineRadius = 1
-#         # Important to remember of the MaximumInscribedSphereRadiusArray !
-#         distanceToCenterlines.RadiusArrayName = arrayOperation.ResultArrayName
-#         # Execute distance to centerlines
-#         distanceToCenterlines.Execute()
-#         
-#         # Aneurysm clipper
-#         aneurysmClipper = vmtkscripts.vmtkSurfaceClipper()
-#         aneurysmClipper.Surface = distanceToCenterlines.Surface
-#         aneurysmClipper.Interactive = False
-#         aneurysmClipper.CleanOutput = True
-#         aneurysmClipper.ClipValue   = 0.0
-#         aneurysmClipper.ClipArrayName = distanceToCenterlines.DistanceToCenterlinesArrayName
-#         aneurysmClipper.Execute()
-# 
-#         surfaceConnect = vmtkscripts.vmtkSurfaceConnectivity()
-#         surfaceConnect.Surface = aneurysmClipper.Surface
-#         surfaceConnect.Execute()
-#         
-#         self.Surface = surfaceConnect.Surface
+        # # Get surface inlet and outlet patches' reference systems
+        # surfaceRefSystem = vmtkscripts.vmtkBoundaryReferenceSystems()
+        # surfaceRefSystem.Surface = self.Surface
+        # surfaceRefSystem.Execute()
+
+        # # Store patch info in python dictionary using vmtksurfacetonumpy
+        # vmtkToNumpy = vmtkscripts.vmtkSurfaceToNumpy()
+        # vmtkToNumpy.Surface = surfaceRefSystem.ReferenceSystems
+        # vmtkToNumpy.Execute()
+        # dictPatchData = vmtkToNumpy.ArrayDict
+
+        # # Get inlet by maximum radius condition
+        # # ~~~~
+        # # Get max radius and its index
+        # maxRadius = max(dictPatchData['PointData']['BoundaryRadius'])
+        # index,    = np.where( dictPatchData['PointData']['BoundaryRadius'] == maxRadius )
+        # inletBarycenterArray = dictPatchData['Points'][int(index)]
+
+        # # Build condition array where centers are not equal to inlet center
+        # # therefore, outlet centers
+        # notInlet = (dictPatchData['Points'] != inletBarycenterArray)
+
+        # # Inlet and outlet centers
+        # inletBarycenters  = dictPatchData['Points'][int(index)].tolist()
+        # outletBarycenters = np.extract(notInlet, dictPatchData['Points']).tolist()
+
+        # # Computing centerlines
+        # centerlines = vmtkscripts.vmtkCenterlines()
+        # centerlines.Surface = self.Surface
+        # centerlines.SeedSelectorName = 'pointlist'
+        # centerlines.SourcePoints     = inletBarycenters
+        # centerlines.TargetPoints     = outletBarycenters
+        # centerlines.Execute()
+
+        # # Check if centerline is ok
+        # vmtk_functions.viewCenterline(centerlines.Centerlines,None)
+        # surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
+        # surfaceViewer.Surface = self.Surface
+        # surfaceViewer.Opacity = 0.3
+        # surfaceViewer.Execute()
+
+        # # Multiply radius by a constant
+        # arrayOperation = vmtkscripts.vmtkSurfaceArrayOperation()
+        # arrayOperation.Surface   = centerlines.Centerlines
+        # arrayOperation.Operation = 'multiplybyc'
+        # arrayOperation.Constant  = 1.25
+        # arrayOperation.InputArrayName  = centerlines.RadiusArrayName
+        # arrayOperation.ResultArrayName = 'ModifiedRadius' #centerlines.RadiusArrayName
+        # arrayOperation.Execute()
+
+        # # Calculate distance to centerlines array
+        # distanceToCenterlines = vmtkscripts.vmtkDistanceToCenterlines()
+        # distanceToCenterlines.Surface     = centerlines.Surface
+        # distanceToCenterlines.Centerlines = arrayOperation.Surface
+        # distanceToCenterlines.UseRadiusInformation = 1
+        # distanceToCenterlines.EvaluateTubeFunction = 1
+        # distanceToCenterlines.ProjectPointArrays   = 1
+        # distanceToCenterlines.EvaluateCenterlineRadius = 1
+        # # Important to remember of the MaximumInscribedSphereRadiusArray !
+        # distanceToCenterlines.RadiusArrayName = arrayOperation.ResultArrayName
+        # # Execute distance to centerlines
+        # distanceToCenterlines.Execute()
+
+        # # Aneurysm clipper
+        # aneurysmClipper = vmtkscripts.vmtkSurfaceClipper()
+        # aneurysmClipper.Surface = distanceToCenterlines.Surface
+        # aneurysmClipper.Interactive = False
+        # aneurysmClipper.CleanOutput = True
+        # aneurysmClipper.ClipValue   = 0.0
+        # aneurysmClipper.ClipArrayName = distanceToCenterlines.DistanceToCenterlinesArrayName
+        # aneurysmClipper.Execute()
+
+        # surfaceConnect = vmtkscripts.vmtkSurfaceConnectivity()
+        # surfaceConnect.Surface = aneurysmClipper.Surface
+        # surfaceConnect.Execute()
+
+        # self.Surface = surfaceConnect.Surface
 
         
     def Volume(self):
@@ -432,11 +444,11 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         
         # Removed connectivty filter because it conflicted with 
         # array smoothing gprocedure
-#         connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-#         connectivityFilter.SetInputData(triangleFilter.GetOutput())
-#         connectivityFilter.ColorRegionsOff()
-#         connectivityFilter.SetExtractionModeToLargestRegion()
-#         connectivityFilter.Update()
+        # connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
+        # connectivityFilter.SetInputData(triangleFilter.GetOutput())
+        # connectivityFilter.ColorRegionsOff()
+        # connectivityFilter.SetExtractionModeToLargestRegion()
+        # connectivityFilter.Update()
         
         self.Surface = triangleFilter.GetOutput()
         

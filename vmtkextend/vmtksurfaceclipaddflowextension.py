@@ -18,18 +18,20 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         self.ClipMode = 'interactive'
 
         self.SetScriptName('vmtksurfaceclipaddflowextension')
-        self.SetScriptDoc('Interactively clip a surface and add small flow extension.')
+        self.SetScriptDoc('Interactively clip a surface and add small flow '
+                          'extension.')
 
         self.SetInputMembers([
             ['Surface',	'i', 'vtkPolyData', 1, '', 
-             'the input surface', 
-             'vmtksurfacereader'],
+                 'the input surface', 'vmtksurfacereader'],
+
             ['ClipMode','clipmode', 'str' , 1, '["interactive","centerlinebased"]', 
-             'the clip mode: manual enables widget'],
+                 'the clip mode: manual enables widget'],
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 'the output surface', 'vmtksurfacewriter']
+            ['Surface', 'o', 'vtkPolyData', 1, '', 
+                'the output surface', 'vmtksurfacewriter']
         ])
 
 

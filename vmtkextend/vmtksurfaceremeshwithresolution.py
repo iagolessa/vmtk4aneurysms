@@ -30,13 +30,19 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
                            "before the remeshing procedure.")
 
         self.SetInputMembers([
-            ['Surface',	'i', 'vtkPolyData', 1, '', 'the input surface', 'vmtksurfacereader'],
-            ['InsideValue', 'inside', 'float', 1, '(0.0,)', 'the inside value'],
-            ['OutsideValue', 'outside', 'float', 1, '(0.0,)', 'the outside value'],
+            ['Surface',	'i', 'vtkPolyData', 1, '', 
+                'the input surface', 'vmtksurfacereader'],
+
+            ['InsideValue', 'inside', 'float', 1, '(0.0,)', 
+                'the edgelength size inside contour'],
+
+            ['OutsideValue', 'outside', 'float', 1, '(0.0,)', 
+                'the edgelength size outside contour'],
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 'the output surface', 'vmtksurfacewriter']
+            ['Surface', 'o', 'vtkPolyData', 1, '', 
+                'the output surface', 'vmtksurfacewriter']
         ])
 
 
@@ -92,7 +98,6 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
 
         for array in cellArrays:
             cellData.RemoveArray(array)
-
 
 
 if __name__=='__main__':

@@ -27,15 +27,23 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         self.SetScriptName('vmtkextractrawsurface')
         self.SetScriptDoc('Extract raw surface from image.')
         self.SetInputMembers([
-            ['Image','i','vtkImageData',1,'','the input image','vmtkimagereader'],
-            ['Level','level','float',1,'','graylevels to generate the isosurface at'],
-            ['Inflation','inflation','float',1,'','inflation parameters of the Marching Cubes algorithm'],
-            ['ShowOutput','showoutput','bool',1,'','whether to see the final surface with image'],
-#             ['vmtkRenderer','renderer','vmtkRenderer',1,'','external renderer']
+            ['Image','i','vtkImageData',1,'',
+                'the input image','vmtkimagereader'],
+
+            ['Level','level','float',1,'',
+                'graylevels to generate the isosurface at'],
+
+            ['Inflation','inflation','float',1,'',
+                'inflation parameters of the Marching Cubes algorithm'],
+
+            ['ShowOutput','showoutput','bool',1,'',
+                'whether to see the final surface with image'],
+
         ])
 
         self.SetOutputMembers([
-            ['Surface','o','vtkPolyData',1,'','the output surface','vmtksurfacewriter']
+            ['Surface','o','vtkPolyData',1,'',
+                'the output surface','vmtksurfacewriter']
         ])
     
 
@@ -55,11 +63,6 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         if not self.Level:
             self.PrintError('Error: No Level')
         
-#         if not self.vmtkRenderer:
-#             self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
-#             self.vmtkRenderer.Initialize()
-#             self.OwnRenderer = 1
-                
         self.initializationImage = vmtkscripts.vmtkImageInitialization()
         self.initializationImage.Image = self.Image
         self.initializationImage.Method = 'isosurface'
@@ -84,7 +87,6 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         self.marchingCubes = vmtkscripts.vmtkMarchingCubes()
         self.marchingCubes.Image = self.imageLevelSets.LevelSets
         self.marchingCubes.Level = self.Inflation
-#         self.marchingCubes.Connectivity = 1
         self.marchingCubes.Execute()
        
         cleaner = vtk.vtkCleanPolyData()
@@ -117,14 +119,6 @@ class vmtkExtractRawSurface(pypes.pypeScript):
             self.surfaceViewer.Opacity = 0.5
             self.surfaceViewer.BuildView()
             
-
-#             for level in self.Levels:
-#                 self.marchingCubes.Level = level
-#                 self.marchingCubes.Execute()
-#                 self.Surface = self.marchingCubes.Surface
-#                 self.SurfaceViewer.Surface = self.Surface
-#                 self.SurfaceViewer.BuildView()
-#             if self.OwnRenderer:
             self.vmtkRenderer.Deallocate()
 
 
