@@ -751,14 +751,12 @@ def wss_surf_avg(foam_case: str,
     else:
         pass
 
-    surfAvgWSSList = {}
-    addAvgWSS = surfAvgWSSList.update
-
     npSurface = dsa.WrapDataObject(surface)
 
-    for time, wsst in temporalWss.items():
-
+    # Function to compute average of wss over surface
+    def wss_average_on_surface(t): 
         # Add WSSt array on surface
+        wsst = temporalWss.get(t)
         npSurface.CellData.append(_normL2(wsst, 1), 'WSSt')
 
         if computeOnAneurysm:
@@ -773,10 +771,10 @@ def wss_surf_avg(foam_case: str,
         else:
             surfaceToComputeAvg = npSurface
      
-        areaAverage = _area_average(surfaceToComputeAvg.VTKObject, 'WSSt')
-        addAvgWSS({time: areaAverage})
+        return _area_average(surfaceToComputeAvg.VTKObject, 'WSSt')
 
-    return surfAvgWSSList
+    return {time: wss_average_on_surface(time) 
+            for time in temporalWss.keys()}
 
 def lsa_instant(foam_case: str,
                 neck_surface: _polyDataType,
@@ -829,13 +827,11 @@ def lsa_instant(foam_case: str,
 
     surface = surfaceProjection.GetOutput()
 
-    lsaOverTime = {}
-    appendLsa = lsaOverTime.update
-
     # Iterate over the wss fields over time
     npSurface = dsa.WrapDataObject(surface)
-    for time, wsst in temporalWss.items():
 
+    def lsa_on_surface(t):
+        wsst = temporalWss.get(t)
         npSurface.CellData.append(_normL2(wsst, 1), _WSSmag)
     
         # Clip aneurysm portion
@@ -849,6 +845,7 @@ def lsa_instant(foam_case: str,
         lsaPortion = tools.clipWithScalar(aneurysm, _WSSmag, low_wss)
         lsaArea = geo.surfaceArea(lsaPortion)
 
-        appendLsa({time: lsaArea/aneurysmArea})
+        return lsaArea/aneurysmArea
 
-    return lsaOverTime
+    return {time: lsa_on_surface(time) 
+            for time in temporalWss.keys()}
