@@ -545,8 +545,8 @@ def aneurysm_stats(neck_surface: _polyDataType,
                    neck_iso_value: float = 0.5) -> list:
     """Compute statistics of array on aneurysm surface."""
 
-    pointArrays = tools.getPointArrays(surface)
-    cellArrays = tools.getCellArrays(surface)
+    pointArrays = tools.getPointArrays(neck_surface)
+    cellArrays = tools.getCellArrays(neck_surface)
 
     arrayInSurface = array_name in pointArrays or \
                      array_name in cellArrays
@@ -901,73 +901,3 @@ def lsa_instant(foam_case: str,
         appendLsa({time: lsaArea/aneurysmArea})
 
     return lsaOverTime
-
-
-if __name__ == '__main__':
-
-    # Testing: computes hemodynamcis given an aneurysm OF case
-    import sys
-    import polydatatools as tools
-
-    from vmtk import vmtkscripts
-    from vmtkextend import customscripts
-
-    foamCase = sys.argv[1]
-
-    outFile = sys.argv[2] #foamCase.replace('.foam', '_Hemodynamics.vtp')
-
-    density = 1056.0
-    peakSystoleTime = 2.09
-    lowDiastoleTime = 2.80
-
-    print("Computing hemodynamics", end='\n')
-    hemodynamicsSurface = hemodynamics(foamCase,
-                                       peakSystoleTime,
-                                       lowDiastoleTime,
-                                       compute_gon=True,
-                                       compute_afi=True)
-
-    tools.writeSurface(hemodynamicsSurface, outFile)
-
-    scaling = vmtkscripts.vmtkSurfaceScaling()
-    scaling.Surface = hemodynamicsSurface
-    scaling.ScaleFactor = 1000.0
-    scaling.Execute()
-
-    # extractAneurysm = customscripts.vmtkExtractAneurysm()
-    # extractAneurysm.Surface = scaling.Surface
-    # extractAneurysm.Execute()
-
-    # surface = extractAneurysm.Surface
-
-    neckSurface = tools.readSurface('/home/iagolessa/hemodynamics/surface_with_aneurysm.vtp')
-
-    surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
-    surfaceProjection.SetInputData(scaling.Surface)
-    surfaceProjection.SetReferenceSurface(neckSurface)
-    surfaceProjection.Update()
-    surface = surfaceProjection.GetOutput()
-
-    # # Computes WSS and OSI statistics
-    # neckSurface = tools.readSurface('/home/iagolessa/surface_with_aneurysm_array.vtp')
-    scaleNeckSurface = vmtkscripts.vmtkSurfaceScaling()
-    scaleNeckSurface.Surface = neckSurface
-    scaleNeckSurface.ScaleFactor = 0.001
-    scaleNeckSurface.Execute()
-
-    neckArrayName = 'AneurysmNeckContourArray'
-    parentArteryArrayName = 'ParentArteryContourArray'
-
-    print(wss_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-    print(osi_stats_aneurysm(surface, neckArrayName, 95), end='\n')
-    print(aneurysm_stats(surface, neckArrayName, 'TAWSS'), end='\n')
-    print(aneurysm_stats(surface, neckArrayName, 'OSI'), end='\n')
-    print(aneurysm_stats(surface, neckArrayName, 'RRT'), end='\n')
-    # print(wss_parent_vessel(surface, parentArteryArrayName), end='\n')
-    # print(wss_surf_avg(foamCase, scaleNeckSurface.Surface, neckArrayName), end='\n')
-    # print(lsa_instant(foamCase, scaleNeckSurface.Surface, neckArrayName, 1.5), end='\n')
-
-    # except:
-        # print("Error for case "+foamCase, end='\n')
-
-
