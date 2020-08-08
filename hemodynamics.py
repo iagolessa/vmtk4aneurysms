@@ -538,6 +538,24 @@ def hemodynamics(foam_case: str,
     
     return numpySurface.VTKObject
 
+def _select_aneurysm(surface: _polyDataType) -> _polyDataType:
+    """Compute array marking the aneurysm."""
+    aneurysmSelection = vmtkscripts.vmtkSurfaceRegionDrawing()
+    aneurysmSelection.Surface = surface
+    aneurysmSelection.InsideValue = 0.0 # the aneurysm portion
+    aneurysmSelection.OutsideValue = 1.0
+    aneurysmSelection.ContourScalarsArrayName = _aneurysmNeckArray
+    aneurysmSelection.Execute()
+
+    smoother = vmtkscripts.vmtkSurfaceArraySmoothing()
+    smoother.Surface = aneurysmSelection.Surface
+    smoother.Connexity = 1
+    smoother.Iterations = 10
+    smoother.SurfaceArrayName = aneurysmSelection.ContourScalarsArrayName
+    smoother.Execute()
+
+    return smoother.Surface
+
 def aneurysm_stats(neck_surface: _polyDataType,
                    neck_array_name: str,
                    array_name: str,
@@ -561,8 +579,8 @@ def aneurysm_stats(neck_surface: _polyDataType,
         pass
 
     if not neckArrayInSurface:
-        sys.exit("Array with neck line not found.")
-        # Maybe compute it here on the fly
+        # Compute neck array
+        neck_surface = _select_aneurysm(neck_surface) 
     else:
         pass
 
@@ -577,6 +595,14 @@ def aneurysm_stats(neck_surface: _polyDataType,
     npAneurysm = dsa.WrapDataObject(aneurysm)
 
     arrayOnAneurysm = npAneurysm.GetCellData().GetArray(array_name)
+    
+    # Check type of field: vector or scalar
+    nComponents = arrayOnAneurysm.shape[-1]
+
+    if nComponents == 3:
+        arrayOnAneurysm = _normL2(arrayOnAneurysm, 1)
+    else:
+        pass
 
     # WSS averaged
     maximum = np.max(arrayOnAneurysm)
@@ -587,81 +613,6 @@ def aneurysm_stats(neck_surface: _polyDataType,
 
     return [areaAverage, average, maximum, minimum, percentile]
 
-
-def wss_stats_aneurysm(neck_surface,
-                       neck_array_name,
-                       n_percentile,
-                       neck_iso_value=0.5,
-                       avgMagWSSArray=_TAWSS):
-    """
-        Computes surface-averaged and maximum value 
-        of time-averaged WSS for an aneurysm surface.
-        Input is a PolyData surface with the averaged
-        fields and the aneurysm neck contour field. 
-        Return list with aneurysm area, WSSav and 
-        WSSmax.
-    """
-
-    try:
-        # Try to read if file name is given
-        surface = tools.readSurface(neck_surface)
-    except:
-        surface = neck_surface
-
-    # Get aneurysm 
-    aneurysm = tools.clipWithScalar(surface, neck_array_name, neck_iso_value)
-
-    # Get Array
-    npAneurysm = dsa.WrapDataObject(aneurysm)
-
-    wssArray = npAneurysm.GetCellData().GetArray(avgMagWSSArray)
-
-    # WSS averaged
-    maximum = np.max(np.array(wssArray))
-    minimum = np.min(np.array(wssArray))
-    percentile = np.percentile(np.array(wssArray), n_percentile)
-    average = np.average(np.array(wssArray))
-    areaAverage = _area_average(aneurysm, avgMagWSSArray)
-
-    return [areaAverage, average, maximum, minimum, percentile]
-
-
-def osi_stats_aneurysm(neck_surface,
-                       neck_array_name,
-                       n_percentile,
-                       neck_iso_value=0.5,
-                       osiArrayName=_OSI):
-    """
-        Computes surface-averaged and maximum value 
-        of OSI for an aneurysm surface.
-        Input is a PolyData surface with the averaged
-        fields and the aneurysm neck contour field. 
-        Return list with aneurysm area, OSIav, OSImax, and 
-        OSImin.
-    """
-    try:
-        # Try to read if file name is given
-        surface = tools.readSurface(neck_surface)
-
-    except:
-        surface = neck_surface
-
-    # Get aneurysm 
-    aneurysm = tools.clipWithScalar(surface, neck_array_name, neck_iso_value)
-
-    # Get Array
-    npAneurysm = dsa.WrapDataObject(aneurysm)
-
-    osiArray = npAneurysm.GetCellData().GetArray(osiArrayName)
-
-    # WSS averaged
-    maximum = np.max(np.array(osiArray))
-    minimum = np.min(np.array(osiArray))
-    percentile = np.percentile(np.array(osiArray), n_percentile)
-    average = np.average(np.array(osiArray))
-    areaAverage = _area_average(aneurysm, osiArrayName)
-
-    return [areaAverage, average, maximum, minimum, percentile]
 
 def lsa_wss_avg(neck_surface,
                 neck_array_name,
