@@ -9,13 +9,12 @@ from constants import *
 
 import polydatatools as tools
 
-def computeOpenCenters(surface):
+def ComputeOpenCenters(surface):
     """Compute barycenters of inlets and outlets.
 
-    Computes the geometric center of each open boundary
-    of the model. Computes two lists: one with the inlet
-    coordinates (tuple) and another with the outlets
-    coordinates also as tuples of three components:
+    Computes the geometric center of each open boundary of the model. Computes
+    two lists: one with the inlet coordinates (tuple) and another with the
+    outlets coordinates also as tuples of three components:
 
         Inlet coords:  [(xi, yi, zi)]
         Outlet coords: [(xo1,yo1,zo1),
@@ -23,8 +22,8 @@ def computeOpenCenters(surface):
                         ...
                         (xon,yon,zon)]
 
-    for a model with a single inlet and n outlets. The
-    inlet is defined as the open boundary with largest radius.
+    for a model with a single inlet and n outlets. The inlet is defined as the
+    open boundary with largest radius.
     """
 
     inletCenters = list()
@@ -63,7 +62,7 @@ def computeOpenCenters(surface):
 
     return inletCenters, outletCenters
 
-def generateCenterlines(surface,
+def GenerateCenterlines(surface,
                         source_points=None,
                         target_points=None):
     """Compute centerlines, given source and target points."""
@@ -71,7 +70,7 @@ def generateCenterlines(surface,
     noEndPoints = source_points == None and target_points == None
 
     if noEndPoints:
-        source_points, target_points = computeOpenCenters(surface)
+        source_points, target_points = ComputeOpenCenters(surface)
     else:
         pass
 
@@ -88,7 +87,7 @@ def generateCenterlines(surface,
     RadiusArrayName = "MaximumInscribedSphereRadius"
 
     # Clean and triangulate
-    surface = tools.cleaner(surface)
+    surface = tools.Cleaner(surface)
 
     surfaceTriangulator = vtk.vtkTriangleFilter()
     surfaceTriangulator.SetInputData(surface)
@@ -140,7 +139,7 @@ def generateCenterlines(surface,
 
     return centerlineFilter.GetOutput()
 
-def computeCenterlineGeometry(centerlines):
+def ComputeCenterlineGeometry(centerlines):
     """Compute centerline sections and geometry."""
 
     calcGeometry = vmtkscripts.vmtkCenterlineGeometry()
@@ -154,12 +153,12 @@ def computeCenterlineGeometry(centerlines):
 
     return calcAttributes.Centerlines
 
-def getDivergingPoints(surface):
+def GetDivergingPoints(surface):
     """Get diverging data from centerline morphology."""
-    inlets, outlets = computeOpenCenters(surface)
-    aneurysmPoint = tools.selectSurfacePoint(surface)
+    inlets, outlets = ComputeOpenCenters(surface)
+    aneurysmPoint = tools.SelectSurfacePoint(surface)
 
-    parentCenterlines = generateCenterlines(surface, inlets, outlets)
+    parentCenterlines = GenerateCenterlines(surface, inlets, outlets)
 
     # Compute daughter centerlines
     # Build daughter centerlines
@@ -167,7 +166,7 @@ def getDivergingPoints(surface):
 
     # First outlet centerline
     daughterCenterlines.append(
-        generateCenterlines(
+        GenerateCenterlines(
             surface,
             [outlets[0]], 
             [outlets[1], aneurysmPoint]
@@ -175,7 +174,7 @@ def getDivergingPoints(surface):
     )
 
     # Compute clipping and diverging points
-#     centerlineSpacing = geo.distance(
+#     centerlineSpacing = geo.Distance(
 #             parentCenterlines.GetPoint(10),
 #             parentCenterlines.GetPoint(11)
 #         )
@@ -235,7 +234,7 @@ def getDivergingPoints(surface):
 #             bif=True
 #         )
 #
-#     tools.writeSurface(patchCenterlines, '/home/iagolessa/tmp_patch.vtp')
+#     tools.WriteSurface(patchCenterlines, '/home/iagolessa/tmp_patch.vtp')
 #     self._parent_centerlines = morphman.interpolate_patch_centerlines(
 #                                     patchCenterlines,
 #                                     self._centerlines,
@@ -243,5 +242,3 @@ def getDivergingPoints(surface):
 #                                     lower='bif',
 #                                     version=True
 #                                 )
-
-

@@ -1,9 +1,11 @@
 """Provide Vasculature class.
 
-This module provides the Vasculature class that models
-a vasculature portion of the vascular system. The basic
-input is a surface model of the vasculature as a vtkPolyData
-or a file name.
+This module provides the Vasculature class that models a portion of the
+vascular system. The basic input is a surface model of the vasculature as a
+vtkPolyData or a file name. When instantiated, the bifurcations and branches
+are automatically identified after the calculation of the vasculature's
+centerlines by using the VMTK\R library. Both centerline and surface
+geometrical characterization is performed and stored as arrays in the model.
 """
 
 import vtk
@@ -31,17 +33,16 @@ class Branch():
     @classmethod
     def from_centerline(cls, centerline, start_point, end_point):
         """Initialize branch object from centerline and end points."""
-
         pass
 
-    def getBranch(self):
+    def GetBranch(self):
         """Return branch vtkPolyData."""
         return self._branch
 
-    def getLength(self):
+    def GetLength(self):
         """Compute length of branch."""
         # Get arrays
-        pointArrays = tools.getPointArrays(self._branch)
+        pointArrays = tools.GetPointArrays(self._branch)
         abscissasArray = "Abscissas"
 
         if abscissasArray not in pointArrays:
@@ -116,19 +117,25 @@ class Bifurcation:
 
 
 class Vasculature:
-    """Class of vascular models represented by surfaces.
+    """Class of vascular model represented by a surface.
 
-    This class presents an interface to work with vascular 
-    models represented as surfaces (vtkPolyData). The surface
-    model must contain the open boundaries of the domain, i.e.
-    its inlets and outlets of blood flow as perpendicular
-    open sections (so far, it handles only vasculatures with 
-    a single inlet, defined as the one with largest radius).
-    At construction, the class automatically computes the 
-    centerlines (can be changed with the switch 
-    'manual_centerline') and the morphology of the vasculature:
-    the centerlines is computed together with its complete
-    set of morphological attributes.
+    This class presents an interface to work with vascular models represented
+    as surfaces (vtkPolyData). The surface model must contain the open
+    boundaries of the domain, i.e.  its inlets and outlets of blood flow as
+    perpendicular open sections as traditionally used for CFD. So far, it
+    handles only vasculatures with a single inlet, defined as the one with
+    largest radius. At construction, the class automatically computes the
+    centerline and the morphology of the vasculature. Internally, it uses VMTK
+    to compute all the geometrical features of the centerline path to fully
+    characterize the vasculature topology. Furthermore, the surface curvature 
+    characterization is added as arrays to the surface: mean and Gaussian 
+    curvatures with an array containing the local curvature type.
+
+    The vasculature may contain an aneurysm: this must be explicitly informed 
+    by the user through the switch 'with_aneurysm'. If true, the user can also 
+    determine if the aneurysm surface will detected automatically and a plane 
+    neck will be generated, or manually draw by the user, in which case a 
+    window is open allowing the user to select the aneurysm neck. 
     """
 
     def __init__(self,
@@ -138,9 +145,9 @@ class Vasculature:
                  aneurysm_prop=dict()):
         """Initiate vascular model.
 
-        Given vascular surface(vtkPolyData), automatically compute 
-        its centerlines and bifurcations geometry. If the vasculature
-        has an aneurysm, the flag 'with_aneurysm' enables its selection.
+        Given vascular surface(vtkPolyData), automatically compute its
+        centerlines and bifurcations geometry. If the vasculature has an
+        aneurysm, the flag 'with_aneurysm' enables its selection.
 
         Arguments:
         surface -- the vtkPolyData vascular model (default None)
@@ -148,20 +155,19 @@ class Vasculature:
         with_aneurysm -- bool to indicate that the vasculature
             has an aneurysm (default False)
 
-        manual_aneurysm -- bool that enable the manual selection
-            of the aneurysm neck, otherwise, try to automatically 
-            extract the aneurysm neck *plane*, based on the user
-            input of the aneurysm tip point and the algorithm
-            proposed in 
+        manual_aneurysm -- bool that enable the manual selection of the
+            aneurysm neck, otherwise, try to automatically extract the aneurysm
+            neck *plane*, based on the user input of the aneurysm tip point and
+            the algorithm proposed in 
 
-                Piccinelli et al. (2012). 
-                Automatic neck plane detection and 3d geometric 
+                Piccinelli et al. (2012).  
+                Automatic neck plane detection and 3d geometric
                 characterization of aneurysmal sacs. 
                 Annals of Biomedical Engineering, 40(10), 2188–2211. 
                 DOI :10.1007/s10439-012-0577-5.
 
-            Only enabled if the 'with_aneurysm' arguments is True.
-            (default False).
+            Only enabled if the 'with_aneurysm' arguments is True.  (default
+            False).
 
         aneurysm_prop -- dictionary with properties required by Aneurysm
             class: type, status, label.
@@ -170,7 +176,7 @@ class Vasculature:
         print('Initiating model.', end='\n')
 
         # Computes the curvature of the vasculature
-        self._surface = geo.surfaceCurvature(surface)
+        self._surface = geo.SurfaceCurvature(surface)
         self._centerlines = None
         self._aneurysm_point = None
 
@@ -184,27 +190,26 @@ class Vasculature:
         self._aneurysm_model = None
 
         # Compute morphology
-        self._inlet_centers, self._outlet_centers = centerlines.computeOpenCenters(self._surface)
+        self._inlet_centers, self._outlet_centers = centerlines.ComputeOpenCenters(self._surface)
 
         print('Computing centerlines.', end='\n')
-        self._centerlines = centerlines.generateCenterlines(
+        self._centerlines = centerlines.GenerateCenterlines(
                                 self._surface
                             )
 
-        self._centerlines = centerlines.computeCenterlineGeometry(
+        self._centerlines = centerlines.ComputeCenterlineGeometry(
                                 self._centerlines
                             )
 
         print('Collecting bifurcations.', end='\n')
         self._nbifurcations = 0
-        self._bifurcations = list()
+        self._bifurcations = []
         self._compute_bifurcations_geometry()
 
         print('Collecting branches.', end='\n')
-        self._branches = list()
+        self._branches = []
         self._split_branches()
 
-        # Delineating aneurysm
         if self._with_aneurysm:
             print("Extracting aneurysm surface.")
 
@@ -214,7 +219,6 @@ class Vasculature:
                 extractAneurysm.Execute()
 
                 aneurysm_surface = extractAneurysm.AneurysmSurface
-
 
             else:
                 # Extract aneurysm surface with plane neck
@@ -237,8 +241,8 @@ class Vasculature:
     def _compute_bifurcations_geometry(self):
         """Collect bifurcations and computes their geometry.
 
-        Identifies the bifurcations of the input surface model 
-        and gather their information in a list of bifurcations.
+        Identifies the bifurcations of the input surface model and gather their
+        information in a list of bifurcations.
         """
 
         # Split centerline into branches
@@ -264,9 +268,7 @@ class Vasculature:
         systems = bifsRefSystem.ReferenceSystems
         self._nbifurcations = systems.GetPoints().GetNumberOfPoints()
 
-        bifsIdsArray = systems.GetPointData().GetArray(
-            groupIdsArrayName
-        )
+        bifsIdsArray = systems.GetPointData().GetArray(groupIdsArrayName)
 
         bifurcationsIds = [
             bifsIdsArray.GetValue(index)
@@ -319,10 +321,8 @@ class Vasculature:
     def _split_branches(self):
         """Split vasculature into branches.
 
-        Given the vasculature centerlines, slits it into
-        its constituent branches. Return a list of branch
-        objects.
-
+        Given the vasculature centerlines, slits it into its constituent
+        branches. Return a list of branch objects.
         """
         # Split centerline into branches
         branches = vmtkscripts.vmtkBranchExtractor()
@@ -337,20 +337,18 @@ class Vasculature:
 
         # Extract only the branches portion
         branchesId = 0
-        branches = tools.extractPortion(
+        branches = tools.ExtractPortion(
             branches.Centerlines,
             blankingArrayName,
             branchesId
         )
 
         maxGroupId = max(
-            branches.GetCellData().GetArray(
-                groupIdsArrayName
-            ).GetRange()
+            branches.GetCellData().GetArray(groupIdsArrayName).GetRange()
         )
 
         for branchId in range(int(maxGroupId) + 1):
-            branch = tools.extractPortion(
+            branch = tools.ExtractPortion(
                 branches,
                 groupIdsArrayName,
                 branchId
@@ -375,107 +373,26 @@ class Vasculature:
 
         self._surface = vasculatureThickness.Surface
 
-    def getSurface(self):
+    def GetSurface(self):
         return self._surface
 
-    def getAneurysm(self):
+    def GetAneurysm(self):
         return self._aneurysm_model
 
-    def getCenterlines(self):
+    def GetCenterlines(self):
         return self._centerlines
 
-    def getInletCenters(self):
+    def GetInletCenters(self):
         return self._inlet_centers
 
-    def getOutletCenters(self):
+    def GetOutletCenters(self):
         return self._outlet_centers
 
-    def getBifurcations(self):
+    def GetBifurcations(self):
         return self._bifurcations
 
-    def getNumberOfBifurcations(self):
+    def GetNumberOfBifurcations(self):
         return self._nbifurcations
 
-    def getBranches(self):
+    def GetBranches(self):
         return self._branches
-
-if __name__ == '__main__':
-    # Testing: generate a report on the vasculature being loaded
-    import sys
-    from pprint import pprint
-
-    filename = sys.argv[1]
-    withAneurysm = int(sys.argv[2])
-    manual = int(sys.argv[3])
-    renderSurfaces = int(sys.argv[4])
-    outFile = sys.argv[5]
-
-    print("-------------- Processing file "+filename+" -------------", end='\n')
-    vasculatureSurface = tools.readSurface(filename)
-
-    case = Vasculature(
-        vasculatureSurface,
-        with_aneurysm=withAneurysm,
-        manual_aneurysm=manual
-    )
-
-    # Inspection
-    if renderSurfaces:
-        tools.viewSurface(case.getSurface(), array_name="Local_Shape_Type")
-        tools.viewSurface(case.getCenterlines())
-
-    print("Centerline arrays", end='\n')
-    for index in range(case.getCenterlines().GetPointData().GetNumberOfArrays()):
-        print('\t'+case.getCenterlines().GetPointData().GetArray(index).GetName(),
-              end='\n')
-
-    # Inlet and outlets
-    print("Inlet:", end='\n')
-    pprint(case.getInletCenters())
-
-    print("Outlets: ", end='\n')
-    pprint(case.getOutletCenters())
-
-    print('\n')
-
-    # Bifurcations
-    print("Bifurcation number = ", case.getNumberOfBifurcations(), end='\n')
-    pprint(case.getBifurcations()[0].inPlaneVectors)
-
-    # Compute wall thickness
-    # case.computeWallThicknessArray()
-    # tools.viewSurface(case.getSurface(),array_name="Thickness")
-    tools.writeSurface(case.getSurface(), outFile)
-    # tools.writeSurface(case.getSurface(), '/home/iagolessa/tmp.vtp')
-
-    print('\n')
-    # Inspect branches
-    print("Branches number = ", len(case.getBranches()), end='\n')
-
-    for branch in case.getBranches():
-        if renderSurfaces:
-            tools.viewSurface(branch.getBranch())
-        print('\tBranch Length = ', branch.getLength(), end='\n')
-
-    print('\n')
-    # If has aneurysm
-    if withAneurysm:
-        print("Showing aneurysm properties", end='\n')
-        if renderSurfaces:
-            tools.viewSurface(case.getAneurysm().getSurface())
-            tools.viewSurface(case.getAneurysm().getHullSurface())
-
-        # Get aneurysm filename 
-        aneurysmFileName = filename.replace('model.vtp', 'aneurysm.vtp')
-
-        # tools.writeSurface(case.getAneurysm().getSurface(), aneurysmFileName)
-        obj = case.getAneurysm()
-
-        print("\tAneurysms parameters: ", end='\n')
-        for parameter in dir(obj):
-            if parameter.startswith('get'):
-                attribute = getattr(obj, parameter)()
-
-                if type(attribute) == float or type(attribute) == tuple:
-                    print('\t'+ parameter.strip('get') +
-                          ' = '+str(attribute), end='\n')

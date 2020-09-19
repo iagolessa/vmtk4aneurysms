@@ -13,11 +13,12 @@ from constants import *
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
 _multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 
-_normals = 'Normals'
 _grad = '_gradient'
 _sgrad = '_sgradient'
+_normals = 'Normals'
 
-def distance(point1, point2):
+def Distance(point1, point2):
+    """Compute distance between two points."""
     sqrDistance = vtk.vtkMath.Distance2BetweenPoints(
         point1,
         point2
@@ -25,8 +26,7 @@ def distance(point1, point2):
 
     return math.sqrt(sqrDistance)
 
-
-def surfaceArea(surface: _polyDataType) -> float:
+def SurfaceArea(surface: _polyDataType) -> float:
     """Compute the surface area of an input surface."""
 
     triangulate = vtk.vtkTriangleFilter()
@@ -40,12 +40,11 @@ def surfaceArea(surface: _polyDataType) -> float:
     return surface_area.GetSurfaceArea()
 
 
-def surfaceVolume(surface: _polyDataType) -> float:
+def SurfaceVolume(surface: _polyDataType) -> float:
     """Compute voluem of closed surface.
 
-    Computes the volume of an assumed orientable 
-    surface. Works internally with VTK, so it 
-    assumes that the surface is closed. 
+    Computes the volume of an assumed orientable surface. Works internally with
+    VTK, so it assumes that the surface is closed. 
     """
 
     triangulate = vtk.vtkTriangleFilter()
@@ -58,7 +57,7 @@ def surfaceVolume(surface: _polyDataType) -> float:
 
     return volume.GetVolume()
 
-def surfaceNormals(surface: _polyDataType) -> _polyDataType:
+def SurfaceNormals(surface: _polyDataType) -> _polyDataType:
     """Compute outward surface normals."""
     
     normals = vtk.vtkPolyDataNormals()
@@ -72,7 +71,7 @@ def surfaceNormals(surface: _polyDataType) -> _polyDataType:
     
     return normals.GetOutput()
 
-def spatialGradient(surface: _polyDataType, 
+def SpatialGradient(surface: _polyDataType, 
                     field_name: str) -> _polyDataType:
     """Compute gradient of field on a surface."""
     
@@ -92,13 +91,13 @@ def spatialGradient(surface: _polyDataType,
 
     return gradient.GetOutput()
 
-def surfaceGradient(surface: _polyDataType, 
+def SurfaceGradient(surface: _polyDataType, 
                     field_name: str) -> _polyDataType:
     """Compute surface gradient of field on a surface.
     
-    Given the surface (vtkPolyData) and the scalar 
-    field name, compute the tangential or surface 
-    gradient of it on the surface."""
+    Given the surface (vtkPolyData) and the scalar field name, compute the
+    tangential or surface gradient of it on the surface.
+    """
     
     cellData = surface.GetCellData()
     nArrays  = cellData.GetNumberOfArrays()
@@ -108,10 +107,10 @@ def surfaceGradient(surface: _polyDataType,
               for id_ in range(nArrays)]
     
     if _normals not in arrays:
-        surface = surfaceNormals(surface)
+        surface = SurfaceNormals(surface)
         
     # Compute spatial gradient (adds field)
-    surfaceWithGradient = spatialGradient(surface, field_name)
+    surfaceWithGradient = SpatialGradient(surface, field_name)
     
     # GetArrays
     npSurface = dsa.WrapDataObject(surfaceWithGradient)
@@ -134,7 +133,7 @@ def surfaceGradient(surface: _polyDataType,
     
     return npSurface.VTKObject
 
-def contourPerimeter(contour):
+def ContourPerimeter(contour):
     """Compute the perimeter of a contour defined in 3D space."""
 
     nContourVertices = contour.GetNumberOfPoints()
@@ -149,12 +148,12 @@ def contourPerimeter(contour):
 
         vertex = contour.GetPoint(index)
 
-        perimeter += distance(previous, vertex)
+        perimeter += Distance(previous, vertex)
 
     return perimeter
 
 
-def contourBarycenter(contour):
+def ContourBarycenter(contour):
     """Return contour barycenter."""
 
     # For the barycenter, the contour can be open
@@ -169,7 +168,7 @@ def contourBarycenter(contour):
     return tuple(barycenter)
 
 
-def contourPlaneArea(contour):
+def ContourPlaneArea(contour):
     """Compute plane surface area enclosed by a 3D contour path."""
 
     # Fill contour
@@ -203,18 +202,18 @@ def contourPlaneArea(contour):
 # investigate functionoverloading for modules in Python
 
 
-def contourHydraulicDiameter(contour):
+def ContourHydraulicDiameter(contour):
     """Compute hydraulic diameter of a plane contour."""
 
-    perimeter = contourPerimeter(contour)
-    area = contourPlaneArea(contour)
+    perimeter = ContourPerimeter(contour)
+    area = ContourPlaneArea(contour)
 
     # Return hydraulic diameter of neck
     return intFour*area/perimeter
 
 
 # TODO: review this function to check closed contour
-def contourIsClosed(contour):
+def ContourIsClosed(contour):
     """Check if contour (vtkPolyData) is closed."""
     nVertices = contour.GetNumberOfPoints()
     nEdges = contour.GetNumberOfCells()
@@ -222,15 +221,13 @@ def contourIsClosed(contour):
     return nVertices == nEdges
 
 
-def surfaceCurvature(surface):
+def SurfaceCurvature(surface):
     """Compute curvature of surface.
 
-    Uses VTK to compute the mean and Gauss curvature 
-    of a surface represented as a vtkPolydata. Also
-    computes a integer array that identify the local
-    shape of a surface, as presented by Ma et al. (2004)
-    for intracranial aneurysms, if Kg and Km are the 
-    Gauss and mean curvature, we have:
+    Uses VTK to compute the mean and Gauss curvature of a surface represented
+    as a vtkPolydata. Also computes an integer array that identify the local
+    shape of the surface, as presented by Ma et al. (2004) for intracranial
+    aneurysms, if Kg and Km are the Gauss and mean curvature, we have:
 
         Kg   Km     Local Shape         Int Label
         > 0  > 0    Elliptical Convex   0
@@ -243,8 +240,8 @@ def surfaceCurvature(surface):
         = 0  < 0    Cylidrical Concave  7
         = 0  = 0    Planar              8
 
-    The name of the generated arrays are: "Mean_Curvature", 
-    "Gauss_Curvature", and "Local_Shape_Type".
+    The name of the generated arrays are: "Mean_Curvature", "Gauss_Curvature",
+    and "Local_Shape_Type".
     """
     # Compute mean curvature
     meanCurvature = vtk.vtkCurvatures()
@@ -321,16 +318,3 @@ def surfaceCurvature(surface):
             localShapeScalars.SetValue(cell, 8)
 
     return curvatureSurface
-
-
-if __name__ == '__main__':
-    import sys
-    import polydatatools as tools
-
-    filename = sys.argv[1]
-
-    surface = tools.readSurface(filename)
-
-    curvatures = surfaceCurvature(surface)
-
-    tools.writeSurface(curvatures, '/home/iagolessa/tmp.vtp')

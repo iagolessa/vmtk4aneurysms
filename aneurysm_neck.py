@@ -1,4 +1,4 @@
-"""Provide infrastructure to calculate the aneurysm neck.
+"""Provide function to calculate the aneurysm neck plane.
 
 The module provides a function to compute the aneurysm neck plane,
 as defined by Piccinelli et al. (2009).
@@ -40,10 +40,9 @@ _zComp = intThree
 def _vtk_vertices_to_numpy(polydata):
     """Convert vtkPolyData object to Numpy nd-array.
 
-    Return the point coordinates of a vtkPolyData
-    object as a n-dimensional Numpy nd-array. It 
-    only extracts its points, ignoring any array 
-    or field in the vtkPolyData.
+    Return the point coordinates of a vtkPolyData object as a n-dimensional
+    Numpy nd-array. It only extracts its points, ignoring any array or field in
+    the vtkPolyData.
 
     Arguments:
     polydata -- the vtkPolyData
@@ -79,15 +78,15 @@ def _compute_Voronoi(surface_model):
 def _tube_surface(centerline, smooth=True):
     """Reconstruct tube surface of a given vascular surface.
 
-    The tube surface is the maximum tubular structure ins-
-    cribed in the vasculature. 
+    The tube surface is the maximum tubular structure ins- cribed in the
+    vasculature. 
 
     Arguments:
-    centerline -- the centerline to compute the tube surface
-                  with the radius array.
+        centerline -- the centerline to compute the tube surface with the radius
+            array.
 
     Keyword arguments:
-    smooth -- to smooth tube surface (default True)
+        smooth -- to smooth tube surface (default True)
     """
     # List to collect objects
     objects = []
@@ -112,7 +111,7 @@ def _tube_surface(centerline, smooth=True):
     tubeSurface.Execute()
     objects.append(tubeSurface)
 
-    tube = tools.extractConnectedRegion(tubeSurface.Surface, 'largest')
+    tube = tools.ExtractConnectedRegion(tubeSurface.Surface, 'largest')
 
     if _debug:
         for obj in objects:
@@ -120,10 +119,10 @@ def _tube_surface(centerline, smooth=True):
             obj.PrintOutputMembers()
 
     if _inspect:
-        tools.viewSurface(tube)
+        tools.ViewSurface(tube)
 
     if smooth:
-        return tools.smoothSurface(tube)
+        return tools.SmoothSurface(tube)
     else:
         return tube
 
@@ -134,7 +133,7 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     # Compute distance between complete Voronoi
     # and the parent vessel tube surface
     DistanceArrayName = 'DistanceToTubeArray'
-    VoronoiDistance = tools.computeSurfacesDistance(
+    VoronoiDistance = tools.ComputeSurfacesDistance(
         VoronoiSurface,
         tubeSurface,
         array_name=DistanceArrayName
@@ -150,12 +149,12 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     VoronoiClipper.InsideOut = True
     VoronoiClipper.Execute()
 
-    aneurysmVoronoi = tools.extractConnectedRegion(VoronoiClipper.Surface, 'largest')
+    aneurysmVoronoi = tools.ExtractConnectedRegion(VoronoiClipper.Surface, 'largest')
 
     if _inspect:
-        tools.viewSurface(aneurysmVoronoi)
+        tools.ViewSurface(aneurysmVoronoi)
 
-    return tools.cleaner(aneurysmVoronoi)
+    return tools.Cleaner(aneurysmVoronoi)
 
 
 def _Voronoi_envelope(Voronoi):
@@ -188,7 +187,7 @@ def _Voronoi_envelope(Voronoi):
     envelopeSurface.Execute()
     objects.append(envelopeSurface)
 
-    envelope = tools.extractConnectedRegion(envelopeSurface.Surface, 'largest')
+    envelope = tools.ExtractConnectedRegion(envelopeSurface.Surface, 'largest')
 
     if _debug:
         for obj in objects:
@@ -196,25 +195,22 @@ def _Voronoi_envelope(Voronoi):
             obj.PrintOutputMembers()
 
     if _inspect:
-        tools.viewSurface(envelope)
+        tools.ViewSurface(envelope)
 
-    return tools.smoothSurface(envelope)
+    return tools.SmoothSurface(envelope)
 
 
 def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     """Clip initial aneurysm surface from the original vascular model.
 
-    Compute distance between the aneurysm 
-    envelope and parent vasculature tube 
-    function from the original vascular 
-    surface model. Clip the surface at the 
-    zero value of the difference between 
-    these two fields.
+    Compute distance between the aneurysm envelope and parent vasculature tube
+    function from the original vascular surface model. Clip the surface at the
+    zero value of the difference between these two fields.
 
     Arguments:
-    surface_model --  the original vascular surface
-    aneuysm_envelope -- the aneurysm surface computed from its Voronoi
-    parent_tube -- tube surface of the parent vessel
+        surface_model --  the original vascular surface
+        aneuysm_envelope -- the aneurysm surface computed from its Voronoi
+        parent_tube -- tube surface of the parent vessel
     """
 
     # Array names
@@ -225,13 +221,13 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     # Computes distance between original surface model
     # and the aneurysm envelope, and from the parent
     # tube surface
-    aneurysmEnvelopeDistance = tools.computeSurfacesDistance(
+    aneurysmEnvelopeDistance = tools.ComputeSurfacesDistance(
                                     surface_model,
                                     aneurysm_envelope,
                                     array_name=envelopeToModelArray
                                 )
 
-    modelSurfaceWithDistance = tools.computeSurfacesDistance(
+    modelSurfaceWithDistance = tools.ComputeSurfacesDistance(
                                     aneurysmEnvelopeDistance,
                                     parent_tube,
                                     array_name=tubeToModelArray
@@ -255,20 +251,20 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     clipAneurysm.InsideOut = False
     clipAneurysm.Execute()
 
-    aneurysm = tools.extractConnectedRegion(clipAneurysm.Surface, 'largest')
+    aneurysm = tools.ExtractConnectedRegion(clipAneurysm.Surface, 'largest')
 
     # Remove fields
     aneurysm.GetPointData().RemoveArray(clipAneurysmArray)
     aneurysm.GetPointData().RemoveArray(tubeToModelArray)
     aneurysm.GetPointData().RemoveArray(envelopeToModelArray)
 
-    aneurysm = tools.cleaner(aneurysm)
+    aneurysm = tools.Cleaner(aneurysm)
 
     if _inspect:
-        tools.viewSurface(aneurysm)
+        tools.ViewSurface(aneurysm)
 
     if _write:
-        tools.writeSurface(aneurysm, _write_dir+'initial_aneurysm_surface.vtp')
+        tools.WriteSurface(aneurysm, _write_dir+'initial_aneurysm_surface.vtp')
 
     return aneurysm
 
@@ -276,15 +272,12 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
 def _sac_centerline(aneurysm_sac, distance_array):
     """Compute aneurysm sac centerline.
 
-    Compute spline that travels alongs the 
-    aneurysm sac from the intersection with the pa-
-    rent vessel tube. Its points are defined by the
-    geometric place of the barycenters of iso-
-    contours of a distance_array defined on the 
-    aneurysm surface.
+    Compute spline that travels alongs the aneurysm sac from the intersection
+    with the pa- rent vessel tube. Its points are defined by the geometric
+    place of the barycenters of iso- contours of a distance_array defined on
+    the aneurysm surface.
 
-    The function returns the spline vertices in a
-    Numpy nd-array.
+    The function returns the spline vertices in a Numpy nd-array.
     """
 
     # Get wrapper object of vtk numpy interface
@@ -313,13 +306,13 @@ def _sac_centerline(aneurysm_sac, distance_array):
         isoContour.Update()
 
         # Get largest connected contour
-        contour = tools.extractConnectedRegion(isoContour.GetOutput(), 'largest')
+        contour = tools.ExtractConnectedRegion(isoContour.GetOutput(), 'largest')
 
         try:
             contourPoints = contour.GetPoints()
             nContourPoints = contour.GetNumberOfPoints()
 
-            if geo.contourIsClosed(contour) and nContourPoints != intZero:
+            if geo.ContourIsClosed(contour) and nContourPoints != intZero:
                 barycenter = _dimensions*[intZero]
                 vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
                     contourPoints,
@@ -385,16 +378,15 @@ def _sac_centerline(aneurysm_sac, distance_array):
         spline.GetPointData().SetActiveVectors('Normals')
         spline.GetPointData().SetVectors(pointDataArray)
 
-        tools.writeSurface(spline, _write_dir+'sac_spline.vtp')
+        tools.WriteSurface(spline, _write_dir+'sac_spline.vtp')
 
     return points, tangents
-
 
 def _local_minimum(array):
     """Find local minimum closest to beginning of array.
 
-    Given an array of real numbers, return the id of the 
-    smallest value closest to the beginning of the array.
+    Given an array of real numbers, return the id of the smallest value closest
+    to the beginning of the array.
     """
     minimum = np.r_[True, array[1:] < array[:-1]] & \
         np.r_[array[:-1] < array[1:], True]
@@ -406,17 +398,15 @@ def _local_minimum(array):
 def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     """Search neck plane of aneurysm by minimizing a contour variable.
 
-    This function effectively searches for the aneurysm neck
-    plane: it interactively cuts the aneurysm surface with
-    planes defined by the vertices and normals to a spline
-    travelling through the aneurysm sac. 
+    This function effectively searches for the aneurysm neck plane: it
+    interactively cuts the aneurysm surface with planes defined by the vertices
+    and normals to a spline travelling through the aneurysm sac. 
 
-    The cut plane is further precessed by a tilt and azimuth
-    angle and the minimum search between them, as originally
-    proposed by Piccinelli et al. (2009).
+    The cut plane is further precessed by a tilt and azimuth angle and the
+    minimum search between them, as originally proposed by Piccinelli et al.
+    (2009).
 
-    It returns the local minimum solution: the neck plane as 
-    a vtkPlane object.
+    It returns the local minimum solution: the neck plane as a vtkPlane object.
     """
     # Rotation angles
     tiltIncr = intOne
@@ -468,21 +458,21 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
                 cutWithPlane.SetCutFunction(plane)
                 cutWithPlane.Update()
 
-                contour = tools.extractConnectedRegion(
+                contour = tools.ExtractConnectedRegion(
                     cutWithPlane.GetOutput(), 'largest')
 
                 try:
                     contourPoints = contour.GetPoints()
                     nContourPoints = contour.GetNumberOfPoints()
 
-                    if geo.contourIsClosed(contour) and nContourPoints != intZero:
+                    if geo.ContourIsClosed(contour) and nContourPoints != intZero:
 
                         # Update minmum area
                         if min_variable == 'area':
-                            variable = geo.contourPlaneArea(contour)
+                            variable = geo.ContourPlaneArea(contour)
 
                         elif min_variable == 'perimeter':
-                            variable = geo.contourPerimeter(contour)
+                            variable = geo.ContourPerimeter(contour)
 
                         elif min_variable == 'hyd_diameter':
                             variable = intFour*area/perimeter
@@ -520,39 +510,37 @@ def aneurysmNeckPlane(surface_model,
                       min_variable='perimeter'):
     """Extracts the aneurysm neck plane.
 
-    Procedure based on Piccinelli's pipeline, which is based on 
-    the surface model with the aneurysm and its parent vasculature 
-    reconstruction. The single difference is the variable which the
-    algorithm minimizes to search for the neck plane: the default 
-    is the neck perimeter, whereas in the default procedure is the
-    neck section area; this can be controlled by the optional
-    argument 'min_variable'.
+    Procedure based on Piccinelli's pipeline, which is based on the surface
+    model with the aneurysm and its parent vasculature reconstruction. The
+    single difference is the variable which the algorithm minimizes to search
+    for the neck plane: the default is the neck perimeter, whereas in the
+    default procedure is the neck section area; this can be controlled by the
+    optional argument 'min_variable'.
 
-    It returns the clipped aneurysm surface from the original
-    vasculature.
+    It returns the clipped aneurysm surface from the original vasculature.
 
     Arguments
     ---------
-    surface_model : the original vasculature surface with the 
-                    aneurysm
-    parent_centerlines : the centerlines of the reconstructed 
-                         parent vasculature
-    clipping_points : points where the vasculature will be 
-                      clipped.
+        surface_model -- the original vasculature surface with the 
+            aneurysm
+        parent_centerlines -- the centerlines of the reconstructed 
+            parent vasculature
+        clipping_points -- points where the vasculature will be 
+            clipped.
 
     Optional args
-    min_variable : the varible by which the neck will be searched
-                   (default 'perimeter'; options 'perimeter' 'area')
+        min_variable -- the varible by which the neck will be searched
+            (default 'perimeter'; options 'perimeter' 'area')
     """
     # Variables
     tubeToAneurysmDistance = 'ClippedTubeToAneurysmDistanceArray'
 
     # Compute vasculature centerline
     # TODO: update this to use the parent centerlines with the radius array
-    parent_centerlines = centerlines.generateCenterlines(surface_model)
+    parent_centerlines = centerlines.GenerateCenterlines(surface_model)
 
     # Get clipping and diverging data
-    divergingData = centerlines.getDivergingPoints(surface_model)
+    divergingData = centerlines.GetDivergingPoints(surface_model)
 
     # Reconstruct tube functions
     parentTube = _tube_surface(parent_centerlines)
@@ -575,7 +563,7 @@ def aneurysmNeckPlane(surface_model,
                                              aneurysmEnvelope,
                                              parentTube)
 
-    initialAneurysmSurface = tools.computeSurfacesDistance(initialAneurysm,
+    initialAneurysmSurface = tools.ComputeSurfacesDistance(initialAneurysm,
                                                         clippedTube,
                                                         array_name=tubeToAneurysmDistance,
                                                         signed_array=False)
@@ -597,8 +585,8 @@ def aneurysmNeckPlane(surface_model,
 
     # Clip final aneurysm surface: when clipped, two surfaces the aneurysm (desired) and
     # the rest (not desired) which is closest to the clipped tube
-    surf1 = tools.clipWithPlane(initialAneurysmSurface, neckCenter, neckNormal)
-    surf2 = tools.clipWithPlane(initialAneurysmSurface,
+    surf1 = tools.ClipWithPlane(initialAneurysmSurface, neckCenter, neckNormal)
+    surf2 = tools.ClipWithPlane(initialAneurysmSurface,
                              neckCenter, neckNormal, inside_out=True)
 
     # Check which output is farthest from clipped tube
@@ -621,76 +609,3 @@ def aneurysmNeckPlane(surface_model,
         aneurysmSurface = surf2
 
     return aneurysmSurface
-
-
-if __name__ == '__main__':
-    # Testing
-    from vasculature import Vasculature
-
-    filename = sys.argv[1]
-
-    vasculatureSurface = tools.readSurface(filename)
-
-    withAneurysm = False
-    manual = False
-
-    case = Vasculature(
-        vasculatureSurface,
-        with_aneurysm=withAneurysm,
-        manual_aneurysm=manual
-    )
-
-    # Inspection
-#     tools.viewSurface(case.getSurface())
-#     tools.viewSurface(case.getCenterlines())
-
-    # If has aneurysm
-    print("Computing aneurysm surface", end='\n')
-    aneurysmSurface = aneurysmNeckPlane(
-                        case.getSurface(),
-                        min_variable='area'
-                    )
-
-    tools.writeSurface(aneurysmSurface, '/home/iagolessa/tmp_aneurysm_area.vtp')
-    tools.viewSurface(aneurysmSurface)
-
-#     # Debug each stage
-#     print("Reconstructing tube surface", end='\n')
-#     parentTube = _tube_surface(case.getCenterlines())
-#     tools.viewSurface(parentTube)
-#
-#     print("Clipping tube", end='\n')
-#     clippedTube = _clip_tube(parentTube,
-#                              case.getParentCenterlines(),
-#                              case.getClippingPoints()
-#                         )
-#
-    # tools.viewSurface(clippedTube)
-
-#     aneurysmVoronoi  = aneurysm_neck._clip_aneurysm_Voronoi(VoronoiDiagram, parentTube)
-#     tools.viewSurface(aneurysmVoronoi)
-#
-#     tools.writeSurface(aneurysmVoronoi, '/home/iagolessa/voronoi.vtp')
-#
-#
-#     aneurysmEnvelope = _Voronoi_envelope(aneurysmVoronoi)
-#
-#     initialAneurysm  = _clip_initial_aneurysm(surface_model,
-#                                               aneurysmEnvelope,
-#                                               parentTube)
-#
-#     initialAneurysmSurface = tools.computeSurfacesDistance(initialAneurysm,
-#                                                         clippedTube,
-#                                                         array_name=tubeToAneurysmDistance,
-#                                                         signed_array=False)
-#
-#     barycenters,normals = _sac_centerline(initialAneurysmSurface,
-#                                           tubeToAneurysmDistance)
-#
-#     # Search for neck plane
-#     neckPlane  = _search_neck_plane(initialAneurysmSurface,
-#                                     barycenters,
-#                                     normals,
-#                                     min_variable=min_variable)
-#
-#

@@ -16,23 +16,35 @@ import polydatageometry as geo
 class Aneurysm:
     """Representation for saccular intracranial aneurysms.
 
-    The  input aneurysm surface must be open for correct 
-    computations. Note that the calculations of aneurysm
-    parameters performed here are intended for a plane 
-    aneurysm neck. However, the computations will still
-    occur for a generic neck contour. 
+    Given a saccular aneurysm surface as a vtkPolyData object, creates a
+    representation of the aneurysm with its geometrical parameters. The  input
+    aneurysm surface must be open for correct computations. Note that the
+    calculations of aneurysm parameters performed here are intended for a plane
+    aneurysm neck. However, the computations will still occur for a generic
+    neck contour. 
     """
 
-    # Constructor
     def __init__(self, surface, aneurysm_type='', status='', label=''):
+        """Initiates aneurysm model.
+        
+        Given the aneurysm surface and its characteristics, initiates aneurysm
+        model by computing its simplest size features: surface area, neck
+        surface area, and volume.
+
+        Arguments:
+            surface (vtkPolyData) -- the aneurysm surface
+            aneurysm_type (str) -- aneurysm type: terminal or lateral
+            status (str) -- if rupture or unruptured
+            label (str) -- an useful label
+        """
         self.type = aneurysm_type
         self.label = label
         self.status = status
 
         # Triangulate vtkPolyData surface
         # (input is cleaned surface)
-        # cleanedSurface = tools.cleaner(surface)
-        self._aneurysm_surface = tools.cleaner(surface)
+        # cleanedSurface = tools.Cleaner(surface)
+        self._aneurysm_surface = tools.Cleaner(surface)
 
         # triangulate = vtk.vtkTriangleFilter()
         # triangulate.SetInputData(cleanedSurface)
@@ -42,11 +54,11 @@ class Aneurysm:
 
         # Compute neck surface area
         # Compute areas...
-        self._surface_area = geo.surfaceArea(self._aneurysm_surface)
-        self._neck_plane_area = geo.surfaceArea(self._neck_surface())
+        self._surface_area = geo.SurfaceArea(self._aneurysm_surface)
+        self._neck_plane_area = geo.SurfaceArea(self._neck_surface())
 
         # ... and volume
-        self._volume = geo.surfaceVolume(self._cap_aneurysm())
+        self._volume = geo.SurfaceVolume(self._cap_aneurysm())
 
         # Computing hull properties
         self._hull_surface_area = 0.0
@@ -56,8 +68,8 @@ class Aneurysm:
     def _cap_aneurysm(self):
         """Cap aneurysm neck with triangles. 
 
-        Returns aneurysm surface capped with a plane
-        of triangles. Uses VMTK's script 'vmtksurfacecapper'. 
+        Returns aneurysm surface capped with a plane of triangles. Uses VMTK's
+        script 'vmtksurfacecapper'. 
         """
 
         # TODO: I noticed that sometimes (yes, this is subjective) the cap
@@ -84,9 +96,9 @@ class Aneurysm:
     def _aneurysm_convex_hull(self):
         """Compute convex hull of closed surface.
 
-        This function computes the convex hull set of an
-        aneurysm surface provided as a polyData set of VTK.
-        It uses internally the scipy.spatial package.
+        This function computes the convex hull set of an aneurysm surface
+        provided as a polyData set of VTK.  It uses internally the
+        scipy.spatial package.
         """
 
         # Convert surface points to numpy array
@@ -148,7 +160,7 @@ class Aneurysm:
         # Get neck contour
         neckContour = self._neck_contour()
 
-        return geo.contourBarycenter(neckContour)
+        return geo.ContourBarycenter(neckContour)
 
 
     def _neck_surface(self):
@@ -175,9 +187,8 @@ class Aneurysm:
     def _max_height_vector(self):
         """Compute maximum height vector.
 
-        Function to compute the vector from the neck 
-        contour barycenter and the fartest point
-        on the aneurysm surface
+        Function to compute the vector from the neck contour barycenter and the
+        fartest point on the aneurysm surface.
         """
 
         neckContour = self._neck_contour()
@@ -192,7 +203,7 @@ class Aneurysm:
         for index in range(nVertices):
             vertex = self._aneurysm_surface.GetPoint(index)
 
-            distance = geo.distance(barycenter, vertex)
+            distance = geo.Distance(barycenter, vertex)
 
             if distance > maxDistance:
                 maxDistance = distance
@@ -221,88 +232,81 @@ class Aneurysm:
         return (xNormal, yNormal, zNormal)
 
     # Public interface
-    def getSurface(self):
+    def GetSurface(self):
         return self._aneurysm_surface
 
-    def getHullSurface(self):
+    def GetHullSurface(self):
         return self._hull_surface
 
-    def getAneurysmSurfaceArea(self):
+    def GetAneurysmSurfaceArea(self):
         return self._surface_area
 
-    def getNeckPlaneArea(self):
+    def GetNeckPlaneArea(self):
         return self._neck_plane_area
 
-    def getAneurysmVolume(self):
+    def GetAneurysmVolume(self):
         return self._volume
 
-    def getHullSurfaceArea(self):
+    def GetHullSurfaceArea(self):
         return self._hull_surface_area
 
-    def getHullVolume(self):
+    def GetHullVolume(self):
         return self._hull_volume
 
     # 1D Size Indices
-    def getNeckDiameter(self):
+    def GetNeckDiameter(self):
         """Return aneurysm neck diameter.
 
-        Compute neck diameter, defined as the hydraulic diameter
-        of the neck plane section:
+        Compute neck diameter, defined as the hydraulic diameter of the neck
+        plane section:
 
             Dn = 4*An/pn
 
-        where An is the aneurysm neck section area and pn is its
-        perimeter.
-
+        where An is the aneurysm neck section area and pn is its perimeter.
         """
 
         neckContour = self._neck_contour()
 
         # Compute perimeter
-        neckPerimeter = geo.contourPerimeter(neckContour)
+        neckPerimeter = geo.ContourPerimeter(neckContour)
 
         return intFour*self._neck_plane_area/neckPerimeter
 
-    def getMaximumHeight(self):
+    def GetMaximumHeight(self):
         """Return maximum height.
 
-        Aneurysm maximum aneurysm height is
-        defined as the maximum distance between the 
-        neck barycenter and the aneurysm surface.
-
+        Aneurysm maximum aneurysm height is defined as the maximum distance
+        between the neck barycenter and the aneurysm surface.
         """
         # Get neck contour
         vec = self._max_height_vector()
         return np.linalg.norm(vec)
 
-    def getMaximumNormalHeight(self):
+    def GetMaximumNormalHeight(self):
         """Return maximum normal height.
 
-        Computation of the maximum NORMAL aneurysm 
-        height, defined as the maximum distance between 
-        the neck barycenter and the aneurysm surface.
+        Computation of the maximum NORMAL aneurysm height, defined as the
+        maximum distance between the neck barycenter and the aneurysm surface.
         """
-
         # Get max height vector and neck plane normal vector
         vecMaxHeight = self._max_height_vector()
         vecNormal = self._neck_plane_normal_vector()
 
         return abs(vtk.vtkMath.Dot(vecMaxHeight, vecNormal))
 
-    def getMaximumDiameter(self):
+    def GetMaximumDiameter(self):
         """Return maximum aneurysm diameter.
 
-        Computation of the maximum section diameter of the aneurysm,
-        defined as the maximum diameter of the aneurysm cross sections
-        that are parallel to the neck plane.
-
+        Computation of the maximum section diameter of the aneurysm, defined as
+        the maximum diameter of the aneurysm cross sections that are parallel
+        to the neck plane.
         """
         # Compute neck contour barycenter and normal vector
         normal = self._neck_plane_normal_vector()
         barycenter = self._neck_barycenter()
 
         # Get maximum normal height
-        Hnmax = self.getMaximumNormalHeight()
+        Hnmax = self.GetMaximumNormalHeight()
 
         # Form points of perpendicular line to neck plane
         nPoints = intThree * intTen
@@ -335,7 +339,7 @@ class Aneurysm:
                 # Compute hydraulic diameter of cut line
                 # TODO: will the error to compute the cut surface area due 
                 # to open contour work here
-                hydraulicDiameter = geo.contourHydraulicDiameter(
+                hydraulicDiameter = geo.ContourHydraulicDiameter(
                     cutWithPlane.GetOutput()
                 )
 
@@ -346,43 +350,35 @@ class Aneurysm:
         return maxDiameter
 
     # 2D Shape indices
-    def getAspectRatio(self):
+    def GetAspectRatio(self):
         """Return the aspect ratio.
 
-        Computes the aneurysm aspect ratio, defined as the 
-        ratio between the maximum perpendicular height and
-        the neck diameter. 
-
+        Computes the aneurysm aspect ratio, defined as the ratio between the
+        maximum perpendicular height and the neck diameter. 
         """
 
-        return self.getMaximumNormalHeight()/self.getNeckDiameter()
+        return self.GetMaximumNormalHeight()/self.GetNeckDiameter()
 
-    def getBottleneckFactor(self):
+    def GetBottleneckFactor(self):
         """Return the non-sphericity index.
 
-        Computes the bottleneck factor, defined as the 
-        ratio between the maximum diameter and the neck
-        diameter. This index represents the level 
-        to which the neck acts as a bottleneck to entry of 
-        blood during normal physiological function and to 
-        coils during endovascular procedures. 
-
+        Computes the bottleneck factor, defined as the ratio between the
+        maximum diameter and the neck diameter. This index represents the level
+        to which the neck acts as a bottleneck to entry of blood during normal
+        physiological function and to coils during endovascular procedures. 
         """
 
-        return self.getMaximumDiameter()/self.getNeckDiameter()
+        return self.GetMaximumDiameter()/self.GetNeckDiameter()
 
     # 3D Shape indices
-    def getNonSphericityIndex(self):
+    def GetNonSphericityIndex(self):
         """Return the non-sphericity index.
 
-        Computes the non-sphericity index of an aneurysm 
-        surface, given by:
+        Computes the non-sphericity index of an aneurysm surface, given by:
 
             NSI = 1 - (18pi)^(1/3) * Va^(2/3)/Sa
 
-        where Va and Sa are the volume and surface area of the
-        aneurysm.
-
+        where Va and Sa are the volume and surface area of the aneurysm.
         """
         factor = (18*np.pi)**(1./3.)
 
@@ -391,17 +387,15 @@ class Aneurysm:
 
         return intOne - (factor/area)*(volume**(2./3.))
 
-    def getEllipticityIndex(self):
+    def GetEllipticityIndex(self):
         """Return ellipticity index.
 
-        Computes the ellipiticity index of an aneurysm 
-        surface, given by:
+        Computes the ellipiticity index of an aneurysm surface, given by:
 
             EI = 1 - (18pi)^(1/3) * Vch^(2/3)/Sch
 
-        where Vch and Sch are the volume and surface area 
-        of the aneurysm convex hull.
-
+        where Vch and Sch are the volume and surface area of the aneurysm
+        convex hull.
         """
 
         factor = (18*np.pi)**(1./3.)
@@ -411,34 +405,31 @@ class Aneurysm:
 
         return intOne - (factor/area)*(volume**(2./3.))
 
-    def getUndulationIndex(self):
+    def GetUndulationIndex(self):
         """Return undulation index.
 
-        Computes the undulation index of an aneurysm,
-        defined as:
+        Computes the undulation index of an aneurysm, defined as:
 
             UI = 1 - Va/Vch
 
-        where Va is the aneurysm volume and Vch the
-        volume of its convex hull.
-
+        where Va is the aneurysm volume and Vch the volume of its convex hull.
         """
         aneurysmVolume = self._volume
 
-    def getCurvatureMetrics(self):
+    def GetCurvatureMetrics(self):
         """Compute curvature metrics.
 
-        Based on local mean and Gaussian curvatures,
-        compute their area-averaged values (MAA and GAA,
-        respectively) and their L2-norm (MLN and GLN),
-        as shown in
+        Based on local mean and Gaussian curvatures, compute their
+        area-averaged values (MAA and GAA, respectively) and their L2-norm (MLN
+        and GLN), as shown in
 
             Ma et al. (2004).
             Three-dimensional geometrical characterization
             of cerebral aneurysms.
 
-        Return a tuple with the metrics in the order
-        (MAA, GAA, MLN, GLN).
+        Return a tuple with the metrics in the order (MAA, GAA, MLN, GLN).
+        Assumes that both curvature arrays are defined on the aneurysm surface
+        for a more accurate calculation avoiding border effects.
         """
         # Get arrays on the aneurysm surface
         nArrays = self._aneurysm_surface.GetCellData().GetNumberOfArrays()
@@ -465,23 +456,22 @@ class Aneurysm:
             print(warningMessage)
 
             # Compute curvature arrays for aneurysm surface
-            curvatureSurface = geo.surfaceCurvature(self._aneurysm_surface)
+            curvatureSurface = geo.SurfaceCurvature(self._aneurysm_surface)
         else:
             curvatureSurface = self._aneurysm_surface
 
         aneurysmCellData = curvatureSurface.GetCellData()
 
-        # TODO: improve this patch with vtkIntegrateAttributes
-        # I don't know why the vtkIntegrateAttributes was not available in
-        # the python interface, so I had to improvise
-        # (this version was the most efficient that I got with 
-        # pure python -- I tried others more numpythonic as well)
+        # TODO: improve this patch with vtkIntegrateAttributes I don't know why
+        # the vtkIntegrateAttributes was not available in the python interface,
+        # so I had to improvise (this version was the most efficient that I got
+        # with pure python -- I tried others more numpythonic as well)
 
         # Helper functions
         getArea = lambda id_: curvatureSurface.GetCell(id_).ComputeArea()
         getValue = lambda id_, array: aneurysmCellData.GetArray(array).GetValue(id_)
 
-        def getCellCurvature(id_):
+        def GetCellCurvature(id_):
             cellArea = getArea(id_)
             GaussCurvature = getValue(id_, curvatureArrays.get('Gauss'))
             MeanCurvature  = getValue(id_, curvatureArrays.get('Mean'))
@@ -496,7 +486,7 @@ class Aneurysm:
         cellIds = range(curvatureSurface.GetNumberOfCells())
 
         # Map function to cell ids
-        for area, meanCurv, GaussCurv in map(getCellCurvature, cellIds):
+        for area, meanCurv, GaussCurv in map(GetCellCurvature, cellIds):
             integralGaussCurvature += area*GaussCurv
             integralMeanCurvature  += area*meanCurv
 
@@ -511,77 +501,4 @@ class Aneurysm:
         MLN = np.sqrt(integralMeanCurvature)/(4.0*Pi)
         GLN = np.sqrt(integralGaussCurvature*self._surface_area)/(4.0*Pi)
 
-        return MAA, GAA, MLN, GLN
-
-if __name__ == '__main__':
-
-    # Testing
-    filename = sys.argv[1]
-
-    aneurysmSurface = tools.readSurface(filename)
-
-    print("Initializing aneurysm case model\n")
-    aneurysm = Aneurysm(aneurysmSurface, "terminal", "ruptured", "case2")
-
-    tools.viewSurface(aneurysm.getSurface())
-    tools.viewSurface(aneurysm.getHullSurface())
-
-    obj = aneurysm
-
-    print("Aneurysms parameters: ", end='\n')
-    for parameter in dir(obj):
-        if parameter.startswith('get'):
-            attribute = getattr(obj, parameter)()
-
-            if type(attribute) == float or type(attribute) == tuple:
-                print('\t' + parameter.strip('get') +
-                      ' = '+str(attribute), end='\n')
-
-    # for filename in aneurysmsList:
-        # # Get case label
-        # case = filename.split('/')[-2]
-
-        # # Read surface
-        # surface = tools.readSurface(filename)
-
-        # if case in ruptured:
-            # status = 'ruptured'
-        # else:
-            # status = 'unruptured'
-
-        # # Initialize aneurysm object
-        # aneurysm = aneurysms.Aneurysm(surface, aneurysmType, status, case)
-
-        # # Collect into dict
-        # aneurysmsCases[case] = aneurysm
-
-    # aneurysmsCases['case1'].aneurysmStatus
-
-    # dictMorphology = {case: {} for case in aneurysmsCases.keys()}
-
-    # # Iterate over methods to get morphology of each case
-    # parameters = [param for param in dir(
-        # aneurysms.Aneurysm) if not param.startswith('_')]
-    # attributes = ['surfaceArea', 'volume', 'aneurysmStatus']
-    # parameters = parameters + attributes
-
-    # for case in aneurysmsCases.keys():
-        # for param in parameters:
-
-            # # Aneurysm object
-            # obj = aneurysmsCases[case]
-
-    # #         try:
-            # if param in attributes:
-                # dictMorphology[case][param] = getattr(obj, param)
-            # else:
-                # dictMorphology[case][param] = getattr(obj, param)()
-    # #         except:
-    # #             print('Error for case'+case+' in param '+param)
-
-    # morphology = pd.DataFrame.from_dict(dictMorphology, orient='index')
-
-    # morphology.sort_values(by='volume')
-
-    # morphology.sort_values(by='aneurysmStatus').to_csv('./morphology.csv',
-                                                       # float_format="%3.4f")
+        return (MAA, GAA, MLN, GLN)
