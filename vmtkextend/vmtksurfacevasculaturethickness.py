@@ -34,8 +34,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Centerlines = None
         self.RadiusArrayName = "MaximumInscribedSphereRadius"
         self.Aneurysm = True
+        self.NumberOfAneurysms = 1
 
-        self.ManualMode = False
         self.GlobalScaleFactor = 0.75
         self.WallLumenRatio = self._wlrMedium
         self.ThicknessArrayName = 'Thickness'
@@ -70,11 +70,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             ['Aneurysm', 'aneurysm', 'bool', 1, '',
                 'to indicate presence of an aneurysm'],
 
+            ['NumberOfAneurysms', 'naneurysms', 'int', 1, '',
+                'integer with number of aneurysms on vasculature'],
+
             ['GlobalScaleFactor', 'globalfactor', 'float', 1, '',
                 'scale fator to control global aneurysm thickness'],
-
-            ['ManualMode', 'manual', 'bool', 1, '',
-                'enable manual mode to select centerline endpoints'],
 
             ['WallLumenRatio', 'wlr', 'float', 1, '',
                 'wall to lumen ration'],
@@ -121,14 +121,14 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
     def _smooth_array(self, surface, array, niterations=5, relax_factor=1.0):
         """Surface array smoother."""
 
-#         arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
-#         arraySmoother.Surface = surface
-#         arraySmoother.SurfaceArrayName = array
-#         arraySmoother.Connexity = 1
-#         arraySmoother.Relaxation = 1.0
-#         arraySmoother.Iterations = niterations
-#         arraySmoother.Execute()
-#
+        # arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
+        # arraySmoother.Surface = surface
+        # arraySmoother.SurfaceArrayName = array
+        # arraySmoother.Connexity = 1
+        # arraySmoother.Relaxation = 1.0
+        # arraySmoother.Iterations = niterations
+        # arraySmoother.Execute()
+
         _SMALL = 1e-12
         array = surface.GetPointData().GetArray(array)
 
@@ -186,8 +186,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 # Average value weighted by the surrounding values
                 weightedValue = sum_/normFactor
 
-                newValue = relax_factor*weightedValue
-                + (1.0 - relax_factor)*currVal
+                newValue = relax_factor*weightedValue + \
+                           (1.0 - relax_factor)*currVal
 
                 array.SetTuple1(i, newValue)
 
@@ -465,7 +465,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.vmtkRenderer.AddKeyBinding('d', 'Delete contour',
                                         self._delete_contour)
 
-        self.vmtkRenderer.InputInfo('Select aneurysm neck\n')
+        self.vmtkRenderer.InputInfo('Select contour around the region aneurysm influence\n')
 
         self._display()
 
@@ -510,6 +510,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             thicknessValue = thicknessArray.GetTuple1(i)
 
             if selectionValue > 0.0:
+                # Selection value in this case is the distance to the neck 
+                # contour: so a distance based average
                 weight = 1.0/(selectionValue + _SMALL)
 
                 aneurysmThickness += weight*thicknessValue
@@ -666,12 +668,16 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             self.ScalarBarActor.GetLabelTextProperty().ItalicOff()
             self.ScalarBarActor.GetLabelTextProperty().BoldOff()
             self.ScalarBarActor.GetLabelTextProperty().ShadowOff()
-#             self.ScalarBarActor.GetLabelTextProperty().SetColor(0.0,0.0,0.0)
+            # self.ScalarBarActor.GetLabelTextProperty().SetColor(0.0,0.0,0.0)
             self.ScalarBarActor.SetLabelFormat('%.2f')
             self.ScalarBarActor.SetTitle(self.ThicknessArrayName)
             self.vmtkRenderer.Renderer.AddActor(self.ScalarBarActor)
 
         self._display()
+
+        if self.OwnRenderer:
+            self.vmtkRenderer.Deallocate()
+            self.OwnRenderer = 0
 
     def ExtrudeWallMesh(self):
         """Extrude wall along normals with thickness array."""
@@ -748,10 +754,16 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.ComputeVasculatureThickness()
 
         if self.Aneurysm:
-            self.SetAneurysmThickness()
+            for _ in range(self.NumberOfAneurysms):
+                self.SetAneurysmThickness()
+
+            if self.OwnRenderer:
+                self.vmtkRenderer.Deallocate()
+                self.OwnRenderer = 0
 
             if self.SelectAneurysmRegions:
                 self.SelectThinnerRegions()
+
 
         # After array create, smooth it hard
         self.Surface = self._smooth_array(self.Surface,
