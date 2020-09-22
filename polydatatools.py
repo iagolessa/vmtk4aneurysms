@@ -168,22 +168,17 @@ def ClipWithScalar(surface: _polyDataType,
                    inside_out=True) -> _polyDataType:
     """ Clip surface with scalar field.
 
-    Provided a surface (vtkPolyData), a point
-    scalar array and a 'value' of this array, 
-    clip the surface portion that have the
-    condition 'scalar_array < value'. If 
-    inside out is 'True', than the oposite
-    will be output.
+    Provided a surface (vtkPolyData), a point scalar array and a 'value' of
+    this array, clip the surface portion that have the condition 'scalar_array
+    < value'. If inside out is 'True', than the oposite will be output.
     """
     # Get point data and cell data
     pointArrays = GetPointArrays(surface)
     cellArrays = GetCellArrays(surface)
 
-    # TODO: Cannot use a try-statement here because the
-    # vtkClipPolyData filter does not throw any
-    # exception if error occurs (investigate why, 
-    # I think I have to activate like an 'error' 
-    # handler in the filter).
+    # TODO: Cannot use a try-statement here because the vtkClipPolyData filter
+    # does not throw any exception if error occurs (investigate why, I think I
+    # have to activate like an 'error' handler in the filter).
 
     if array_name not in pointArrays and array_name in cellArrays:
         # Convert cell to point
@@ -203,8 +198,8 @@ def ClipWithScalar(surface: _polyDataType,
     # Change active array
     surface.GetPointData().SetActiveScalars(array_name)
 
-    # Clip the aneurysm surface in the lowWSSValue
-    # ang gets portion smaller than it
+    # Clip the aneurysm surface in the lowWSSValue ang gets portion smaller
+    # than it
     clipper = vtk.vtkClipPolyData()
     clipper.SetInputData(surface)
     clipper.SetValue(value)

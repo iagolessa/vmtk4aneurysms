@@ -389,7 +389,7 @@ def _local_minimum(array):
     to the beginning of the array.
     """
     minimum = np.r_[True, array[1:] < array[:-1]] & \
-        np.r_[array[:-1] < array[1:], True]
+              np.r_[array[:-1] < array[1:], True]
 
     # Local minima index
     return int(np.where(minimum == True)[intZero][intZero])

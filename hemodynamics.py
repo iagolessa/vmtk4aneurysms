@@ -589,7 +589,16 @@ def aneurysm_stats(neck_surface: _polyDataType,
                    array_name: str,
                    n_percentile: float = 95,
                    neck_iso_value: float = 0.5) -> list:
-    """Compute statistics of array on aneurysm surface."""
+    """Compute statistics of array on aneurysm surface.
+    
+    Given a surface with the fields of hemodynamics variables defined on it,
+    computes the average, maximum, minimum, percetile (value passed as optional
+    by the user) and the area averaged over the aneurysm surface.  Assumes that
+    the surface also contain a binary array value that indicates the aneurysm
+    portion with 0 and 1 the rest of the vasculature. The function uses this
+    array to clip the aneurysm portion. If this is not present on the surface,
+    the function prompts the user to delineate the aneurysm neck.
+    """
 
     pointArrays = tools.GetPointArrays(neck_surface)
     cellArrays = tools.GetCellArrays(neck_surface)
