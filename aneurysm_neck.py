@@ -348,26 +348,6 @@ def _sac_centerline(aneurysm_sac, distance_array):
     points = np.array(deriv0).T            # spline points
     tangents = np.array(deriv1).T            # spline tangents
 
-    if _write:
-        # Write spline to vtp file
-        data = vtk.vtkPoints()
-        for point in points:
-            data.InsertNextPoint(point)
-
-        spline = vtk.vtkPolyData()
-        spline.SetPoints(data)
-
-        pointDataArray = vtk.vtkFloatArray()
-        pointDataArray.SetNumberOfComponents(3)
-        pointDataArray.SetName('Normals')
-        for pointData in tangents:
-            pointDataArray.InsertNextTuple(pointData)
-
-        spline.GetPointData().SetActiveVectors('Normals')
-        spline.GetPointData().SetVectors(pointDataArray)
-
-        tools.WriteSurface(spline, _write_dir+'sac_spline.vtp')
-
     return points, tangents
 
 def _local_minimum(array):

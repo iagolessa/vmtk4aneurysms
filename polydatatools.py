@@ -86,6 +86,33 @@ def WriteSurface(surface: _polyDataType,
     writer.Update()
     writer.Write()
 
+def WriteSpline(points, tangents, file_name):
+    """Write spline from points.
+    
+    Given a set of points and its tangents at each point, writes to VTP file
+    the spline formed by the points set.
+    """
+
+    # Write spline to vtp file
+    data = vtk.vtkPoints()
+    for point in points:
+        data.InsertNextPoint(point)
+
+    spline = vtk.vtkPolyData()
+    spline.SetPoints(data)
+
+    pointDataArray = vtk.vtkFloatArray()
+    pointDataArray.SetNumberOfComponents(3)
+
+    pointDataArray.SetName('Tangents')
+    for pointData in tangents:
+        pointDataArray.InsertNextTuple(pointData)
+
+    spline.GetPointData().SetActiveVectors('Tangents')
+    spline.GetPointData().SetVectors(pointDataArray)
+
+    WriteSurface(spline, file_name)
+
 def SmoothSurface(surface):
     """Smooth surface based on Taubin's algorithm."""
     smoother = vmtkscripts.vmtkSurfaceSmoothing()
