@@ -21,13 +21,6 @@ from constants import *
 import polydatatools as tools
 import polydatageometry as geo
 
-# Flags
-_write = False
-_debug = False
-_inspect = False
-
-_write_dir = '/home/iagolessa/'
-
 INCR = 0.01
 HUGE = 1e30
 
@@ -278,9 +271,8 @@ def _sac_centerline(aneurysm_sac, distance_array):
     maxTubeDist = float(distanceArray.max())
 
     # Build spline along with to perform the neck search
-
-    nPoints = intOne*intHundred   # number of points to perform search
-    barycenters = list()              # barycenter's list
+    nPoints = intOne*intHundred 
+    barycenters = []
 
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
 
@@ -296,7 +288,10 @@ def _sac_centerline(aneurysm_sac, distance_array):
         isoContour.Update()
 
         # Get largest connected contour
-        contour = tools.ExtractConnectedRegion(isoContour.GetOutput(), 'largest')
+        contour = tools.ExtractConnectedRegion(
+                        isoContour.GetOutput(), 
+                        'largest'
+                    )
 
         try:
             contourPoints = contour.GetPoints()
@@ -339,7 +334,10 @@ def _sac_centerline(aneurysm_sac, distance_array):
     tck, u = interpolate.splprep(barycenters.T, u=distanceCoord)
 
     # Max and min t of spline
-    minSplineDomain = min(u)-intFive/intTen
+    # Note that we decrease by two units the start of the spline
+    # because I noticed that for some cases the initial point of the spline
+    # might be pretty inside the aneurysm, skipping the "neck region"
+    minSplineDomain = min(u) - intTwo #intFive/intTen
     maxSplineDomain = limitFraction*max(u)
 
     domain = np.linspace(minSplineDomain, maxSplineDomain, intTwo*nPoints)
@@ -548,14 +546,19 @@ def aneurysmNeckPlane(surface_model,
     aneurysmVoronoi = _clip_aneurysm_Voronoi(VoronoiDiagram, parentTube)
     aneurysmEnvelope = _Voronoi_envelope(aneurysmVoronoi)
 
-    initialAneurysm = _clip_initial_aneurysm(surface_model,
-                                             aneurysmEnvelope,
-                                             parentTube)
+    initialAneurysm = _clip_initial_aneurysm(
+                            surface_model,
+                            aneurysmEnvelope,
+                            parentTube
+                        )
 
-    initialAneurysmSurface = tools.ComputeSurfacesDistance(initialAneurysm,
-                                                        clippedTube,
-                                                        array_name=tubeToAneurysmDistance,
-                                                        signed_array=False)
+    # Compute distance to aneurysm and tube clipped at diverging points
+    initialAneurysmSurface = tools.ComputeSurfacesDistance(
+                                initialAneurysm,
+                                clippedTube,
+                                array_name=tubeToAneurysmDistance,
+                                signed_array=False
+                            )
 
     barycenters, normals = _sac_centerline(initialAneurysmSurface,
                                            tubeToAneurysmDistance)
