@@ -219,9 +219,8 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     tubeToModelArray = 'ParentTubeModelDistanceArray'
     envelopeToModelArray = 'AneurysmEnvelopeModelDistanceArray'
 
-    # Computes distance between original surface model
-    # and the aneurysm envelope, and from the parent
-    # tube surface
+    # Computes distance between original surface model and the aneurysm
+    # envelope, and from the parent tube surface
     aneurysmEnvelopeDistance = tools.ComputeSurfacesDistance(
                                     surface_model,
                                     aneurysm_envelope,
@@ -243,31 +242,21 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     clippingArray.ResultArrayName = clipAneurysmArray
     clippingArray.Execute()
 
-    # Clip the model surface at the zero level of the difference array
-    clipAneurysm = vmtkscripts.vmtkSurfaceClipper()
-    clipAneurysm.Surface = clippingArray.Surface
-    clipAneurysm.ClipArrayName = clippingArray.ResultArrayName
-    clipAneurysm.ClipValue = intZero
-    clipAneurysm.Interactive = False
-    clipAneurysm.InsideOut = False
-    clipAneurysm.Execute()
+    clippedAneurysm = tools.ClipWithScalar(
+                        clippingArray.Surface,
+                        clippingArray.ResultArrayName,
+                        intZero,
+                        inside_out=False
+                    )
 
-    aneurysm = tools.ExtractConnectedRegion(clipAneurysm.Surface, 'largest')
+    aneurysm = tools.ExtractConnectedRegion(clippedAneurysm, 'largest')
 
     # Remove fields
     aneurysm.GetPointData().RemoveArray(clipAneurysmArray)
     aneurysm.GetPointData().RemoveArray(tubeToModelArray)
     aneurysm.GetPointData().RemoveArray(envelopeToModelArray)
 
-    aneurysm = tools.Cleaner(aneurysm)
-
-    if _inspect:
-        tools.ViewSurface(aneurysm)
-
-    if _write:
-        tools.WriteSurface(aneurysm, _write_dir+'initial_aneurysm_surface.vtp')
-
-    return aneurysm
+    return tools.Cleaner(aneurysm)
 
 
 def _sac_centerline(aneurysm_sac, distance_array):
@@ -557,7 +546,6 @@ def aneurysmNeckPlane(surface_model,
     # Clip aneurysm Voronoi
     VoronoiDiagram = _compute_Voronoi(surface_model)
     aneurysmVoronoi = _clip_aneurysm_Voronoi(VoronoiDiagram, parentTube)
-
     aneurysmEnvelope = _Voronoi_envelope(aneurysmVoronoi)
 
     initialAneurysm = _clip_initial_aneurysm(surface_model,
