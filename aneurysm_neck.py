@@ -6,9 +6,9 @@ by Piccinelli et al. (2009).
 
 import sys
 import vtk
+import morphman as mp
 import numpy as np
-import centerlines
-import morphman
+import centerlines as cnt 
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -363,6 +363,9 @@ def _local_minimum(array):
     return int(np.where(minimum == True)[intZero][intZero])
 
 
+# TODO: this function is the bottleneck of the algorithm. I think there is 
+# a lot of space to optimize it (to many explicit loops and checks inside
+# the loops).
 def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     """Search neck plane of aneurysm by minimizing a contour variable.
 
@@ -386,8 +389,20 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     azims = np.arange(intZero, azimMax, azimIncr) * degToRad
 
     # Minimum area seacrh
-    sectionInfo = list()
+    sectionInfo = []
     previousVariable = HUGE
+
+    # Function to calculate the value of minimizing function per plane
+    def minimizingVariable(contour):
+        if min_variable == 'area':
+            return geo.ContourPlaneArea(contour)
+
+        elif min_variable == 'perimeter':
+            return geo.ContourPerimeter(contour)
+
+        else:
+            print('Minimizing variable not recognized!'
+                  'Choose area, perimeter.')
 
     # Iterate over barycenters and clip surface with closed surface
     for index, (center, normal) in enumerate(zip(centers, normals)):
@@ -405,55 +420,42 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
         minPerimeter = HUGE
         minVariable = HUGE
 
-        for tilt in tilts:
-            for azim in azims:
+        for tilt, azim in zip(tilts, azims):
+            # Set plane with barycenters and
+            # normals as tangent to spline
+            plane = vtk.vtkPlane()
+            plane.SetOrigin(tuple(center))
 
-                # Set plane with barycenters and
-                # normals as tangent to spline
-                plane = vtk.vtkPlane()
-                plane.SetOrigin(tuple(center))
+            # Rotate normal
+            matrix = _rotate3d_matrix(tilt, azim)
+            rNormal = np.dot(matrix, normal)
 
-                # Rotate normal
-                matrix = _rotate3d_matrix(tilt, azim)
-                rNormal = np.dot(matrix, normal)
+            # Set rotate plane normal
+            plane.SetNormal(tuple(rNormal))
 
-                # Set rotate plane normal
-                plane.SetNormal(tuple(rNormal))
+            # Cut initial aneurysm surface with create plane
+            cutWithPlane = vtk.vtkCutter()
+            cutWithPlane.SetInputData(anerysm_sac)
+            cutWithPlane.SetCutFunction(plane)
+            cutWithPlane.Update()
 
-                # Cut initial aneurysm surface with create plane
-                cutWithPlane = vtk.vtkCutter()
-                cutWithPlane.SetInputData(anerysm_sac)
-                cutWithPlane.SetCutFunction(plane)
-                cutWithPlane.Update()
+            contour = tools.ExtractConnectedRegion(
+                cutWithPlane.GetOutput(), 'largest')
 
-                contour = tools.ExtractConnectedRegion(
-                    cutWithPlane.GetOutput(), 'largest')
+            try:
+                contourPoints = contour.GetPoints()
+                nContourPoints = contour.GetNumberOfPoints()
 
-                try:
-                    contourPoints = contour.GetPoints()
-                    nContourPoints = contour.GetNumberOfPoints()
+                if geo.ContourIsClosed(contour) and nContourPoints != intZero:
 
-                    if geo.ContourIsClosed(contour) and nContourPoints != intZero:
+                    # Update minmum area
+                    variable = minimizingVariable(contour)
 
-                        # Update minmum area
-                        if min_variable == 'area':
-                            variable = geo.ContourPlaneArea(contour)
-
-                        elif min_variable == 'perimeter':
-                            variable = geo.ContourPerimeter(contour)
-
-                        elif min_variable == 'hyd_diameter':
-                            variable = intFour*area/perimeter
-
-                        else:
-                            print('Minimizing variable not recognized!'
-                                  'Choose area, perimeter or hyd_diameter.')
-
-                        if variable < minVariable:
-                            minVariable = variable
-                            minPlane = plane
-                except:
-                    continue
+                    if variable < minVariable:
+                        minVariable = variable
+                        minPlane = plane
+            except:
+                continue
 
         # Write to array min area and its surface plane
         if minVariable != HUGE:
@@ -472,11 +474,11 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     return sectionInfo[minimumId, intOne]
 
 
-def aneurysmNeckPlane(surface_model,
+def AneurysmNeckPlane(surface_model,
                       parent_centerlines=None,
                       clipping_points=None,
                       min_variable='perimeter'):
-    """Extracts the aneurysm neck plane.
+    """Search the aneurysm neck plane and clip the aneurysm.
 
     Procedure based on Piccinelli's pipeline, which is based on the surface
     model with the aneurysm and its parent vasculature reconstruction. The
@@ -489,37 +491,35 @@ def aneurysmNeckPlane(surface_model,
 
     Arguments
     ---------
-        surface_model -- the original vasculature surface with the 
-            aneurysm
-        parent_centerlines -- the centerlines of the reconstructed 
-            parent vasculature
-        clipping_points -- points where the vasculature will be 
-            clipped.
+        surface_model -- the original vasculature surface with the aneurysm
+        parent_centerlines -- the centerlines of the reconstructed parent
+            vasculature
+        clipping_points -- points where the vasculature will be clipped.
 
     Optional args
-        min_variable -- the varible by which the neck will be searched
-            (default 'perimeter'; options 'perimeter' 'area')
+        min_variable -- the varible by which the neck will be searched (default
+            'perimeter'; options 'perimeter' 'area')
     """
     # Variables
     tubeToAneurysmDistance = 'ClippedTubeToAneurysmDistanceArray'
 
     # Compute vasculature centerline
     # TODO: update this to use the parent centerlines with the radius array
-    parent_centerlines = centerlines.GenerateCenterlines(surface_model)
+    if parent_centerlines == None:
+        parent_centerlines = cnt.GenerateCenterlines(surface_model)
 
     # Get clipping and diverging data
-    divergingData = centerlines.GetDivergingPoints(surface_model)
+    divergingData = cnt.GetDivergingPoints(surface_model)
 
     # Reconstruct tube functions
     parentTube = _tube_surface(parent_centerlines)
 
-    # Clip centerlines between clipping points
-    clipped_centerline = morphman.get_centerline_between_clipping_points(
+    clippedCenterline = mp.get_centerline_between_clipping_points(
                             parent_centerlines, 
                             divergingData
                         )
 
-    clippedTube = _tube_surface(clipped_centerline)
+    clippedTube = _tube_surface(clippedCenterline)
 
     # Clip aneurysm Voronoi
     VoronoiDiagram = _compute_Voronoi(surface_model)
@@ -533,35 +533,49 @@ def aneurysmNeckPlane(surface_model,
                         )
 
     # Compute distance to aneurysm and tube clipped at diverging points
-    initialAneurysmSurface = tools.ComputeSurfacesDistance(
+    initialAneurysm = tools.ComputeSurfacesDistance(
+                            initialAneurysm,
+                            clippedTube,
+                            array_name=tubeToAneurysmDistance,
+                            signed_array=False
+                        )
+
+    # Create sac centerline and search plane along it
+    barycenters, normals = _sac_centerline(
                                 initialAneurysm,
-                                clippedTube,
-                                array_name=tubeToAneurysmDistance,
-                                signed_array=False
+                                tubeToAneurysmDistance
                             )
 
-    barycenters, normals = _sac_centerline(initialAneurysmSurface,
-                                           tubeToAneurysmDistance)
-
-    # Search for neck plane
-    neckPlane = _search_neck_plane(initialAneurysmSurface,
-                                   barycenters,
-                                   normals,
-                                   min_variable=min_variable)
+    neckPlane = _search_neck_plane(
+                    initialAneurysm,
+                    barycenters,
+                    normals,
+                    min_variable=min_variable
+                )
 
     neckCenter = neckPlane.GetOrigin()
     neckNormal = neckPlane.GetNormal()
 
     # Remove distance array
-    initialAneurysmSurface.GetPointData().RemoveArray(tubeToAneurysmDistance)
+    initialAneurysm.GetPointData().RemoveArray(tubeToAneurysmDistance)
 
-    # Clip final aneurysm surface: when clipped, two surfaces the aneurysm (desired) and
-    # the rest (not desired) which is closest to the clipped tube
-    surf1 = tools.ClipWithPlane(initialAneurysmSurface, neckCenter, neckNormal)
-    surf2 = tools.ClipWithPlane(initialAneurysmSurface,
-                             neckCenter, neckNormal, inside_out=True)
+    # Clip final aneurysm surface: when clipped, two surfaces the aneurysm
+    # (desired) and the rest (not desired) which is closest to the clipped tube
+    surf1 = tools.ClipWithPlane(
+                initialAneurysm, 
+                neckCenter, 
+                neckNormal
+            )
 
-    # Check which output is farthest from clipped tube
+    surf2 = tools.ClipWithPlane(
+                initialAneurysm, 
+                neckCenter, 
+                neckNormal, 
+                inside_out=True
+            )
+
+    # Check which output is farthest from clipped tube (the actual aneurysm 
+    # surface should be farther)
     tubePoints = _vtk_vertices_to_numpy(clippedTube)
     surf1Points = _vtk_vertices_to_numpy(surf1)
     surf2Points = _vtk_vertices_to_numpy(surf2)

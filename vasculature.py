@@ -14,7 +14,7 @@ from vmtk import vmtkscripts
 
 import aneurysm
 import centerlines
-from aneurysm_neck import aneurysmNeckPlane 
+from aneurysm_neck import AneurysmNeckPlane 
 
 from constants import *
 import polydatatools as tools
@@ -222,7 +222,7 @@ class Vasculature:
 
             else:
                 # Extract aneurysm surface with plane neck
-                aneurysm_surface = aneurysmNeckPlane(self._surface)
+                aneurysm_surface = AneurysmNeckPlane(self._surface)
 
             self._aneurysm_model = aneurysm.Aneurysm(
                 aneurysm_surface,

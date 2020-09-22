@@ -153,6 +153,8 @@ def ComputeCenterlineGeometry(centerlines):
 
     return calcAttributes.Centerlines
 
+# This class was adapted from the 'patchandinterpolatecenterlines.py' script
+# distributed with VMTK in https://github.com/vmtk/vmtk
 def GetDivergingPoints(surface):
     """Get diverging data from centerline morphology."""
     inlets, outlets = ComputeOpenCenters(surface)
