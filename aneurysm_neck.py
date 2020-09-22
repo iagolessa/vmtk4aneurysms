@@ -1,7 +1,7 @@
 """Provide function to calculate the aneurysm neck plane.
 
-The module provides a function to compute the aneurysm neck plane,
-as defined by Piccinelli et al. (2009).
+The module provides a function to compute the aneurysm neck plane, as defined
+by Piccinelli et al. (2009).
 """
 
 import sys
@@ -88,38 +88,37 @@ def _tube_surface(centerline, smooth=True):
     Keyword arguments:
         smooth -- to smooth tube surface (default True)
     """
-    # List to collect objects
-    objects = []
-
     radiusArray = 'MaximumInscribedSphereRadius'
 
-    # TODO: adapt the bpox dimension to the input geometry
-    boxDimensions = _dimensions*[128]
+    # Get bounds of model
+    centerlineBounds = centerline.GetBounds()
+    radiusArrayBounds = centerline.GetPointData().GetArray(radiusArray).GetValueRange()
+    maxSphereRadius = radiusArrayBounds[intOne]
+    enlargeBoxBounds = (intTen/intTen)*maxSphereRadius
 
-    # Build tube function of the centerlines
-    # TODO: what happens if the centerline does not have a radius array?
-    tubeImage = vmtkscripts.vmtkCenterlineModeller()
-    tubeImage.Centerlines = centerline
-    tubeImage.RadiusArrayName = radiusArray
-    tubeImage.SampleDimensions = boxDimensions
-    tubeImage.Execute()
-    objects.append(tubeImage)
+    modelBounds = np.array(centerlineBounds) + \
+                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
+
+    # Extract image with tube function from model
+    modeller = vtkvmtk.vtkvmtkPolyBallModeller()
+    modeller.SetInputData(centerline)
+    modeller.SetRadiusArrayName(radiusArray)
+
+    # This needs to be 'on' for centerline
+    modeller.UsePolyBallLineOn()
+
+    modeller.SetModelBounds(list(modelBounds))
+    modeller.SetNegateFunction(0)
+    modeller.Update()
+
+    tubeImage = modeller.GetOutput()
 
     # Convert tube function to surface
     tubeSurface = vmtkscripts.vmtkMarchingCubes()
-    tubeSurface.Image = tubeImage.Image
+    tubeSurface.Image = tubeImage
     tubeSurface.Execute()
-    objects.append(tubeSurface)
 
     tube = tools.ExtractConnectedRegion(tubeSurface.Surface, 'largest')
-
-    if _debug:
-        for obj in objects:
-            obj.PrintInputMembers()
-            obj.PrintOutputMembers()
-
-    if _inspect:
-        tools.ViewSurface(tube)
 
     if smooth:
         return tools.SmoothSurface(tube)
@@ -139,29 +138,31 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
         array_name=DistanceArrayName
     )
 
-    # Clip the original voronoi diagram at
-    # the zero distance (intersection)
-    VoronoiClipper = vmtkscripts.vmtkSurfaceClipper()
-    VoronoiClipper.Surface = VoronoiDistance
-    VoronoiClipper.Interactive = False
-    VoronoiClipper.ClipArrayName = DistanceArrayName
-    VoronoiClipper.ClipValue = intZero
-    VoronoiClipper.InsideOut = True
-    VoronoiClipper.Execute()
+    # Clip the original voronoi diagram at the zero distance (intersection)
+    # VoronoiClipper = vmtkscripts.vmtkSurfaceClipper()
+    # VoronoiClipper.Surface = VoronoiDistance
+    # VoronoiClipper.Interactive = False
+    # VoronoiClipper.ClipArrayName = DistanceArrayName
+    # VoronoiClipper.ClipValue = intZero
+    # VoronoiClipper.InsideOut = True
+    # VoronoiClipper.Execute()
 
-    aneurysmVoronoi = tools.ExtractConnectedRegion(VoronoiClipper.Surface, 'largest')
+    aneurysmVoronoi = tools.ClipWithScalar(
+                        VoronoiDistance,
+                        DistanceArrayName,
+                        intZero
+                    )
 
-    if _inspect:
-        tools.ViewSurface(aneurysmVoronoi)
+    aneurysmVoronoi = tools.ExtractConnectedRegion(
+                        aneurysmVoronoi, 
+                        'largest'
+                    )
 
     return tools.Cleaner(aneurysmVoronoi)
 
 
 def _Voronoi_envelope(Voronoi):
     """Compute the envelope surface of a Voronoi diagram."""
-
-    # List to collect objects
-    objects = list()
 
     radiusArray = 'MaximumInscribedSphereRadius'
 
@@ -171,31 +172,31 @@ def _Voronoi_envelope(Voronoi):
     enlargeBoxBounds = (intFour/intTen)*maxSphereRadius
 
     modelBounds = np.array(VoronoiBounds) + \
-        np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
+                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
 
     # Building the envelope image function
-    envelopeFunction = vmtkscripts.vmtkPolyBallModeller()
-    envelopeFunction.Surface = Voronoi
-    envelopeFunction.RadiusArrayName = radiusArray
-    envelopeFunction.ModelBounds = list(modelBounds)
-    envelopeFunction.Execute()
-    objects.append(envelopeFunction)
+    modeller = vtkvmtk.vtkvmtkPolyBallModeller()
+    modeller.SetInputData(Voronoi)
+    modeller.SetRadiusArrayName(radiusArray)
+
+    # This needs to be off for surfaces
+    modeller.UsePolyBallLineOff()
+
+    modeller.SetModelBounds(list(modelBounds))
+    modeller.SetNegateFunction(0)
+    modeller.Update()
+
+    envelopeImage = modeller.GetOutput()
 
     # Get level zero surface
     envelopeSurface = vmtkscripts.vmtkMarchingCubes()
-    envelopeSurface.Image = envelopeFunction.Image
+    envelopeSurface.Image = envelopeImage
     envelopeSurface.Execute()
-    objects.append(envelopeSurface)
 
-    envelope = tools.ExtractConnectedRegion(envelopeSurface.Surface, 'largest')
-
-    if _debug:
-        for obj in objects:
-            obj.PrintInputMembers()
-            obj.PrintOutputMembers()
-
-    if _inspect:
-        tools.ViewSurface(envelope)
+    envelope = tools.ExtractConnectedRegion(
+                    envelopeSurface.Surface, 
+                    'largest'
+                )
 
     return tools.SmoothSurface(envelope)
 
