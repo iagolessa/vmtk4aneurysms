@@ -7,7 +7,7 @@ from vmtk import vtkvmtk
 from numpy import multiply
 from vtk.numpy_interface import dataset_adapter as dsa
 
-from constants import *
+from . import constants as const
 
 # Attribute array names
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
@@ -139,12 +139,12 @@ def ContourPerimeter(contour):
     nContourVertices = contour.GetNumberOfPoints()
 
     # Compute neck perimeter
-    perimeter = intZero
-    previous = contour.GetPoint(intZero)
+    perimeter = const.zero
+    previous = contour.GetPoint(int(const.zero))
 
     for index in range(nContourVertices):
-        if index > intZero:
-            previous = contour.GetPoint(index - intOne)
+        if index > int(const.zero):
+            previous = contour.GetPoint(index - 1)
 
         vertex = contour.GetPoint(index)
 
@@ -209,7 +209,7 @@ def ContourHydraulicDiameter(contour):
     area = ContourPlaneArea(contour)
 
     # Return hydraulic diameter of neck
-    return intFour*area/perimeter
+    return const.four*area/perimeter
 
 
 # TODO: review this function to check closed contour

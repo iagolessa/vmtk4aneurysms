@@ -8,7 +8,7 @@ from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 
-from constants import *
+from . import constants as const
 
 # Types
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
@@ -118,8 +118,8 @@ def SmoothSurface(surface):
     smoother = vmtkscripts.vmtkSurfaceSmoothing()
     smoother.Surface = surface
     smoother.Method  = 'taubin'
-    smoother.NumberOfIterations = intThree*intTen
-    smoother.PassBand = intOne/intTen
+    smoother.NumberOfIterations = int(const.three*const.ten)
+    smoother.PassBand = const.one/const.ten
     smoother.Execute()
     
     return smoother.Surface

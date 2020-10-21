@@ -8,10 +8,9 @@ from vmtk import vtkvmtk
 from scipy.spatial import ConvexHull
 
 # Local modules
-from constants import *
-import polydatatools as tools
-import polydatageometry as geo
-
+from . import constants as const
+from . import polydatatools as tools
+from . import polydatageometry as geo
 
 class Aneurysm:
     """Representation for saccular intracranial aneurysms.
@@ -79,8 +78,8 @@ class Aneurysm:
 
         capper = vtkvmtk.vtkvmtkCapPolyData()
         capper.SetInputData(self._aneurysm_surface)
-        capper.SetDisplacement(intZero)
-        capper.SetInPlaneDisplacement(intZero)
+        capper.SetDisplacement(const.zero)
+        capper.SetInPlaneDisplacement(const.zero)
         capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
         capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
         capper.Update()
@@ -166,7 +165,7 @@ class Aneurysm:
     def _neck_surface(self):
         """Generate aneurysm neck plane."""
 
-        neckIndex = intZero
+        neckIndex = int(const.zero)
         CellEntityIdsArrayName = "CellEntityIds"
 
         # Use thrshold filter to get neck plane
@@ -195,7 +194,7 @@ class Aneurysm:
         barycenter = self._neck_barycenter()
 
         # Get point in which distance to neck line baricenter is maximum
-        maxDistance = float(intZero)
+        maxDistance = const.zero
         maxVertex = None
 
         nVertices = self._aneurysm_surface.GetPoints().GetNumberOfPoints()
@@ -270,7 +269,7 @@ class Aneurysm:
         # Compute perimeter
         neckPerimeter = geo.ContourPerimeter(neckContour)
 
-        return intFour*self._neck_plane_area/neckPerimeter
+        return const.four*self._neck_plane_area/neckPerimeter
 
     def GetMaximumHeight(self):
         """Return maximum height.
@@ -309,8 +308,8 @@ class Aneurysm:
         Hnmax = self.GetMaximumNormalHeight()
 
         # Form points of perpendicular line to neck plane
-        nPoints = intThree * intTen
-        dimensions = intThree
+        nPoints = int(const.three) * int(const.ten)
+        dimensions = 3
 
         t = np.linspace(0, Hnmax, nPoints)
         parameters = np.array([t]*dimensions).T
@@ -334,7 +333,7 @@ class Aneurysm:
             nVertices = cutWithPlane.GetOutput().GetNumberOfPoints()
 
             # Compute diamenetr if contour is not empty
-            if nVertices > intZero:
+            if nVertices > 0:
 
                 # Compute hydraulic diameter of cut line
                 # TODO: will the error to compute the cut surface area due 
@@ -380,12 +379,12 @@ class Aneurysm:
 
         where Va and Sa are the volume and surface area of the aneurysm.
         """
-        factor = (18*np.pi)**(1./3.)
+        factor = (18*const.pi)**(1./3.)
 
         area = self._surface_area
         volume = self._volume
 
-        return intOne - (factor/area)*(volume**(2./3.))
+        return const.one - (factor/area)*(volume**(2./3.))
 
     def GetEllipticityIndex(self):
         """Return ellipticity index.
@@ -398,12 +397,12 @@ class Aneurysm:
         convex hull.
         """
 
-        factor = (18*np.pi)**(1./3.)
+        factor = (18*const.pi)**(1./3.)
 
         area = self._hull_surface_area
         volume = self._hull_volume
 
-        return intOne - (factor/area)*(volume**(2./3.))
+        return const.one - (factor/area)*(volume**(2./3.))
 
     def GetUndulationIndex(self):
         """Return undulation index.
@@ -498,7 +497,7 @@ class Aneurysm:
         MAA = integralMeanCurvature/self._surface_area
         GAA = integralGaussCurvature/self._surface_area
 
-        MLN = np.sqrt(integralMeanCurvature)/(4.0*Pi)
-        GLN = np.sqrt(integralGaussCurvature*self._surface_area)/(4.0*Pi)
+        MLN = np.sqrt(integralMeanCurvature)/(4.0*const.pi)
+        GLN = np.sqrt(integralGaussCurvature*self._surface_area)/(4.0*const.pi)
 
         return (MAA, GAA, MLN, GLN)

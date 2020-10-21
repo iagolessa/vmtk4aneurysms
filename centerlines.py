@@ -5,9 +5,8 @@ import morphman
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
-from constants import *
-
-import polydatatools as tools
+from . import constants as const
+from . import polydatatools as tools
 
 def ComputeOpenCenters(surface):
     """Compute barycenters of inlets and outlets.
@@ -37,8 +36,8 @@ def ComputeOpenCenters(surface):
     referenceSystems.SetInputData(surface)
     referenceSystems.SetBoundaryRadiusArrayName(radiusArray)
     referenceSystems.SetBoundaryNormalsArrayName(normalsArray)
-    referenceSystems.SetPoint1ArrayName(pointArrays[intZero])
-    referenceSystems.SetPoint2ArrayName(pointArrays[intOne])
+    referenceSystems.SetPoint1ArrayName(pointArrays[int(const.zero)])
+    referenceSystems.SetPoint2ArrayName(pointArrays[int(const.one)])
     referenceSystems.Update()
 
     openBoundariesRefSystem = referenceSystems.GetOutput()
@@ -46,7 +45,7 @@ def ComputeOpenCenters(surface):
 
     maxRadius = openBoundariesRefSystem.GetPointData().GetArray(
         radiusArray
-    ).GetRange()[intOne]
+    ).GetRange()[int(const.one)]
 
     for i in range(nOpenBoundaries):
         # Get radius and center

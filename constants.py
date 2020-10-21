@@ -2,20 +2,20 @@ import math
 import vtk
 
 # Constants
-Pi = vtk.vtkMath.Pi()
+pi = vtk.vtkMath.Pi()
 
-intZero = 0
-intOne = 1
-intTwo = 2
-intThree = 3
-intFour = 4
-intFive = 5
-intSix = 6
-intSeven = 7
-intEight = 8
-intNine = 9
-intTen = 10
+zero  = 0.0
+one   = 1.0
+two   = 2.0
+three = 3.0
+four  = 4.0
+five  = 5.0
+six   = 6.0
+seven = 7.0
+eight = 8.0
+nine  = 9.0
+ten   = 10.0
 
-intHundred = 100
+oneHundred = 100.0
 
-degToRad = math.pi/180.0
+degToRad = pi/180.0

@@ -8,7 +8,6 @@ import sys
 import vtk
 import morphman as mp
 import numpy as np
-import centerlines as cnt 
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -17,18 +16,14 @@ from scipy import interpolate
 from vtk.numpy_interface import dataset_adapter as dsa
 
 # Local modules
-from constants import *
-import polydatatools as tools
-import polydatageometry as geo
+from . import centerlines as cnt 
+from . import constants as const
+from . import polydatatools as tools
+from . import polydatageometry as geo
 
 INCR = 0.01
 HUGE = 1e30
-
-_dimensions = intThree
-_xComp = intZero
-_yComp = intOne
-_zComp = intThree
-
+_dimensions = int(const.three)
 
 def _vtk_vertices_to_numpy(polydata):
     """Convert vtkPolyData object to Numpy nd-array.
@@ -52,7 +47,7 @@ def _vtk_vertices_to_numpy(polydata):
 
 def _rotate3d_matrix(tilt, azim):
     """Rotation matrix traformation for a vector in 3D space."""
-    return np.array([[np.cos(azim),             -np.sin(azim),      intZero],
+    return np.array([[np.cos(azim),             -np.sin(azim),      const.zero],
                      [np.sin(azim)*np.cos(tilt), np.cos(azim)
                       * np.cos(tilt), -np.sin(tilt)],
                      [np.sin(azim)*np.sin(tilt), np.cos(azim)*np.sin(tilt),  np.cos(tilt)]])
@@ -86,8 +81,8 @@ def _tube_surface(centerline, smooth=True):
     # Get bounds of model
     centerlineBounds = centerline.GetBounds()
     radiusArrayBounds = centerline.GetPointData().GetArray(radiusArray).GetValueRange()
-    maxSphereRadius = radiusArrayBounds[intOne]
-    enlargeBoxBounds = (intTen/intTen)*maxSphereRadius
+    maxSphereRadius = radiusArrayBounds[1]
+    enlargeBoxBounds = (const.ten/const.ten)*maxSphereRadius
 
     modelBounds = np.array(centerlineBounds) + \
                   np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
@@ -136,14 +131,14 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     # VoronoiClipper.Surface = VoronoiDistance
     # VoronoiClipper.Interactive = False
     # VoronoiClipper.ClipArrayName = DistanceArrayName
-    # VoronoiClipper.ClipValue = intZero
+    # VoronoiClipper.ClipValue = const.zero
     # VoronoiClipper.InsideOut = True
     # VoronoiClipper.Execute()
 
     aneurysmVoronoi = tools.ClipWithScalar(
                         VoronoiDistance,
                         DistanceArrayName,
-                        intZero
+                        const.zero
                     )
 
     aneurysmVoronoi = tools.ExtractConnectedRegion(
@@ -161,8 +156,8 @@ def _Voronoi_envelope(Voronoi):
 
     VoronoiBounds = Voronoi.GetBounds()
     radiusArrayBounds = Voronoi.GetPointData().GetArray(radiusArray).GetValueRange()
-    maxSphereRadius = radiusArrayBounds[intOne]
-    enlargeBoxBounds = (intFour/intTen)*maxSphereRadius
+    maxSphereRadius = radiusArrayBounds[1]
+    enlargeBoxBounds = (const.four/const.ten)*maxSphereRadius
 
     modelBounds = np.array(VoronoiBounds) + \
                   np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
@@ -238,7 +233,7 @@ def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
     clippedAneurysm = tools.ClipWithScalar(
                         clippingArray.Surface,
                         clippingArray.ResultArrayName,
-                        intZero,
+                        const.zero,
                         inside_out=False
                     )
 
@@ -271,7 +266,7 @@ def _sac_centerline(aneurysm_sac, distance_array):
     maxTubeDist = float(distanceArray.max())
 
     # Build spline along with to perform the neck search
-    nPoints = intOne*intHundred 
+    nPoints = int(const.one)*int(const.oneHundred) 
     barycenters = []
 
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
@@ -284,7 +279,7 @@ def _sac_centerline(aneurysm_sac, distance_array):
         isoContour.SetInputData(aneurysm_sac)
         isoContour.ComputeScalarsOff()
         isoContour.ComputeNormalsOff()
-        isoContour.SetValue(intZero, isovalue)
+        isoContour.SetValue(0, isovalue)
         isoContour.Update()
 
         # Get largest connected contour
@@ -297,8 +292,8 @@ def _sac_centerline(aneurysm_sac, distance_array):
             contourPoints = contour.GetPoints()
             nContourPoints = contour.GetNumberOfPoints()
 
-            if geo.ContourIsClosed(contour) and nContourPoints != intZero:
-                barycenter = _dimensions*[intZero]
+            if geo.ContourIsClosed(contour) and nContourPoints != 0:
+                barycenter = _dimensions*[0]
                 vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
                     contourPoints,
                     barycenter
@@ -312,24 +307,24 @@ def _sac_centerline(aneurysm_sac, distance_array):
     barycenters = np.array(barycenters)
 
     # Compute list with distance coordinate along spline
-    distance = intZero
-    previous = barycenters[intZero]
+    distance = const.zero
+    previous = barycenters[0]
     distanceCoord = list()                    # path distance coordinate
 
     for index, center in enumerate(barycenters):
 
-        if index > intZero:
-            previous = barycenters[index - intOne]
+        if index > 0:
+            previous = barycenters[index - 1]
 
         # Interpoint distance
         increment = center - previous
-        distance += np.linalg.norm(increment, intTwo)
+        distance += np.linalg.norm(increment, 2)
         distanceCoord.append(distance)
 
     distanceCoord = np.array(distanceCoord)
 
     # Find spline of barycenters and get derivative == normals
-    limitFraction = intSeven/intTen
+    limitFraction = const.seven/const.ten
 
     tck, u = interpolate.splprep(barycenters.T, u=distanceCoord)
 
@@ -337,10 +332,10 @@ def _sac_centerline(aneurysm_sac, distance_array):
     # Note that we decrease by two units the start of the spline
     # because I noticed that for some cases the initial point of the spline
     # might be pretty inside the aneurysm, skipping the "neck region"
-    minSplineDomain = min(u) - intTwo #intFive/intTen
+    minSplineDomain = min(u) - const.two #intFive/const.ten
     maxSplineDomain = limitFraction*max(u)
 
-    domain = np.linspace(minSplineDomain, maxSplineDomain, intTwo*nPoints)
+    domain = np.linspace(minSplineDomain, maxSplineDomain, 2*nPoints)
 
     deriv0 = interpolate.splev(domain, tck, der=0)
     deriv1 = interpolate.splev(domain, tck, der=1)
@@ -360,7 +355,7 @@ def _local_minimum(array):
               np.r_[array[:-1] < array[1:], True]
 
     # Local minima index
-    return int(np.where(minimum == True)[intZero][intZero])
+    return int(np.where(minimum == True)[0][0])
 
 
 # TODO: this function is the bottleneck of the algorithm. I think there is 
@@ -380,13 +375,13 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     It returns the local minimum solution: the neck plane as a vtkPlane object.
     """
     # Rotation angles
-    tiltIncr = intOne
-    azimIncr = intTen
+    tiltIncr = const.one
+    azimIncr = const.ten
     tiltMax = 32
     azimMax = 360
 
-    tilts = np.arange(intZero, tiltMax, tiltIncr) * degToRad
-    azims = np.arange(intZero, azimMax, azimIncr) * degToRad
+    tilts = np.arange(const.zero, tiltMax, tiltIncr) * const.degToRad
+    azims = np.arange(const.zero, azimMax, azimIncr) * const.degToRad
 
     # Minimum area seacrh
     sectionInfo = []
@@ -408,7 +403,7 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     for index, (center, normal) in enumerate(zip(centers, normals)):
 
         # Store previous area to compare and find local minimum
-        if index > intZero:
+        if index > 0:
             previousVariable = minVariable
 
         # Iterate over rotated planes
@@ -446,7 +441,7 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
                 contourPoints = contour.GetPoints()
                 nContourPoints = contour.GetNumberOfPoints()
 
-                if geo.ContourIsClosed(contour) and nContourPoints != intZero:
+                if geo.ContourIsClosed(contour) and nContourPoints != 0:
 
                     # Update minmum area
                     variable = minimizingVariable(contour)
@@ -467,17 +462,17 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     sectionInfo = np.array(sectionInfo)
 
     # Get local minimum area
-    areas = sectionInfo[:, intZero]
+    areas = sectionInfo[:, 0]
 
     minimumId = _local_minimum(areas)
 
-    return sectionInfo[minimumId, intOne]
+    return sectionInfo[minimumId, 1]
 
 
 def AneurysmNeckPlane(surface_model,
                       parent_centerlines=None,
                       clipping_points=None,
-                      min_variable='perimeter'):
+                      min_variable='area'):
     """Search the aneurysm neck plane and clip the aneurysm.
 
     Procedure based on Piccinelli's pipeline, which is based on the surface

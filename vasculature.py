@@ -12,15 +12,15 @@ import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
-import aneurysm
-import centerlines
-from aneurysm_neck import AneurysmNeckPlane 
+from . import aneurysm
+from . import centerlines
+from .aneurysm_neck import AneurysmNeckPlane 
 
-from constants import *
-import polydatatools as tools
-import polydatageometry as geo
+from . import constants as const
+from . import polydatatools as tools
+from . import polydatageometry as geo
 
-from vmtkextend import customscripts
+from .vmtkextend import customscripts
 
 class Branch():
     """Branch segment representation."""
@@ -275,7 +275,7 @@ class Vasculature:
             for index in range(self._nbifurcations)
         ]
 
-        if self._nbifurcations > intZero:
+        if self._nbifurcations > const.zero:
             # Compute bifurcation
             bifVectors = vmtkscripts.vmtkBifurcationVectors()
             bifVectors.ReferenceSystems = bifsRefSystem.ReferenceSystems
