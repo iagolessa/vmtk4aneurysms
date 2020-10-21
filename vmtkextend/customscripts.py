@@ -7,6 +7,7 @@ __all__ = [
     '.vmtksurfaceremeshwithresolution',
     '.vmtksurfacevasculaturesections',
     '.vmtksurfacevasculaturethickness',
+    '.vmtksurfacevasculaturetransform',
     '.vmtksurfacevesselfixer'
 ]
 
