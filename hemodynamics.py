@@ -588,7 +588,7 @@ def aneurysm_stats(neck_surface: _polyDataType,
                    neck_array_name: str,
                    array_name: str,
                    n_percentile: float = 95,
-                   neck_iso_value: float = 0.5) -> list:
+                   neck_iso_value: float = 0.5) -> dict:
     """Compute statistics of array on aneurysm surface.
     
     Given a surface with the fields of hemodynamics variables defined on it,
@@ -648,7 +648,12 @@ def aneurysm_stats(neck_surface: _polyDataType,
     percentile  = np.percentile(np.array(arrayOnAneurysm), n_percentile)
     areaAverage = _area_average(aneurysm, array_name)
 
-    return [areaAverage, average, maximum, minimum, percentile]
+    return {'surf_avg': _area_average(aneurysm, array_name), 
+            'average': np.average(arrayOnAneurysm), 
+            'maximum': np.max(arrayOnAneurysm), 
+            'minimum': np.min(arrayOnAneurysm), 
+            str(n_percentile)+'percentil': np.percentile(arrayOnAneurysm, 
+                                                         n_percentile)}
 
 def lsa_wss_avg(neck_surface,
                 neck_array_name,
