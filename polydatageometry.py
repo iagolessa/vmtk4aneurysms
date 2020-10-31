@@ -4,7 +4,7 @@ import vtk
 import math
 
 from vmtk import vtkvmtk
-from numpy import multiply
+from numpy import multiply, zeros, where
 from vtk.numpy_interface import dataset_adapter as dsa
 
 from . import constants as const
@@ -103,8 +103,8 @@ def SurfaceGradient(surface: _polyDataType,
     nArrays  = cellData.GetNumberOfArrays()
     
     # Compute normals, if necessary
-    arrays = [cellData.GetArray(id_).GetName()
-              for id_ in range(nArrays)]
+    arrays = (cellData.GetArray(id_).GetName()
+              for id_ in range(nArrays))
     
     if _normals not in arrays:
         surface = SurfaceNormals(surface)
@@ -260,61 +260,29 @@ def SurfaceCurvature(surface):
     cellCurvatures.PassPointDataOff()
     cellCurvatures.Update()
 
-    curvatureSurface = cellCurvatures.GetOutput()
+    npCurvatures   = dsa.WrapDataObject(cellCurvatures.GetOutput())
+    GaussCurvature = npCurvatures.GetCellData().GetArray('Gauss_Curvature')
+    meanCurvature  = npCurvatures.GetCellData().GetArray('Mean_Curvature')
 
-    # Set types of surface patches based on curvatures
-    gaussCurvatureArray = curvatureSurface.GetCellData().GetArray('Gauss_Curvature')
-    meanCurvatureArray = curvatureSurface.GetCellData().GetArray('Mean_Curvature')
+    surfaceLocalShapes = {
+        'ellipticalConvex' : {'condition': (GaussCurvature >  0.0) & (meanCurvature >  0.0), 'id': 1},
+        'ellipticalConcave': {'condition': (GaussCurvature >  0.0) & (meanCurvature <  0.0), 'id': 2},
+        # apparently, not possible
+        'elliptical'       : {'condition': (GaussCurvature >  0.0) & (meanCurvature == 0.0), 'id': 3}, 
+        'hyperbolicConvex' : {'condition': (GaussCurvature <  0.0) & (meanCurvature >  0.0), 'id': 4},
+        'hyperboliConcave' : {'condition': (GaussCurvature <  0.0) & (meanCurvature <  0.0), 'id': 5},
+        'hyperbolic'       : {'condition': (GaussCurvature <  0.0) & (meanCurvature == 0.0), 'id': 6},
+        'cylindricConvex'  : {'condition': (GaussCurvature == 0.0) & (meanCurvature >  0.0), 'id': 7},
+        'cylindricConcave' : {'condition': (GaussCurvature == 0.0) & (meanCurvature <  0.0), 'id': 8},
+        'planar'           : {'condition': (GaussCurvature == 0.0) & (meanCurvature == 0.0), 'id': 9}
+    }
 
-    # Add an int array tp hold the surface local type
-    localShapeScalars = vtk.vtkIntArray()
-    localShapeScalars.SetNumberOfComponents(1)
-    localShapeScalars.SetNumberOfTuples(curvatureSurface.GetNumberOfCells())
-    localShapeScalars.SetName('Local_Shape_Type')
-    localShapeScalars.FillComponent(0, 0)
+    LocalShapeArray = zeros(shape=len(meanCurvature), 
+                               dtype=int)
 
-    curvatureSurface.GetCellData().AddArray(localShapeScalars)
-    # curvatureSurface.GetPointData().SetActiveScalars('Local_Shape_Type')
+    for shape in surfaceLocalShapes.values(): 
+        LocalShapeArray += where(shape.get('condition'), shape.get('id'), 0)
 
-    # Update local type based on curvatures
-    for cell in range(cellCurvatures.GetOutput().GetNumberOfCells()):
-        meanCurvature = meanCurvatureArray.GetValue(cell)
-        GaussCurvature = gaussCurvatureArray.GetValue(cell)
+    npCurvatures.CellData.append(LocalShapeArray, 'Local_Shape_Type')
 
-        # Elliptical convex
-        if GaussCurvature > 0.0 and meanCurvature > 0.0:
-            localShapeScalars.SetValue(cell, 0)
-
-        # Elliptical concave
-        elif GaussCurvature > 0.0 and meanCurvature < 0.0:
-            localShapeScalars.SetValue(cell, 1)
-
-        # Apparently, not possible
-        elif GaussCurvature > 0.0 and meanCurvature == 0.0:
-            localShapeScalars.SetValue(cell, 2)
-
-        # Hyperbolic "more convex"
-        elif GaussCurvature < 0.0 and meanCurvature > 0.0:
-            localShapeScalars.SetValue(cell, 3)
-
-        # Hyperbolic "more concave"
-        elif GaussCurvature < 0.0 and meanCurvature < 0.0:
-            localShapeScalars.SetValue(cell, 4)
-
-        # Hyperbolic
-        elif GaussCurvature < 0.0 and meanCurvature == 0.0:
-            localShapeScalars.SetValue(cell, 5)
-
-        # Cylindric convex
-        elif GaussCurvature == 0.0 and meanCurvature > 0.0:
-            localShapeScalars.SetValue(cell, 6)
-
-        # Cylindric concave
-        elif GaussCurvature == 0.0 and meanCurvature < 0.0:
-            localShapeScalars.SetValue(cell, 7)
-
-        # Planar
-        elif GaussCurvature == 0.0 and meanCurvature == 0.0:
-            localShapeScalars.SetValue(cell, 8)
-
-    return curvatureSurface
+    return npCurvatures.VTKObject

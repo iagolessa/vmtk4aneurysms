@@ -88,6 +88,8 @@ def _time_average(array, step, period):
     
     return simps(array, dx=step, axis=0)/period
 
+# TODO: improve this computattion. I thought about using vtkIntegrateAttributes
+# but is not available in the version shipped with vmtk!
 def _area_average(surface, array_name):
     """Compute area-averaged array over surface with first-order accuracy."""
 
@@ -206,8 +208,8 @@ def _wss_over_time(foam_case: str,
 
     # Get list with time steps
     nTimeSteps = ofReader.GetTimeValues().GetNumberOfValues()
-    timeSteps = [ofReader.GetTimeValues().GetValue(id_)
-                 for id_ in range(nTimeSteps)]
+    timeSteps = list((ofReader.GetTimeValues().GetValue(id_) 
+                      for id_ in range(nTimeSteps)))
 
     # Get WSS data
     wssVecOverTime = {}
