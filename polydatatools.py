@@ -52,6 +52,7 @@ def ViewSurface(surface, array_name=None):
     
     if array_name != None:
         viewer.ArrayName = array_name
+        viewer.DisplayCellData = 1
         viewer.Legend = True
     
     viewer.Execute()
