@@ -149,6 +149,18 @@ def GetPointArrays(polydata):
     return [polydata.GetPointData().GetArray(id_).GetName()
             for id_ in range(nPointArrays)]
 
+def CleanupArrays(surface):
+    """Remove any point and/or cell array in a vtkPolyData."""
+
+    for p_array in GetPointArrays(surface):
+        surface.GetPointData().RemoveArray(p_array)
+
+    for c_array in GetCellArrays(surface):
+        surface.GetCellData().RemoveArray(c_array)
+
+    return surface 
+
+
 def ExtractPortion(polydata, array_name, isovalue):
     """Extract portion of vtkPolyData based on array."""
 

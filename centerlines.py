@@ -24,35 +24,46 @@ def ComputeOpenCenters(surface):
     for a model with a single inlet and n outlets. The inlet is defined as the
     open boundary with largest radius.
     """
+    # I noticed some weird behavior of the vtkvmtkBoundaryReferenceSystems
+    # when using it with a surface that has passed through the 
+    # vtkPolyDataNormals filter. i couldn't solve the problem, so I am putting
+    # a clean-up and copy of the input surface to avoid any problems for safety
+    # but keep in mind that this did not solved the problem. 
 
-    inletCenters = list()
-    outletCenters = list()
+    # Clean up any arrays in surface and make copy of surface
+    newSurface = vtk.vtkPolyData()
+    newSurface.DeepCopy(surface)
+    
+    newSurface = tools.CleanupArrays(newSurface)
 
-    radiusArray = 'Radius'
-    normalsArray = 'Normals'
-    pointArrays = ['Point1', 'Point2']
+    inletCenters  = []
+    outletCenters = []
+
+    pointArrays  = ['Point1', 'Point2']
+    radiusArray  = 'Radius'
+    normalsArray = 'BoundaryNormals'
 
     referenceSystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
-    referenceSystems.SetInputData(surface)
+    referenceSystems.SetInputData(newSurface)
     referenceSystems.SetBoundaryRadiusArrayName(radiusArray)
     referenceSystems.SetBoundaryNormalsArrayName(normalsArray)
-    referenceSystems.SetPoint1ArrayName(pointArrays[int(const.zero)])
-    referenceSystems.SetPoint2ArrayName(pointArrays[int(const.one)])
+    referenceSystems.SetPoint1ArrayName(pointArrays[0])
+    referenceSystems.SetPoint2ArrayName(pointArrays[1])
     referenceSystems.Update()
 
     openBoundariesRefSystem = referenceSystems.GetOutput()
     nOpenBoundaries = openBoundariesRefSystem.GetPoints().GetNumberOfPoints()
 
     maxRadius = openBoundariesRefSystem.GetPointData().GetArray(
-        radiusArray
-    ).GetRange()[int(const.one)]
+                    radiusArray
+                ).GetRange()[1]
 
     for i in range(nOpenBoundaries):
         # Get radius and center
         center = tuple(openBoundariesRefSystem.GetPoints().GetPoint(i))
         radius = openBoundariesRefSystem.GetPointData().GetArray(
-            radiusArray
-        ).GetValue(i)
+                     radiusArray
+                 ).GetValue(i)
 
         if radius == maxRadius:
             inletCenters.append(center)
