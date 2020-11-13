@@ -22,9 +22,9 @@ from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from vtk.numpy_interface import dataset_adapter as dsa
 
-from . import constants as const
-from . import polydatatools as tools
-from . import polydatageometry as geo
+from .lib import constants as const
+from .lib import polydatatools as tools
+from .lib import polydatageometry as geo
 
 # Attribute array names
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData

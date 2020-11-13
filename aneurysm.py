@@ -8,9 +8,9 @@ from vmtk import vtkvmtk
 from scipy.spatial import ConvexHull
 
 # Local modules
-from . import constants as const
-from . import polydatatools as tools
-from . import polydatageometry as geo
+from .lib import constants as const
+from .lib import polydatatools as tools
+from .lib import polydatageometry as geo
 
 class Aneurysm:
     """Representation for saccular intracranial aneurysms.

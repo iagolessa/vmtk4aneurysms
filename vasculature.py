@@ -15,11 +15,11 @@ from vmtk import vmtkscripts
 from . import aneurysm
 from .aneurysm_neck import AneurysmNeckPlane 
 
-from . import centerlines as cnt
-from . import constants as const
-from . import polydataobjects as objs
-from . import polydatatools as tools
-from . import polydatageometry as geo
+from .lib import centerlines as cnt
+from .lib import constants as const
+from .lib import polydataobjects as objs
+from .lib import polydatatools as tools
+from .lib import polydatageometry as geo
 
 from .vmtkextend import customscripts
 

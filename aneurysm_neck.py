@@ -16,10 +16,10 @@ from scipy import interpolate
 from vtk.numpy_interface import dataset_adapter as dsa
 
 # Local modules
-from . import centerlines as cnt 
-from . import constants as const
-from . import polydatatools as tools
-from . import polydatageometry as geo
+from .lib import centerlines as cnt 
+from .lib import constants as const
+from .lib import polydatatools as tools
+from .lib import polydatageometry as geo
 
 INCR = 0.01
 HUGE = 1e30
