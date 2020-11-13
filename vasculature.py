@@ -31,11 +31,6 @@ class Branch():
 
         self._branch = polydata
 
-    @classmethod
-    def from_centerline(cls, centerline, start_point, end_point):
-        """Initialize branch object from centerline and end points."""
-        pass
-
     def GetBranch(self):
         """Return branch vtkPolyData."""
         return self._branch
@@ -151,7 +146,7 @@ class Vasculature:
         aneurysm, the flag 'with_aneurysm' enables its selection.
 
         Arguments:
-        surface -- the vtkPolyData vascular model (default None)
+        vtk_poly_data -- the vtkPolyData vascular model (default None)
 
         with_aneurysm -- bool to indicate that the vasculature
             has an aneurysm (default False)
@@ -233,9 +228,17 @@ class Vasculature:
                                     )
 
     @classmethod
-    def from_surface_file(cls, surface_file):
+    def from_file(cls,
+                  file_name,
+                  with_aneurysm=False,
+                  manual_aneurysm=False,
+                  aneurysm_prop={}):
         """Initialize vasculature object from vasculature surface file."""
-        pass
+
+        return cls(tools.ReadSurface(file_name), 
+                   with_aneurysm=with_aneurysm,
+                   manual_aneurysm=manual_aneurysm,
+                   aneurysm_prop=aneurysm_prop)
 
     def _extract_branches(self):
         """Split the vasculature centerlines into branches."""
