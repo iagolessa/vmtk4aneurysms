@@ -117,7 +117,7 @@ def _area_average(surface, array_name):
     for area, value in map(getCellValue, cellIds):
         integral += area*value
 
-    surfaceArea = geo.SurfaceArea(surface)
+    surfaceArea = geo.Surface.Area(surface)
 
     # Compute L2-norm 
     return integral/surfaceArea
@@ -471,7 +471,7 @@ def hemodynamics(foam_case: str,
                               t_low_diastole)
     
     # Compute normals and gradient of TAWSS
-    surfaceWithNormals  = geo.SurfaceNormals(surface)
+    surfaceWithNormals  = geo.Surface.Normals(surface)
     surfaceWithGradient = geo.SurfaceGradient(surfaceWithNormals, _TAWSS)
 
     # Convert VTK polydata to numpy object
@@ -559,7 +559,8 @@ def hemodynamics(foam_case: str,
     # TransWss = tavg(abs(wssVecOverTime dot qHat))
     # I had to compute the transWSS here because it needs
     # an averaged array (qHat) and a time-dependent array
-    wssVecDotQHatProd = lambda time: abs(_HadamardDot(temporalWss.get(time), qHatArray))
+    wssVecDotQHatProd = lambda time: abs(_HadamardDot(temporalWss.get(time), 
+                                         qHatArray))
     
     # Get array with product
     wssVecDotQHat = dsa.VTKArray([wssVecDotQHatProd(time) 
@@ -680,11 +681,11 @@ def lsa_wss_avg(neck_surface,
     aneurysm = tools.ClipWithScalar(surface, neck_array_name, neck_iso_value)
 
     # Get aneurysm area
-    aneurysmArea = geo.SurfaceArea(aneurysm)
+    aneurysmArea = geo.Surface.Area(aneurysm)
 
     # Get low shear area
     lsaPortion = tools.ClipWithScalar(aneurysm, avgMagWSSArray, lowWSS)
-    lsaArea = geo.SurfaceArea(lsaPortion)
+    lsaArea = geo.Surface.Area(lsaPortion)
 
     return lsaArea/aneurysmArea
 
@@ -827,7 +828,7 @@ def lsa_instant(foam_case: str,
                                     neck_array_name, 
                                     neck_iso_value)
 
-    aneurysmArea = geo.SurfaceArea(aneurysm)
+    aneurysmArea = geo.Surface.Area(aneurysm)
 
     # Compute WSS temporal for foam_case
     surface, temporalWss = _wss_over_time(foam_case,
@@ -860,7 +861,7 @@ def lsa_instant(foam_case: str,
         # Wonder: does the surface project works in only a portion of the 
         # surface? If yes, I could do the mapping directly on the aneurysm
         lsaPortion = tools.ClipWithScalar(aneurysm, _WSSmag, low_wss)
-        lsaArea = geo.SurfaceArea(lsaPortion)
+        lsaArea = geo.Surface.Area(lsaPortion)
 
         return lsaArea/aneurysmArea
 

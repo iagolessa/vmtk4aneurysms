@@ -8,6 +8,7 @@ from numpy import multiply, zeros, where
 from vtk.numpy_interface import dataset_adapter as dsa
 
 from . import constants as const
+from . import polydatatools as tools
 
 # Attribute array names
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
@@ -25,51 +26,6 @@ def Distance(point1, point2):
     )
 
     return math.sqrt(sqrDistance)
-
-def SurfaceArea(surface: _polyDataType) -> float:
-    """Compute the surface area of an input surface."""
-
-    triangulate = vtk.vtkTriangleFilter()
-    triangulate.SetInputData(surface)
-    triangulate.Update()
-
-    surface_area = vtk.vtkMassProperties()
-    surface_area.SetInputData(triangulate.GetOutput())
-    surface_area.Update()
-
-    return surface_area.GetSurfaceArea()
-
-
-def SurfaceVolume(surface: _polyDataType) -> float:
-    """Compute voluem of closed surface.
-
-    Computes the volume of an assumed orientable surface. Works internally with
-    VTK, so it assumes that the surface is closed. 
-    """
-
-    triangulate = vtk.vtkTriangleFilter()
-    triangulate.SetInputData(surface)
-    triangulate.Update()
-
-    volume = vtk.vtkMassProperties()
-    volume.SetInputData(triangulate.GetOutput())
-    volume.Update()
-
-    return volume.GetVolume()
-
-def SurfaceNormals(surface: _polyDataType) -> _polyDataType:
-    """Compute outward surface normals."""
-    
-    normals = vtk.vtkPolyDataNormals()
-    
-    normals.ComputeCellNormalsOn()
-    normals.ComputePointNormalsOff()
-    # normals.AutoOrientNormalsOff()
-    # normals.FlipNormalsOn()
-    normals.SetInputData(surface)
-    normals.Update()
-    
-    return normals.GetOutput()
 
 def SpatialGradient(surface: _polyDataType, 
                     field_name: str) -> _polyDataType:
@@ -220,69 +176,179 @@ def ContourIsClosed(contour):
 
     return nVertices == nEdges
 
+class Surface():
+    """Computational model of a three-dimensional surface."""
+    
+    def __init__(self, vtk_poly_data):
+        """Build surface model from vtkPolyData.
+        
+        Given a vtkPolyData characterizing a surface in the 3D Euclidean space,
+        automatically computes its outwards unit normal fiels, stored as
+        'Normals' and its curvature type field based on the Gaussian and mean
+        curvatures.
+        """
+        
+        self._surface_object = Surface.Normals(vtk_poly_data)
+        self._surface_object = Surface.Curvatures(self._surface_object)
 
-def SurfaceCurvature(surface):
-    """Compute curvature of surface.
+    @classmethod
+    def from_file(cls, file_name):
+        """Build surface model from file."""
 
-    Uses VTK to compute the mean and Gauss curvature of a surface represented
-    as a vtkPolydata. Also computes an integer array that identify the local
-    shape of the surface, as presented by Ma et al. (2004) for intracranial
-    aneurysms, if Kg and Km are the Gauss and mean curvature, we have:
+        return cls(tools.ReadSurface(file_name))
 
-        Kg   Km     Local Shape         Int Label
-        > 0  > 0    Elliptical Convex   0
-        > 0  < 0    Elliptical Concave  1
-        > 0  = 0    Not possible        2
-        < 0  > 0    Hyperbolic Convex   3
-        < 0  < 0    Hyperbolic Concave  4
-        < 0  = 0    Hyperbolic          5
-        = 0  > 0    Cylidrical Convex   6
-        = 0  < 0    Cylidrical Concave  7
-        = 0  = 0    Planar              8
+    @staticmethod
+    def Area(surface_object: _polyDataType) -> float:
+        """Return the surface area in the units of the original data."""
 
-    The name of the generated arrays are: "Mean_Curvature", "Gauss_Curvature",
-    and "Local_Shape_Type".
-    """
-    # Compute mean curvature
-    meanCurvature = vtk.vtkCurvatures()
-    meanCurvature.SetInputData(surface)
-    meanCurvature.SetCurvatureTypeToMean()
-    meanCurvature.Update()
+        triangulate = vtk.vtkTriangleFilter()
+        triangulate.SetInputData(surface_object)
+        triangulate.Update()
 
-    # Compute Gaussian curvature
-    gaussianCurvature = vtk.vtkCurvatures()
-    gaussianCurvature.SetInputData(meanCurvature.GetOutput())
-    gaussianCurvature.SetCurvatureTypeToGaussian()
-    gaussianCurvature.Update()
+        surface_area = vtk.vtkMassProperties()
+        surface_area.SetInputData(triangulate.GetOutput())
+        surface_area.Update()
 
-    cellCurvatures = vtk.vtkPointDataToCellData()
-    cellCurvatures.SetInputData(gaussianCurvature.GetOutput())
-    cellCurvatures.PassPointDataOff()
-    cellCurvatures.Update()
+        return surface_area.GetSurfaceArea()
 
-    npCurvatures   = dsa.WrapDataObject(cellCurvatures.GetOutput())
-    GaussCurvature = npCurvatures.GetCellData().GetArray('Gauss_Curvature')
-    meanCurvature  = npCurvatures.GetCellData().GetArray('Mean_Curvature')
+    @staticmethod
+    def Volume(surface_object: _polyDataType) -> float:
+        """Compute volume of closed surface.
 
-    surfaceLocalShapes = {
-        'ellipticalConvex' : {'condition': (GaussCurvature >  0.0) & (meanCurvature >  0.0), 'id': 1},
-        'ellipticalConcave': {'condition': (GaussCurvature >  0.0) & (meanCurvature <  0.0), 'id': 2},
-        # apparently, not possible
-        'elliptical'       : {'condition': (GaussCurvature >  0.0) & (meanCurvature == 0.0), 'id': 3}, 
-        'hyperbolicConvex' : {'condition': (GaussCurvature <  0.0) & (meanCurvature >  0.0), 'id': 4},
-        'hyperboliConcave' : {'condition': (GaussCurvature <  0.0) & (meanCurvature <  0.0), 'id': 5},
-        'hyperbolic'       : {'condition': (GaussCurvature <  0.0) & (meanCurvature == 0.0), 'id': 6},
-        'cylindricConvex'  : {'condition': (GaussCurvature == 0.0) & (meanCurvature >  0.0), 'id': 7},
-        'cylindricConcave' : {'condition': (GaussCurvature == 0.0) & (meanCurvature <  0.0), 'id': 8},
-        'planar'           : {'condition': (GaussCurvature == 0.0) & (meanCurvature == 0.0), 'id': 9}
-    }
+        Computes the volume of an assumed orientable surface. Works internally
+        with VTK, so it assumes that the surface is closed. 
+        """
+        
+        triangulate = vtk.vtkTriangleFilter()
+        triangulate.SetInputData(surface_object)
+        triangulate.Update()
 
-    LocalShapeArray = zeros(shape=len(meanCurvature), 
-                               dtype=int)
+        # Cap surface (mass properties requires it closed)
+        surfaceCapper = vtkvmtk.vtkvmtkCapPolyData()
+        surfaceCapper.SetInputConnection(triangulate.GetOutputPort())
+        surfaceCapper.SetDisplacement(const.zero)
+        surfaceCapper.SetInPlaneDisplacement(const.zero)
+        surfaceCapper.Update()
 
-    for shape in surfaceLocalShapes.values(): 
-        LocalShapeArray += where(shape.get('condition'), shape.get('id'), 0)
+        volume = vtk.vtkMassProperties()
+        volume.SetInputData(surfaceCapper.GetOutput())
+        volume.Update()
 
-    npCurvatures.CellData.append(LocalShapeArray, 'Local_Shape_Type')
+        return volume.GetVolume()
+    
+    @staticmethod
+    def Normals(surface_object: _polyDataType) -> _polyDataType:
+        """Compute outward surface normals."""
 
-    return npCurvatures.VTKObject
+        normals = vtk.vtkPolyDataNormals()
+
+        normals.ComputeCellNormalsOn()
+        normals.ComputePointNormalsOff()
+        # normals.AutoOrientNormalsOff()
+        # normals.FlipNormalsOn()
+        normals.SetInputData(surface_object)
+        normals.Update()
+
+        return normals.GetOutput()
+ 
+    @staticmethod
+    def Curvatures(surface_object: _polyDataType) -> _polyDataType:
+        """Compute curvature of surface.
+
+        Uses VTK to compute the mean and Gauss curvature of a surface
+        represented as a vtkPolydata. Also computes an integer array that
+        identify the local shape of the surface, as presented by Ma et al.
+        (2004) for intracranial aneurysms, if Kg and Km are the Gauss and mean
+        curvature, we have:
+
+            Kg   Km     Local Shape         Int Label
+            > 0  > 0    Elliptical Convex   0
+            > 0  < 0    Elliptical Concave  1
+            > 0  = 0    Not possible        2
+            < 0  > 0    Hyperbolic Convex   3
+            < 0  < 0    Hyperbolic Concave  4
+            < 0  = 0    Hyperbolic          5
+            = 0  > 0    Cylidrical Convex   6
+            = 0  < 0    Cylidrical Concave  7
+            = 0  = 0    Planar              8
+
+        The name of the generated arrays are: "Mean_Curvature",
+        "Gauss_Curvature", and "Local_Shape_Type".
+        """
+        # Compute mean curvature
+        meanCurvature = vtk.vtkCurvatures()
+        meanCurvature.SetInputData(surface_object)
+        meanCurvature.SetCurvatureTypeToMean()
+        meanCurvature.Update()
+
+        # Compute Gaussian curvature
+        gaussianCurvature = vtk.vtkCurvatures()
+        gaussianCurvature.SetInputData(meanCurvature.GetOutput())
+        gaussianCurvature.SetCurvatureTypeToGaussian()
+        gaussianCurvature.Update()
+
+        cellCurvatures = vtk.vtkPointDataToCellData()
+        cellCurvatures.SetInputData(gaussianCurvature.GetOutput())
+        cellCurvatures.PassPointDataOff()
+        cellCurvatures.Update()
+
+        npCurvatures   = dsa.WrapDataObject(cellCurvatures.GetOutput())
+        GaussCurvature = npCurvatures.GetCellData().GetArray('Gauss_Curvature')
+        meanCurvature  = npCurvatures.GetCellData().GetArray('Mean_Curvature')
+
+        surfaceLocalShapes = {
+            'ellipticalConvex' : 
+                {'condition': (GaussCurvature >  0.0) & (meanCurvature >  0.0), 
+                 'id': 1},
+            'ellipticalConcave': 
+                {'condition': (GaussCurvature >  0.0) & (meanCurvature <  0.0), 
+                 'id': 2},
+            'elliptical'       : # apparently, not possible
+                {'condition': (GaussCurvature >  0.0) & (meanCurvature == 0.0), 
+                 'id': 3}, 
+            'hyperbolicConvex' : 
+                {'condition': (GaussCurvature <  0.0) & (meanCurvature >  0.0), 
+                 'id': 4},
+            'hyperboliConcave' : 
+                {'condition': (GaussCurvature <  0.0) & (meanCurvature <  0.0), 
+                 'id': 5},
+            'hyperbolic'       : 
+                {'condition': (GaussCurvature <  0.0) & (meanCurvature == 0.0), 
+                 'id': 6},
+            'cylindricConvex'  : 
+                {'condition': (GaussCurvature == 0.0) & (meanCurvature >  0.0), 
+                 'id': 7},
+            'cylindricConcave' : 
+                {'condition': (GaussCurvature == 0.0) & (meanCurvature <  0.0), 
+                 'id': 8},
+            'planar'           : 
+                {'condition': (GaussCurvature == 0.0) & (meanCurvature == 0.0), 
+                 'id': 9}
+        }
+
+        LocalShapeArray = zeros(shape=len(meanCurvature), dtype=int)
+
+        for shape in surfaceLocalShapes.values(): 
+            LocalShapeArray += where(shape.get('condition'), shape.get('id'), 0)
+
+        npCurvatures.CellData.append(LocalShapeArray, 'Local_Shape_Type')
+
+        return npCurvatures.VTKObject
+
+    def GetSurfaceObject(self):
+        """Return the surface vtkPolyData object."""
+        return self._surface_object
+    
+    def GetSurfaceArea(self):
+        return Surface.Area(self._surface_object)
+
+    def GetSurfaceVolume(self):
+        return Surface.Volume(self._surface_object)
+
+    def GetCellArrays(self):
+        """Return the names and number of arrays for a vtkPolyData."""
+        return tools.GetCellArrays(self._surface_object)
+
+    def GetPointArrays(self):
+        """Return the names of point arrays for a vtkPolyData."""
+        return tools.GetPointArrays(self._surface_object)

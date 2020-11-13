@@ -53,11 +53,11 @@ class Aneurysm:
 
         # Compute neck surface area
         # Compute areas...
-        self._surface_area = geo.SurfaceArea(self._aneurysm_surface)
-        self._neck_plane_area = geo.SurfaceArea(self._neck_surface())
+        self._surface_area = geo.Surface.Area(self._aneurysm_surface)
+        self._neck_plane_area = geo.Surface.Area(self._neck_surface())
 
         # ... and volume
-        self._volume = geo.SurfaceVolume(self._cap_aneurysm())
+        self._volume = geo.Surface.Volume(self._cap_aneurysm())
 
         # Computing hull properties
         self._hull_surface_area = 0.0
@@ -455,7 +455,7 @@ class Aneurysm:
             print(warningMessage)
 
             # Compute curvature arrays for aneurysm surface
-            curvatureSurface = geo.SurfaceCurvature(self._aneurysm_surface)
+            curvatureSurface = geo.Surface.Curvatures(self._aneurysm_surface)
         else:
             curvatureSurface = self._aneurysm_surface
 

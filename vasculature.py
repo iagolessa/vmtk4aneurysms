@@ -17,7 +17,6 @@ from .aneurysm_neck import AneurysmNeckPlane
 
 from .lib import centerlines as cnt
 from .lib import constants as const
-from .lib import polydataobjects as objs
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
@@ -200,7 +199,7 @@ class Vasculature:
                             )
 
         # Initiate surface model
-        self._surface_model  = objs.Surface(vtk_poly_data)
+        self._surface_model  = geo.Surface(vtk_poly_data)
 
         print('Collecting bifurcations and branches.', end='\n')
         self._compute_bifurcations_geometry()
@@ -389,7 +388,7 @@ class Vasculature:
         vasculatureThickness.Execute()
 
         # Recomputes surface model
-        self._surface_model = objs.Surface(vasculatureThickness.Surface)
+        self._surface_model = geo.Surface(vasculatureThickness.Surface)
 
     def GetSurface(self):
         return self._surface_model
