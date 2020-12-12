@@ -443,7 +443,7 @@ def _select_parent_artery(surface: _polyDataType) -> _polyDataType:
 
     return smoother.Surface
 
-def hemodynamics(foam_case: str,
+def Hemodynamics(foam_case: str,
                  t_peak_systole: float,
                  t_low_diastole: float,
                  density=_density,  # kg/m3
@@ -589,11 +589,11 @@ def hemodynamics(foam_case: str,
 
     return numpySurface.VTKObject
 
-def aneurysm_stats(neck_surface: _polyDataType,
-                   neck_array_name: str,
-                   array_name: str,
-                   n_percentile: float = 95,
-                   neck_iso_value: float = 0.5) -> dict:
+def AneurysmStats(neck_surface: _polyDataType,
+                  neck_array_name: str,
+                  array_name: str,
+                  n_percentile: float = 95,
+                  neck_iso_value: float = 0.5) -> dict:
     """Compute statistics of array on aneurysm surface.
 
     Given a surface with the fields of hemodynamics variables defined on it,
@@ -660,11 +660,11 @@ def aneurysm_stats(neck_surface: _polyDataType,
             str(n_percentile)+'percentil': np.percentile(arrayOnAneurysm,
                                                          n_percentile)}
 
-def lsa_wss_avg(neck_surface,
-                neck_array_name,
-                lowWSS,
-                neck_iso_value=0.5,
-                avgMagWSSArray=_TAWSS):
+def LsaWssAverage(neck_surface,
+                  neck_array_name,
+                  lowWSS,
+                  neck_iso_value=0.5,
+                  avgMagWSSArray=_TAWSS):
     """Computes the LSA based on the time-averaged WSS field.
 
     Calculates the LSA (low WSS area ratio) for aneurysms simulations performed
@@ -697,10 +697,10 @@ def lsa_wss_avg(neck_surface,
 # contour in the same way as the aneurysm neck is beuild. So, I will assume in
 # this function that the surface is already cut to in- clude only the parent
 # artery portion and that includes
-def wss_parent_vessel(parent_artery_surface: _polyDataType,
-                      parent_artery_array: str,
-                      parent_artery_iso_value=0.5,
-                      wss_field=_TAWSS) -> float:
+def WssParentVessel(parent_artery_surface: _polyDataType,
+                    parent_artery_array: str,
+                    parent_artery_iso_value=0.5,
+                    wss_field=_TAWSS) -> float:
     """Calculates the surface averaged WSS value over the parent artery."""
 
     try:
@@ -733,13 +733,13 @@ def wss_parent_vessel(parent_artery_surface: _polyDataType,
     # average = np.average(np.array(wssArray))
     return _area_average(parentArtery, wss_field)
 
-def wss_surf_avg(foam_case: str,
-                 neck_surface: _polyDataType = None,
-                 neck_array_name: str = _aneurysmNeckArray,
-                 neck_iso_value: float = 0.5,
-                 density: float = _density,
-                 field: str = _foamWSS,
-                 patch: str = _wallPatch):
+def WssSurfaceAverage(foam_case: str,
+                      neck_surface: _polyDataType = None,
+                      neck_array_name: str = _aneurysmNeckArray,
+                      neck_iso_value: float = 0.5,
+                      density: float = _density,
+                      field: str = _foamWSS,
+                      patch: str = _wallPatch):
     """Compute the surface-averaged WSS over time.
 
     Function to compute surface integrals of WSS over an aneurysm or vessels
@@ -797,14 +797,14 @@ def wss_surf_avg(foam_case: str,
     return {time: wss_average_on_surface(time)
             for time in temporalWss.keys()}
 
-def lsa_instant(foam_case: str,
-                neck_surface: _polyDataType,
-                neck_array_name: str,
-                low_wss: float,
-                neck_iso_value=_neck_value,
-                density=_density,
-                field=_foamWSS,
-                patch=_wallPatch) -> list:
+def LsaInstant(foam_case: str,
+               neck_surface: _polyDataType,
+               neck_array_name: str,
+               low_wss: float,
+               neck_iso_value=_neck_value,
+               density=_density,
+               field=_foamWSS,
+               patch=_wallPatch) -> list:
     """Compute the LSA over time.
 
     Calculates the LSA (low WSS area ratio) for aneurysm simulations performed
