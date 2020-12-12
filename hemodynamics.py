@@ -130,42 +130,90 @@ def _HadamardDot(np_array1, np_array2):
     # Seems that multiply is faster than a*b
     return np.multiply(np_array1, np_array2).sum(axis=1)
 
-def _get_wall_with_wss(multi_block: _multiBlockType,
-                       patch: str,
-                       field: str) -> _polyDataType:
+def GetPatchFieldOverTime(foam_case: str,
+                          field_name: str,
+                          active_patch_name: str) -> (_polyDataType, dict):
+    """Gets a time-varying patch field from an OpenFOAM case.
+    
+    Given an OpenFOAM case, the field name and the patch name, return a tuple
+    with the patch surface and a dictionary with the time-varying field with
+    the instants as keys and the value the field given as a VTK Numpy Array.
+    """
 
-    # Get blocks and surface patch
-    # TODO: I need to fetch oatch by name. How?
-    nBlocks = multi_block.GetNumberOfBlocks()
+    # Read OF case reader
+    ofReader = vtk.vtkPOpenFOAMReader()
+    ofReader.SetFileName(foam_case)
+    ofReader.AddDimensionsToArrayNamesOff()
+    ofReader.DecomposePolyhedraOff()
+    ofReader.SkipZeroTimeOn()
+    ofReader.CreateCellToPointOff()
+    ofReader.DisableAllLagrangianArrays()
+    ofReader.DisableAllPointArrays()
+    ofReader.EnableAllCellArrays()
+    ofReader.Update()
 
-    # Get outer surface (include inlet and outlets)
-    surface = multi_block.GetBlock(nBlocks - 1)
+    # Get list with time steps
+    nTimeSteps = ofReader.GetTimeValues().GetNumberOfValues()
+    timeSteps  = list((ofReader.GetTimeValues().GetValue(id_)
+                       for id_ in range(nTimeSteps)))
 
-    # Find wall patch (largest number of cells)
-    SMALL = -1e10
-    wallPatch = None
-    nMaxCells = SMALL
+    # Update OF reader with only selected patch
+    patches = list((ofReader.GetPatchArrayName(index)
+                    for index in range(ofReader.GetNumberOfPatchArrays())))
 
-    for block_id in range(surface.GetNumberOfBlocks()):
-        patch = surface.GetBlock(block_id)
+    if active_patch_name not in patches:
+        message = "Patch {} not in geometry surface.".format(active_patch_name)
+        sys.exit(message)
+    else:
+        pass
 
-        # Get patch with largest number of cells
-        # (forcely, the wall)
-        nCells = patch.GetNumberOfCells()
-        if nCells > nMaxCells:
-            nMaxCells = nCells
-            wallPatch = patch
+    patches.remove('internalMesh')
 
-    # Remove U and p arrays
-    arrays = tools.GetCellArrays(wallPatch)
+    # Set active patch
+    for patchName in patches:
+        if patchName == active_patch_name:
+            ofReader.SetPatchArrayStatus(patchName, 1)
+        else:
+            ofReader.SetPatchArrayStatus(patchName, 0)
 
-    # Remove arrays except field (WSS)
-    arrays.remove(field)
+    ofReader.Update()
 
-    for array in arrays:
-        wallPatch.GetCellData().RemoveArray(array)
+    # Get blocks and get surface block
+    blocks  = ofReader.GetOutput()
+    nBlocks = blocks.GetNumberOfBlocks()
 
-    return wallPatch
+    # Surface is the last one (0: internalMesh, 1:surface)
+    surface = blocks.GetBlock(nBlocks - 1)
+
+    # The active patch is the only one left
+    activePatch = surface.GetBlock(0)
+
+    # Check if array in surface
+    arraysInPatch = tools.GetCellArrays(activePatch)
+
+    if field_name not in arraysInPatch:
+        message = "Field {} not in surface patch {}.".format(field_name,
+                                                             active_patch_name)
+
+        sys.exit(message)
+    else:
+        pass
+
+    npActivePatch = dsa.WrapDataObject(activePatch)
+
+    def _get_field(time):
+        ofReader.UpdateTimeStep(time)
+        return npActivePatch.GetCellData().GetArray(field_name)
+
+    fieldOverTime = {time: _get_field(time) for time in timeSteps}
+
+    # Clean surface from any field
+    activePatch = npActivePatch.VTKObject
+
+    for arrayName in arraysInPatch:
+        activePatch.GetCellData().RemoveArray(arrayName)
+
+    return npActivePatch.VTKObject, fieldOverTime
 
 def _wss_over_time(foam_case: str,
                    density=_density,
@@ -182,60 +230,15 @@ def _wss_over_time(foam_case: str,
     of the patch where the WSS is defined.
     """
 
-    # Check if file or folder
-    extension = os.path.splitext(foam_case)[-1]
+    surface, fieldOverTime = GetPatchFieldOverTime(foam_case,
+                                                   field,
+                                                   patch)
 
-    if not os.path.isfile(foam_case) and extension != '.foam':
-        sys.exit("Unrecognized file format (must be .foam).")
-    else:
-        pass
+    # Compute the WSS = density * wallShearComponent
+    wssVectorOverTime = {time: _density*wssField
+                         for time, wssField in fieldOverTime.items()}
 
-    ofReader = vtk.vtkPOpenFOAMReader()
-
-    # Apparently, it needs to be ran 2 times to load the data
-    for _ in range(2):
-        ofReader.SetFileName(foam_case)
-        ofReader.AddDimensionsToArrayNamesOff()
-        ofReader.DecomposePolyhedraOff()
-        ofReader.SkipZeroTimeOn()
-        ofReader.CreateCellToPointOff()
-
-        # Apparently, this is important to load the
-        # external surface
-        ofReader.EnableAllPatchArrays()
-        ofReader.Update()
-
-    # Get list with time steps
-    nTimeSteps = ofReader.GetTimeValues().GetNumberOfValues()
-    timeSteps = list((ofReader.GetTimeValues().GetValue(id_)
-                      for id_ in range(nTimeSteps)))
-
-    # Get WSS data
-    wssVecOverTime = {}
-    addInstantWss = wssVecOverTime.update
-
-    # I will store one surface for reference here
-    # to hold the final data
-    baseSurface = None
-
-    # for surface in map(readSurface, glob.glob(folder + '*.vtk')):
-    for time in timeSteps:
-        ofReader.UpdateTimeStep(time)
-
-        surface = _get_wall_with_wss(ofReader.GetOutput(),
-                                     patch=_wallPatch,
-                                     field=_foamWSS)
-
-        # Convert to Numpy object for efficiency
-        npSurface = dsa.WrapDataObject(surface)
-        tWssArray = density*npSurface.GetCellData().GetArray(_foamWSS)
-        addInstantWss({time: tWssArray})
-
-        # Store last surface
-        # (for moving domain, should I use the first?)
-        baseNpSurface = npSurface
-
-    return baseNpSurface.VTKObject, wssVecOverTime
+    return surface, wssVectorOverTime
 
 def _wss_time_stats(surface: _polyDataType,
                     temporal_wss: dict,
