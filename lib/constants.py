@@ -19,3 +19,4 @@ ten   = 10.0
 oneHundred = 100.0
 
 degToRad = pi/180.0
+millimeterToMeterFactor = 1000.0

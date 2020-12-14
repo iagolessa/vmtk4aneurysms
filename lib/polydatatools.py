@@ -16,8 +16,8 @@ _multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 
 def ReadSurface(file_name: str) -> _polyDataType:
     """Read surface file to VTK object.
-               
-    Arguments: 
+
+    Arguments:
     file_name -- complete path with file name
     """
     # Get extension
@@ -43,28 +43,28 @@ def ReadSurface(file_name: str) -> _polyDataType:
 
 def ViewSurface(surface, array_name=None):
     """View surface vtkPolyData objects.
-    
+
     Arguments:
     surface -- the surface to be displayed.
     """
     viewer = vmtkscripts.vmtkSurfaceViewer()
     viewer.Surface = surface
-    
+
     if array_name != None:
         viewer.ArrayName = array_name
         viewer.DisplayCellData = 1
         viewer.Legend = True
-    
+
     viewer.Execute()
-    
-def WriteSurface(surface: _polyDataType, 
+
+def WriteSurface(surface: _polyDataType,
                  file_name: str) -> None:
-    """Write surface vtkPolyData. 
-        
+    """Write surface vtkPolyData.
+
     Arguments:
     surface -- surface vtkPolyData object
     file_name -- output file name with full path
-    
+
     Optional arguments:
     mode -- mode to write file (ASCII or binary, default binary)
     """
@@ -89,7 +89,7 @@ def WriteSurface(surface: _polyDataType,
 
 def WriteSpline(points, tangents, file_name):
     """Write spline from points.
-    
+
     Given a set of points and its tangents at each point, writes to VTP file
     the spline formed by the points set.
     """
@@ -122,20 +122,32 @@ def SmoothSurface(surface):
     smoother.NumberOfIterations = int(const.three*const.ten)
     smoother.PassBand = const.one/const.ten
     smoother.Execute()
-    
+
     return smoother.Surface
+
+def ScaleSurface(surface, scale_factor):
+    # Scale surface
+    transform = vtk.vtkTransform()
+    transform.Scale(3*(scale_factor,))
+
+    transformFilter = vtk.vtkTransformPolyDataFilter()
+    transformFilter.SetInputData(surface)
+    transformFilter.SetTransform(transform)
+    transformFilter.Update()
+
+    return transformFilter.GetOutput()
 
 def Cleaner(surface):
     """Polydata cleaner."""
     cleaner = vtk.vtkCleanPolyData()
     cleaner.SetInputData(surface)
     cleaner.Update()
-    
+
     return cleaner.GetOutput()
 
 def GetCellArrays(polydata):
     """Return the names and number of arrays for a vtkPolyData."""
-    
+
     nCellArrays = polydata.GetCellData().GetNumberOfArrays()
 
     return [polydata.GetCellData().GetArray(id_).GetName()
@@ -143,9 +155,9 @@ def GetCellArrays(polydata):
 
 def GetPointArrays(polydata):
     """Return the names of point arrays for a vtkPolyData."""
-    
+
     nPointArrays = polydata.GetPointData().GetNumberOfArrays()
-    
+
     return [polydata.GetPointData().GetArray(id_).GetName()
             for id_ in range(nPointArrays)]
 
@@ -158,7 +170,7 @@ def CleanupArrays(surface):
     for c_array in GetCellArrays(surface):
         surface.GetCellData().RemoveArray(c_array)
 
-    return surface 
+    return surface
 
 
 def ExtractPortion(polydata, array_name, isovalue):
@@ -169,16 +181,16 @@ def ExtractPortion(polydata, array_name, isovalue):
     threshold.SetInputArrayToProcess(0, 0, 0, 1, array_name)
     threshold.ThresholdBetween(isovalue, isovalue)
     threshold.Update()
-    
+
     # Converts vtkUnstructuredGrid -> vtkPolyData
     gridToSurfaceFilter = vtk.vtkGeometryFilter()
     gridToSurfaceFilter.SetInputData(threshold.GetOutput())
     gridToSurfaceFilter.Update()
-    
+
     return gridToSurfaceFilter.GetOutput()
 
 def ExtractConnectedRegion(regions, method, closest_point=None):
-    """Extract the largest or closest to point patch of a disconnected domain. 
+    """Extract the largest or closest to point patch of a disconnected domain.
 
     Given a disconnected surface, extract a portion of the surface by choosing
     the largest or closest to point patch.
@@ -244,7 +256,7 @@ def ClipWithScalar(surface: _polyDataType,
     clipper.SetInputData(surface)
     clipper.SetValue(value)
 
-    if inside_out: 
+    if inside_out:
         clipper.SetInsideOut(1)
     else:
         clipper.SetInsideOut(0)
@@ -280,7 +292,7 @@ def ComputeSurfacesDistance(isurface,
     """Compute point-wise distance between two surfaces.
 
     Compute distance between a reference surface, rsurface, and an input
-    surface, isurface, with the resulting array written in the isurface. 
+    surface, isurface, with the resulting array written in the isurface.
     """
 
     if signed_array:
@@ -340,33 +352,33 @@ class PickPointSeedSelector():
         picker = vtk.vtkCellPicker()
         picker.SetTolerance(1e-4*self._Surface.GetLength())
         eventPosition = self.vmtkRenderer.RenderWindowInteractor.GetEventPosition()
-        
+
         result = picker.Pick(float(eventPosition[0]),
                              float(eventPosition[1]),
                              0.0,
                              self.vmtkRenderer.Renderer)
-        
+
         if result == 0:
             return
-        
+
         pickPosition = picker.GetPickPosition()
         pickedCellPointIds = self._Surface.GetCell(picker.GetCellId()).GetPointIds()
         minDistance = 1e10
         pickedSeedId = -1
-        
+
         for i in range(pickedCellPointIds.GetNumberOfIds()):
             distance = vtk.vtkMath.Distance2BetweenPoints(
                             pickPosition,
                             self._Surface.GetPoint(pickedCellPointIds.GetId(i))
                         )
-            
+
             if distance < minDistance:
                 minDistance  = distance
                 pickedSeedId = pickedCellPointIds.GetId(i)
-                
+
         if pickedSeedId == -1:
             pickedSeedId = pickedCellPointIds.GetId(0)
-            
+
         self.PickedSeedIds.InsertNextId(pickedSeedId)
         point = self._Surface.GetPoint(pickedSeedId)
         self.PickedSeeds.GetPoints().InsertNextPoint(point)
@@ -401,7 +413,7 @@ class PickPointSeedSelector():
         glyphs.SetScaleFactor(self._Surface.GetLength()*0.01)
         glyphMapper = vtk.vtkPolyDataMapper()
         glyphMapper.SetInputConnection(glyphs.GetOutputPort())
-        
+
         self.SeedActor = vtk.vtkActor()
         self.SeedActor.SetMapper(glyphMapper)
         self.SeedActor.GetProperty().SetColor(1.0,0.0,0.0)
@@ -413,11 +425,11 @@ class PickPointSeedSelector():
 
         self.vmtkRenderer.AddKeyBinding('space','Add points',
                                         self.PickCallback)
-        
+
         surfaceMapper = vtk.vtkPolyDataMapper()
         surfaceMapper.SetInputData(self._Surface)
         surfaceMapper.ScalarVisibilityOff()
-        
+
         surfaceActor = vtk.vtkActor()
         surfaceActor.SetMapper(surfaceMapper)
         surfaceActor.GetProperty().SetOpacity(1.0)
@@ -432,7 +444,7 @@ class PickPointSeedSelector():
             self.InitializeSeeds()
             self.vmtkRenderer.Render()
             any_ = self.PickedSeedIds.GetNumberOfIds()
-            
+
         self._SourceSeedIds.DeepCopy(self.PickedSeedIds)
 
         if self.OwnRenderer:
