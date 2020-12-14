@@ -110,12 +110,12 @@ class Aneurysm:
     aneurysm surface must be open for correct computations. Note that the
     calculations of aneurysm parameters performed here are intended for a plane
     aneurysm neck. However, the computations will still occur for a generic
-    neck contour. 
+    neck contour.
     """
 
     def __init__(self, surface, aneurysm_type='', status='', label=''):
         """Initiates aneurysm model.
-        
+
         Given the aneurysm surface and its characteristics, initiates aneurysm
         model by computing its simplest size features: surface area, neck
         surface area, and volume.
@@ -155,10 +155,10 @@ class Aneurysm:
         self._hull_surface = self._aneurysm_convex_hull()
 
     def _cap_aneurysm(self):
-        """Cap aneurysm neck with triangles. 
+        """Cap aneurysm neck with triangles.
 
         Returns aneurysm surface capped with a plane of triangles. Uses VMTK's
-        script 'vmtksurfacecapper'. 
+        script 'vmtksurfacecapper'.
         """
 
         # TODO: I noticed that sometimes (yes, this is subjective) the cap
@@ -426,7 +426,7 @@ class Aneurysm:
             if nVertices > 0:
 
                 # Compute hydraulic diameter of cut line
-                # TODO: will the error to compute the cut surface area due 
+                # TODO: will the error to compute the cut surface area due
                 # to open contour work here
                 hydraulicDiameter = geo.ContourHydraulicDiameter(
                     cutWithPlane.GetOutput()
@@ -443,7 +443,7 @@ class Aneurysm:
         """Return the aspect ratio.
 
         Computes the aneurysm aspect ratio, defined as the ratio between the
-        maximum perpendicular height and the neck diameter. 
+        maximum perpendicular height and the neck diameter.
         """
 
         return self.GetMaximumNormalHeight()/self.GetNeckDiameter()
@@ -454,7 +454,7 @@ class Aneurysm:
         Computes the bottleneck factor, defined as the ratio between the
         maximum diameter and the neck diameter. This index represents the level
         to which the neck acts as a bottleneck to entry of blood during normal
-        physiological function and to coils during endovascular procedures. 
+        physiological function and to coils during endovascular procedures.
         """
 
         return self.GetMaximumDiameter()/self.GetNeckDiameter()
@@ -533,7 +533,7 @@ class Aneurysm:
         # Check if there is any curvature array on the aneurysm surface
         if not all(array in arrayNames for array in curvatureArrays.values()):
 
-            # TODO: find a procedure to remove points close to boundary 
+            # TODO: find a procedure to remove points close to boundary
             # of the computation
             warningMessage = "Warning! I did not find any of the necessary " \
                              "curvature arrays on the surface.\nI will "     \

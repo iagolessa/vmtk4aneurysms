@@ -26,7 +26,7 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
-from . import aneurysm as aneu
+from . import aneurysms as aneu
 
 # Attribute array names
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
@@ -414,11 +414,11 @@ def _compute_gon(np_surface,
 def Hemodynamics(foam_case: str,
                  t_peak_systole: float,
                  t_low_diastole: float,
-                 density=_density,  # kg/m3
-                 field=_foamWSS,
-                 patch=_wallPatch,
-                 compute_gon=False,
-                 compute_afi=False) -> _polyDataType:
+                 density: float = _density,  # kg/m3
+                 field: str = _foamWSS,
+                 patch: str = _wallPatch,
+                 compute_gon: bool = False,
+                 compute_afi: bool = False) -> _polyDataType:
     """Compute hemodynamics of WSS field.
 
     Based on the temporal statistics of the WSS field over a vascular and
@@ -574,13 +574,13 @@ def AneurysmStats(neck_surface: _polyDataType,
     """
 
     pointArrays = tools.GetPointArrays(neck_surface)
-    cellArrays = tools.GetCellArrays(neck_surface)
+    cellArrays  = tools.GetCellArrays(neck_surface)
 
     arrayInSurface = array_name in pointArrays or \
                      array_name in cellArrays
 
     neckArrayInSurface = neck_array_name in pointArrays or \
-                            neck_array_name in cellArrays
+                         neck_array_name in cellArrays
 
     # Check if arrays are on surface
     if not arrayInSurface:
@@ -628,11 +628,11 @@ def AneurysmStats(neck_surface: _polyDataType,
             str(n_percentile)+'percentil': np.percentile(arrayOnAneurysm,
                                                          n_percentile)}
 
-def LsaWssAverage(neck_surface,
-                  neck_array_name,
-                  lowWSS,
-                  neck_iso_value=0.5,
-                  avgMagWSSArray=_TAWSS):
+def LsaAverage(neck_surface: _polyDataType,
+                  lowWSS: float,
+                  neck_array_name: str = aneu.AneurysmNeckArrayName,
+                  neck_iso_value: float = aneu.NeckIsoValue,
+                  avgMagWSSArray: str = _TAWSS):
     """Computes the LSA based on the time-averaged WSS field.
 
     Calculates the LSA (low WSS area ratio) for aneurysms simulations performed
@@ -667,8 +667,8 @@ def LsaWssAverage(neck_surface,
 # artery portion and that includes
 def WssParentVessel(parent_artery_surface: _polyDataType,
                     parent_artery_array: str = aneu.ParentArteryArrayName,
-                    parent_artery_iso_value=0.5,
-                    wss_field=_TAWSS) -> float:
+                    parent_artery_iso_value: float = aneu.NeckIsoValue,
+                    wss_field: str = _TAWSS) -> float:
     """Calculates the surface averaged WSS value over the parent artery."""
 
     try:
@@ -767,12 +767,12 @@ def WssSurfaceAverage(foam_case: str,
 
 def LsaInstant(foam_case: str,
                neck_surface: _polyDataType,
-               neck_array_name: str,
                low_wss: float,
-               neck_iso_value=_neck_value,
-               density=_density,
-               field=_foamWSS,
-               patch=_wallPatch) -> list:
+               neck_array_name: str = aneu.AneurysmNeckArrayName,
+               neck_iso_value: float = aneu.NeckIsoValue,
+               density: float = _density,
+               field: str = _foamWSS,
+               patch: str = _wallPatch) -> list:
     """Compute the LSA over time.
 
     Calculates the LSA (low WSS area ratio) for aneurysm simulations performed

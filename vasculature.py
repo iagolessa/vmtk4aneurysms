@@ -12,7 +12,7 @@ import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
-from . import aneurysm
+from . import aneurysms as aneu
 from .aneurysm_neck import AneurysmNeckPlane 
 
 from .lib import centerlines as cnt
@@ -221,7 +221,7 @@ class Vasculature:
                                         self._surface_model.GetSurfaceObject()
                                     )
 
-            self._aneurysm_model = aneurysm.Aneurysm(
+            self._aneurysm_model = aneu.Aneurysm(
                                         aneurysm_surface,
                                         **aneurysm_prop
                                     )
