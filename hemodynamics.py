@@ -134,7 +134,7 @@ def GetPatchFieldOverTime(foam_case: str,
                           field_name: str,
                           active_patch_name: str) -> (_polyDataType, dict):
     """Gets a time-varying patch field from an OpenFOAM case.
-    
+
     Given an OpenFOAM case, the field name and the patch name, return a tuple
     with the patch surface and a dictionary with the time-varying field with
     the instants as keys and the value the field given as a VTK Numpy Array.
@@ -189,9 +189,10 @@ def GetPatchFieldOverTime(foam_case: str,
     activePatch = surface.GetBlock(0)
 
     # Check if array in surface
-    arraysInPatch = tools.GetCellArrays(activePatch)
+    cellArraysInPatch  = tools.GetCellArrays(activePatch)
+    pointArraysInPatch = tools.GetPointArrays(activePatch)
 
-    if field_name not in arraysInPatch:
+    if field_name not in cellArraysInPatch:
         message = "Field {} not in surface patch {}.".format(field_name,
                                                              active_patch_name)
 
@@ -207,11 +208,14 @@ def GetPatchFieldOverTime(foam_case: str,
 
     fieldOverTime = {time: _get_field(time) for time in timeSteps}
 
-    # Clean surface from any field
+    # Clean surface from any point or cell field
     activePatch = npActivePatch.VTKObject
 
-    for arrayName in arraysInPatch:
+    for arrayName in cellArraysInPatch:
         activePatch.GetCellData().RemoveArray(arrayName)
+
+    for arrayName in pointArraysInPatch:
+        activePatch.GetPointData().RemoveArray(arrayName)
 
     return npActivePatch.VTKObject, fieldOverTime
 
