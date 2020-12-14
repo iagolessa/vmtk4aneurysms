@@ -26,12 +26,13 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
+from . import aneurysm as aneu
+
 # Attribute array names
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
 _multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 
 _density = 1056.0 # SI units
-_neck_value = 0.5
 
 # Field suffixes
 _avg = '_average'
@@ -74,8 +75,6 @@ _normals = 'Normals'
 # Other attributes
 _foamWSS = 'wallShearComponent'
 _wallPatch = 'wall'
-_aneurysmNeckArray = 'AneurysmNeckContourArray'
-_parentArteryArray = 'ParentArteryContourArray'
 
 
 def _normL2(array, axis):
@@ -411,86 +410,6 @@ def _compute_gon(np_surface,
     setArray(avgGVecArray, _WSSSG)
     setArray(avgMagGVecArray, _WSSSGmag)
 
-def _select_aneurysm(surface: _polyDataType) -> _polyDataType:
-    """Compute array marking the aneurysm neck.
-
-    Given a vasculature with the an aneurysm, prompts the user to draw the
-    aneurysm neck on the surface. Th function then defines an array on the
-    surface with value 0 on the aneurysm and 1 out of the aneurysm .
-
-    Note: VMTK uses its length dimensions in millimeters. Since this
-    function is intended to operate on surfaces that were used in an
-    OpenFOAM simulation, it must be already in meters. So we scaled it to
-    millimeters here so the smoothing algorithm works as intended. Also, the
-    smoothing array script works better on good quality triangle surfaces,
-    hence the function operates on a remeshed surface with good quality
-    tiangles and map the results back to the original surface.
-    """
-
-    # Keep reference to surface, because the region drawing script triangulates
-    # the output
-    originalSurface = surface
-
-    scaledSurface = tools.ScaleSurface(surface, const.millimeterToMeterFactor)
-
-    # It is better to remesh the triangulated surface because the triangulate
-    # filter applied to a polygonal surface yields poor quality triangles
-    triangulate = vtk.vtkTriangleFilter()
-    triangulate.SetInputData(scaledSurface)
-    triangulate.Update()
-
-    remesher = vmtkscripts.vmtkSurfaceRemeshing()
-    remesher.Surface = triangulate.GetOutput()
-    remesher.ElementSizeMode = 'edgelength'
-    remesher.TargetEdgeLength = 0.2
-    remesher.TargetEdgeLengthFactor = 1.0
-    remesher.PreserveBoundaryEdges = 1
-    remesher.Execute()
-
-    # Compute aneurysm contour
-    aneurysmSelection = vmtkscripts.vmtkSurfaceRegionDrawing()
-    aneurysmSelection.Surface = tools.Cleaner(remesher.Surface)
-    aneurysmSelection.InsideValue  = 0.0 # the aneurysm portion
-    aneurysmSelection.OutsideValue = 1.0
-    aneurysmSelection.ContourScalarsArrayName = _aneurysmNeckArray
-    aneurysmSelection.Execute()
-
-    smoother = vmtkscripts.vmtkSurfaceArraySmoothing()
-    smoother.Surface = aneurysmSelection.Surface
-    smoother.Connexity  = 1
-    smoother.Iterations = 10
-    smoother.SurfaceArrayName = aneurysmSelection.ContourScalarsArrayName
-    smoother.Execute()
-
-    # Scale bacj to meters
-    rescaledSurface = tools.ScaleSurface(smoother.Surface,
-                                         1.0/const.millimeterToMeterFactor)
-
-    # Map the field back to the original surface
-    surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
-    surfaceProjection.SetInputData(originalSurface)
-    surfaceProjection.SetReferenceSurface(rescaledSurface)
-    surfaceProjection.Update()
-
-    return surfaceProjection.GetOutput()
-
-def _select_parent_artery(surface: _polyDataType) -> _polyDataType:
-    """Compute array masking the parent vessel region."""
-    parentArteryDrawer = vmtkscripts.vmtkSurfaceRegionDrawing()
-    parentArteryDrawer.Surface = surface
-    parentArteryDrawer.InsideValue = 0.0
-    parentArteryDrawer.OutsideValue = 1.0
-    parentArteryDrawer.ContourScalarsArrayName = _parentArteryArray
-    parentArteryDrawer.Execute()
-
-    smoother = vmtkscripts.vmtkSurfaceArraySmoothing()
-    smoother.Surface = parentArteryDrawer.Surface
-    smoother.Connexity = 1
-    smoother.Iterations = 10
-    smoother.SurfaceArrayName = parentArteryDrawer.ContourScalarsArrayName
-    smoother.Execute()
-
-    return smoother.Surface
 
 def Hemodynamics(foam_case: str,
                  t_peak_systole: float,
@@ -639,10 +558,10 @@ def Hemodynamics(foam_case: str,
     return numpySurface.VTKObject
 
 def AneurysmStats(neck_surface: _polyDataType,
-                  neck_array_name: str,
                   array_name: str,
+                  neck_array_name: str = aneu.AneurysmNeckArrayName,
                   n_percentile: float = 95,
-                  neck_iso_value: float = 0.5) -> dict:
+                  neck_iso_value: float = aneu.NeckIsoValue) -> dict:
     """Compute statistics of array on aneurysm surface.
 
     Given a surface with the fields of hemodynamics variables defined on it,
@@ -671,7 +590,7 @@ def AneurysmStats(neck_surface: _polyDataType,
 
     if not neckArrayInSurface:
         # Compute neck array
-        neck_surface = _select_aneurysm(neck_surface)
+        neck_surface = aneu.SelectAneurysm(neck_surface)
     else:
         pass
 
@@ -747,7 +666,7 @@ def LsaWssAverage(neck_surface,
 # this function that the surface is already cut to in- clude only the parent
 # artery portion and that includes
 def WssParentVessel(parent_artery_surface: _polyDataType,
-                    parent_artery_array: str,
+                    parent_artery_array: str = aneu.ParentArteryArrayName,
                     parent_artery_iso_value=0.5,
                     wss_field=_TAWSS) -> float:
     """Calculates the surface averaged WSS value over the parent artery."""
@@ -763,7 +682,7 @@ def WssParentVessel(parent_artery_surface: _polyDataType,
 
     if parent_artery_array not in pointArrays:
         # Compute parent artery portion
-        surface = _select_parent_artery(surface)
+        surface = aneu.SelectParentArtery(surface)
     else:
         pass
 
@@ -784,8 +703,8 @@ def WssParentVessel(parent_artery_surface: _polyDataType,
 
 def WssSurfaceAverage(foam_case: str,
                       neck_surface: _polyDataType = None,
-                      neck_array_name: str = _aneurysmNeckArray,
-                      neck_iso_value: float = 0.5,
+                      neck_array_name: str = aneu.AneurysmNeckArrayName,
+                      neck_iso_value: float = aneu.NeckIsoValue,
                       density: float = _density,
                       field: str = _foamWSS,
                       patch: str = _wallPatch):
