@@ -27,10 +27,10 @@ def Distance(point1, point2):
 
     return math.sqrt(sqrDistance)
 
-def SpatialGradient(surface: _polyDataType, 
+def SpatialGradient(surface: _polyDataType,
                     field_name: str) -> _polyDataType:
     """Compute gradient of field on a surface."""
-    
+
     gradient = vtk.vtkGradientFilter()
     gradient.SetInputData(surface)
 
@@ -47,46 +47,46 @@ def SpatialGradient(surface: _polyDataType,
 
     return gradient.GetOutput()
 
-def SurfaceGradient(surface: _polyDataType, 
+def SurfaceGradient(surface: _polyDataType,
                     field_name: str) -> _polyDataType:
     """Compute surface gradient of field on a surface.
-    
+
     Given the surface (vtkPolyData) and the scalar field name, compute the
     tangential or surface gradient of it on the surface.
     """
-    
+
     cellData = surface.GetCellData()
     nArrays  = cellData.GetNumberOfArrays()
-    
+
     # Compute normals, if necessary
     arrays = (cellData.GetArray(id_).GetName()
               for id_ in range(nArrays))
-    
+
     if _normals not in arrays:
         surface = SurfaceNormals(surface)
-        
+
     # Compute spatial gradient (adds field)
     surfaceWithGradient = SpatialGradient(surface, field_name)
-    
+
     # GetArrays
     npSurface = dsa.WrapDataObject(surfaceWithGradient)
     getArray = npSurface.GetCellData().GetArray
-    
+
     normalsArray  = getArray(_normals)
     gradientArray = getArray(field_name + _grad)
-    
+
     # Compute the normal gradient = vec(n) dot grad(field)
     normalGradient = multiply(normalsArray, gradientArray).sum(axis=1)
 
     # Compute the surface gradient
     surfaceGrad = gradientArray - normalGradient*normalsArray
-    
-    npSurface.CellData.append(surfaceGrad, 
+
+    npSurface.CellData.append(surfaceGrad,
                               field_name + _sgrad)
-    
+
     # Clean up
     npSurface.GetCellData().RemoveArray(field_name + _grad)
-    
+
     return npSurface.VTKObject
 
 def ContourPerimeter(contour):
@@ -176,18 +176,39 @@ def ContourIsClosed(contour):
 
     return nVertices == nEdges
 
+def WarpPolydata(polydata, field_name):
+    """Given a vtkPolyData with a field, warp it by the field."""
+
+    # Convert cell data to point data
+    cellToPointFilter = vtk.vtkCellDataToPointData()
+    cellToPointFilter.SetInputData(polydata)
+    cellToPointFilter.Update()
+
+    newPolydata = cellToPointFilter.GetOutput()
+
+    displData = newPolydata.GetPointData().GetArray(field_name)
+    newPolydata.GetPointData().SetActiveVectors(displData.GetName())
+
+    # Warp the surfaces at the two instants
+    warpPolydata = vtk.vtkWarpVector()
+    warpPolydata.SetInputData(newPolydata)
+    warpPolydata.SetScaleFactor(1.0)
+    warpPolydata.Update()
+
+    return warpPolydata.GetOutput()
+
 class Surface():
     """Computational model of a three-dimensional surface."""
-    
+
     def __init__(self, vtk_poly_data):
         """Build surface model from vtkPolyData.
-        
+
         Given a vtkPolyData characterizing a surface in the 3D Euclidean space,
         automatically computes its outwards unit normal fiels, stored as
         'Normals' and its curvature type field based on the Gaussian and mean
         curvatures.
         """
-        
+
         self._surface_object = Surface.Normals(vtk_poly_data)
         self._surface_object = Surface.Curvatures(self._surface_object)
 
@@ -216,9 +237,9 @@ class Surface():
         """Compute volume of closed surface.
 
         Computes the volume of an assumed orientable surface. Works internally
-        with VTK, so it assumes that the surface is closed. 
+        with VTK, so it assumes that the surface is closed.
         """
-        
+
         triangulate = vtk.vtkTriangleFilter()
         triangulate.SetInputData(surface_object)
         triangulate.Update()
@@ -235,7 +256,7 @@ class Surface():
         volume.Update()
 
         return volume.GetVolume()
-    
+
     @staticmethod
     def Normals(surface_object: _polyDataType) -> _polyDataType:
         """Compute outward surface normals."""
@@ -250,7 +271,7 @@ class Surface():
         normals.Update()
 
         return normals.GetOutput()
- 
+
     @staticmethod
     def Curvatures(surface_object: _polyDataType) -> _polyDataType:
         """Compute curvature of surface.
@@ -297,38 +318,38 @@ class Surface():
         meanCurvature  = npCurvatures.GetCellData().GetArray('Mean_Curvature')
 
         surfaceLocalShapes = {
-            'ellipticalConvex' : 
-                {'condition': (GaussCurvature >  0.0) & (meanCurvature >  0.0), 
+            'ellipticalConvex' :
+                {'condition': (GaussCurvature >  0.0) & (meanCurvature >  0.0),
                  'id': 1},
-            'ellipticalConcave': 
-                {'condition': (GaussCurvature >  0.0) & (meanCurvature <  0.0), 
+            'ellipticalConcave':
+                {'condition': (GaussCurvature >  0.0) & (meanCurvature <  0.0),
                  'id': 2},
             'elliptical'       : # apparently, not possible
-                {'condition': (GaussCurvature >  0.0) & (meanCurvature == 0.0), 
-                 'id': 3}, 
-            'hyperbolicConvex' : 
-                {'condition': (GaussCurvature <  0.0) & (meanCurvature >  0.0), 
+                {'condition': (GaussCurvature >  0.0) & (meanCurvature == 0.0),
+                 'id': 3},
+            'hyperbolicConvex' :
+                {'condition': (GaussCurvature <  0.0) & (meanCurvature >  0.0),
                  'id': 4},
-            'hyperboliConcave' : 
-                {'condition': (GaussCurvature <  0.0) & (meanCurvature <  0.0), 
+            'hyperboliConcave' :
+                {'condition': (GaussCurvature <  0.0) & (meanCurvature <  0.0),
                  'id': 5},
-            'hyperbolic'       : 
-                {'condition': (GaussCurvature <  0.0) & (meanCurvature == 0.0), 
+            'hyperbolic'       :
+                {'condition': (GaussCurvature <  0.0) & (meanCurvature == 0.0),
                  'id': 6},
-            'cylindricConvex'  : 
-                {'condition': (GaussCurvature == 0.0) & (meanCurvature >  0.0), 
+            'cylindricConvex'  :
+                {'condition': (GaussCurvature == 0.0) & (meanCurvature >  0.0),
                  'id': 7},
-            'cylindricConcave' : 
-                {'condition': (GaussCurvature == 0.0) & (meanCurvature <  0.0), 
+            'cylindricConcave' :
+                {'condition': (GaussCurvature == 0.0) & (meanCurvature <  0.0),
                  'id': 8},
-            'planar'           : 
-                {'condition': (GaussCurvature == 0.0) & (meanCurvature == 0.0), 
+            'planar'           :
+                {'condition': (GaussCurvature == 0.0) & (meanCurvature == 0.0),
                  'id': 9}
         }
 
         LocalShapeArray = zeros(shape=len(meanCurvature), dtype=int)
 
-        for shape in surfaceLocalShapes.values(): 
+        for shape in surfaceLocalShapes.values():
             LocalShapeArray += where(shape.get('condition'), shape.get('id'), 0)
 
         npCurvatures.CellData.append(LocalShapeArray, 'Local_Shape_Type')
@@ -338,7 +359,7 @@ class Surface():
     def GetSurfaceObject(self):
         """Return the surface vtkPolyData object."""
         return self._surface_object
-    
+
     def GetSurfaceArea(self):
         return Surface.Area(self._surface_object)
 
