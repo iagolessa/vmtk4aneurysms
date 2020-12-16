@@ -218,6 +218,127 @@ def GetPatchFieldOverTime(foam_case: str,
 
     return npActivePatch.VTKObject, fieldOverTime
 
+def FieldTimeStats(surface: _polyDataType,
+                   field_name: str,
+                   temporal_field: dict,
+                   t_peak_systole: float,
+                   t_low_diastole: float) -> _polyDataType:
+    """Compute field time statistics from OpenFOAM data.
+
+    Get time statistics of a field defined on a surface S
+    over time for a cardiac cycle, generated with OpenFOAM. Outputs a surface
+    with: the time-averaged of the field magnitude (if not a scalar), maximum
+    and minimum over time, peak-systole and low-diastole fields.
+
+    Arguments:
+        surface (vtkPolyData) -- the surface where the field is defined;
+        temporal_field (dict) -- a dictuionary with the field over each instant;
+        t_peak_systole (float) -- instant of the peak systole;
+        t_low_diastole (float) -- instant of the low diastole;
+    """
+    npSurface = dsa.WrapDataObject(surface)
+
+    # Get field over time as a Numpy array in ordered manner
+    timeSteps = list(temporal_field.keys())
+
+    # Sort list of time steps
+    timeSteps.sort()
+    fieldOverTime = dsa.VTKArray([temporal_field.get(time)
+                                  for time in timeSteps])
+
+    # Assum that the input field is a scalar field
+    # then assign the magnitude field to itself
+    # it will be changed later if tensor order higher than 1
+    fieldMagOverTime = fieldOverTime.copy()
+
+    # Check if size of field equals number of cells
+    if surface.GetNumberOfCells() not in fieldOverTime.shape:
+        sys.exit("Size of surface and of field do not match.")
+    else:
+        pass
+
+    # Check if low diastole or peak systoel not in time list
+    lastTimeStep  = max(timeSteps)
+    firstTimeStep = min(timeSteps)
+
+    if t_low_diastole not in timeSteps:
+        warningMsg = "Low diastole instant not in " \
+                     "time-steps list. Using last time-step."
+        warnings.warn(warningMsg)
+
+        t_low_diastole = lastTimeStep
+
+    elif t_peak_systole not in timeSteps:
+        warningMsg = "Peak-systole instant not in " \
+                     "time-steps list. Using first time-step."
+        warnings.warn(warningMsg)
+
+        t_peak_systole = firstTimeStep
+    else:
+        pass
+
+    # List of tuples to store stats arrays and their name
+    # [(array1, name1), ... (array_n, name_n)]
+    arraysToBeStored = []
+    storeArray = arraysToBeStored.append
+
+    # Get peak-systole and low-diastole WSS
+    storeArray(
+        (temporal_field.get(t_peak_systole, None),
+         _peakSystoleWSS if field_name == _WSS
+                         else '_'.join(["peak_systole", field_name]))
+    )
+
+    storeArray(
+        (temporal_field.get(t_low_diastole, None),
+         _lowDiastoleWSS if field_name == _WSS
+                         else '_'.join(["low_diastole", field_name]))
+    )
+
+    # Get period of time steps
+    period   = lastTimeStep - firstTimeStep
+    timeStep = period/len(timeSteps)
+
+    # Append to the numpy surface wrap
+    appendToSurface = npSurface.CellData.append
+
+    # Compute the time-average of the WSS vector
+    # assumes uniform time-step (calculated above)
+    storeArray(
+        (_time_average(fieldOverTime, timeStep, period),
+         field_name + _avg)
+    )
+
+    # If the array is a tensor of order higher than one
+    # compute its magnitude too
+    if len(fieldOverTime.shape) == 3:
+        # Compute the time-average of the magnitude of the WSS vector
+        fieldMagOverTime = _normL2(fieldOverTime, 2)
+
+        storeArray(
+            (_time_average(fieldMagOverTime, timeStep, period),
+             _TAWSS if field_name == _WSS else field_name + _mag + _avg)
+        )
+
+    else:
+        pass
+
+    storeArray(
+        (fieldMagOverTime.max(axis=0),
+         field_name + _mag + _max)
+    )
+
+    storeArray(
+        (fieldMagOverTime.min(axis=0),
+         field_name + _mag + _min)
+    )
+
+    # Finally, append all arrays to surface
+    for array, name in arraysToBeStored:
+        appendToSurface(array, name)
+
+    return npSurface.VTKObject
+
 def _wss_over_time(foam_case: str,
                    density=_density,
                    field=_foamWSS,
@@ -254,90 +375,12 @@ def _wss_time_stats(surface: _polyDataType,
     with: the time-averaged WSS, maximum and minimum over time, peak-systole
     and low-diastole WSS vector fields. Since this function use OpenFOAM data,
     specify the density considered.
-
-    Arguments:
-        OpenFOAM case file (str) -- name of OpenFOAM .foam case;
-        wssFieldName (str, optional) -- string containing the name of the wall
-            shear stress field (default="wallShearComponent");
-        patchName (str, optional) -- patch name where to calculate the OSI
-            (default="wall");
-        blood density (float, optional) -- default 1056.0 kg/m3.
     """
-    npSurface = dsa.WrapDataObject(surface)
 
-    # Get WSS over time in ordered manner
-    timeSteps = list(temporal_wss.keys())
-
-    # Sort list of time steps
-    timeSteps.sort()
-    wssVecOverTime = dsa.VTKArray([temporal_wss.get(time)
-                                   for time in timeSteps])
-
-    # Compute the time-average of the magnitude of the WSS vector
-    wssMagOverTime = _normL2(wssVecOverTime, 2)
-
-    # Check if low diastole or peak systoel not in time list
-    lastTimeStep = max(timeSteps)
-    firstTimeStep = min(timeSteps)
-
-    if t_low_diastole not in timeSteps:
-        warningMsg = "Low diastole instant not in " \
-                     "time-steps list. Using last time-step."
-        print(warningMsg, end='\n')
-
-        t_low_diastole = lastTimeStep
-
-    elif t_peak_systole not in timeSteps:
-        warningMsg = "Peak-systole instant not in " \
-                     "time-steps list. Using first time-step."
-        print(warningMsg, end='\n')
-
-        t_peak_systole = firstTimeStep
-
-    # List of tuples to store stats arrays and their name
-    # [(array1, name1), ... (array_n, name_n)]
-    arraysToBeStored = []
-    storeArray = arraysToBeStored.append
-
-    # Get peak-systole and low-diastole WSS
-    storeArray((temporal_wss[t_peak_systole], _peakSystoleWSS))
-    storeArray((temporal_wss[t_low_diastole], _lowDiastoleWSS))
-
-    # Get period of time steps
-    period = lastTimeStep - firstTimeStep
-    timeStep = period/len(timeSteps)
-
-    # Append to the numpy surface wrap
-    appendToSurface = npSurface.CellData.append
-
-    # Compute the time-average of the WSS vector
-    # assumes uniform time-step (calculated above)
-    storeArray(
-        (_time_average(wssVecOverTime, timeStep, period),
-         _WSS + _avg)
-    )
-
-    storeArray(
-        (_time_average(wssMagOverTime, timeStep, period),
-         _TAWSS)
-    )
-
-    storeArray(
-        (wssMagOverTime.max(axis=0),
-         _WSSmag + _max)
-    )
-
-    storeArray(
-        (wssMagOverTime.min(axis=0),
-         _WSSmag + _min)
-    )
-
-    # Finally, append all arrays to surface
-    for array, name in arraysToBeStored:
-        appendToSurface(array, name)
-
-    return npSurface.VTKObject
-
+    return FieldTimeStats(surface, _WSS,
+                          temporal_wss,
+                          t_peak_systole,
+                          t_low_diastole)
 
 def _compute_gon(np_surface,
                  temporal_wss,
