@@ -335,6 +335,16 @@ def vtkPolyDataToDataFrame(polydata: _polyDataType) -> pd.core.frame.DataFrame:
     the fields (separated by component, if necessary). The index column is the
     cell index id.
     """
+    # Check if polydata has any point arrays and interpolate them to cells
+    pointArrays = GetPointArrays(polydata)
+
+    if pointArrays:
+        pointToCellData = vtk.vtkPointDataToCellData()
+        pointToCellData.SetInputData(polydata)
+        pointToCellData.Update()
+
+        polydata = pointToCellData.GetOutput()
+
     # Convert cell centers to points
     cellCenters = vtk.vtkCellCenters()
     cellCenters.VertexCellsOff()
