@@ -14,6 +14,7 @@ aneurysm surface, if this is the case.
 
 import os
 import sys
+import warnings
 import numpy as np
 from scipy.integrate import simps
 
@@ -286,13 +287,13 @@ def FieldTimeStats(surface: _polyDataType,
     storeArray(
         (temporal_field.get(t_peak_systole, None),
          _peakSystoleWSS if field_name == _WSS
-                         else '_'.join(["peak_systole", field_name]))
+                         else '_'.join([field_name, "peak_systole"]))
     )
 
     storeArray(
         (temporal_field.get(t_low_diastole, None),
          _lowDiastoleWSS if field_name == _WSS
-                         else '_'.join(["low_diastole", field_name]))
+                         else '_'.join([field_name, "low_diastole"]))
     )
 
     # Get period of time steps
@@ -611,7 +612,7 @@ def AneurysmStats(neck_surface: _polyDataType,
     computes the average, maximum, minimum, percetile (value passed as optional
     by the user) and the area averaged over the aneurysm surface.  Assumes that
     the surface also contain a binary array value that indicates the aneurysm
-    portion with 0 and 1 the rest of the vasculature. The function uses this
+    portion with 0 and 1 on the rest of the vasculature. The function uses this
     array to clip the aneurysm portion. If this is not present on the surface,
     the function prompts the user to delineate the aneurysm neck.
     """
@@ -668,7 +669,7 @@ def AneurysmStats(neck_surface: _polyDataType,
             'average': np.average(arrayOnAneurysm),
             'maximum': np.max(arrayOnAneurysm),
             'minimum': np.min(arrayOnAneurysm),
-            str(n_percentile)+'percentil': np.percentile(arrayOnAneurysm,
+            'percentil'+str(n_percentile): np.percentile(arrayOnAneurysm,
                                                          n_percentile)}
 
 def LsaAverage(neck_surface: _polyDataType,
