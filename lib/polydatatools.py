@@ -2,17 +2,23 @@
 
 import os
 import sys
+import pandas as pd
 
 import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
+from vtk.numpy_interface import dataset_adapter as dsa
 
 from . import constants as const
 
 # Types
 _polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
 _multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
+
+xAxisSufx = "X"
+yAxisSufx = "Y"
+zAxisSufx = "Z"
 
 def ReadSurface(file_name: str) -> _polyDataType:
     """Read surface file to VTK object.
@@ -317,6 +323,63 @@ def ComputeSurfacesDistance(isurface,
     surfaceDistance.Update()
 
     return surfaceDistance.GetOutput()
+
+def vtkPolyDataToDataFrame(polydata: _polyDataType) -> pd.core.frame.DataFrame:
+    """Convert a vtkPolyData with cell arrays to Pandas DataFrame.
+
+    Given a vtkPolyData object containing cell arrays of any kind (scalars,
+    vectors, etc), convert it to a Pandas DataFrame structure after converting
+    the cell centers, where the cell data are defined, to points.
+
+    Returns a Panda's DataFrame objects with the columns the cell centers and
+    the fields (separated by component, if necessary). The index column is the
+    cell index id.
+    """
+    # Convert cell centers to points
+    cellCenters = vtk.vtkCellCenters()
+    cellCenters.VertexCellsOff()
+    cellCenters.SetInputData(polydata)
+    cellCenters.Update()
+
+    npPolyData = dsa.WrapDataObject(cellCenters.GetOutput())
+
+    cellCenterArrayName = "CellCenter"
+    axSuffixes = [xAxisSufx, yAxisSufx, zAxisSufx]
+
+    pointsToDataFrame = pd.DataFrame(npPolyData.GetPoints(),
+                                     columns=["_".join([cellCenterArrayName,sfx])
+                                              for sfx in axSuffixes])
+
+    pointData = npPolyData.GetPointData()
+
+    arrayNames = [pointData.GetArray(index).GetName()
+                  for index in range(pointData.GetNumberOfArrays())]
+
+    arraysOnTheSurface = []
+
+    for arrayName in arrayNames:
+        # Get array dimension to define columns names
+        if pointData.GetArray(arrayName).ndim == 2:
+            colNames = ["_".join([arrayName, sfx])
+                        for sfx in axSuffixes]
+
+        elif pointData.GetArray(arrayName).ndim == 1:
+            colNames = [arrayName]
+
+        else:
+            errMessage = "There is something wrong!" \
+                         "I got an array with dimension > 2 on a surface!"
+            sys.exit(errMessage)
+
+        arraysOnTheSurface.append(
+            pd.DataFrame(
+                pointData.GetArray(arrayName),
+                columns=colNames
+            )
+        )
+
+    return pd.concat([pointsToDataFrame] + arraysOnTheSurface,
+                     axis=1)
 
 # This class was adapted from the 'vmtkcenterlines.py' script
 # distributed with VMTK in https://github.com/vmtk/vmtk
