@@ -59,17 +59,6 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
-        if self.Remesh:
-            surfaceRemesh = vmtkscripts.vmtkSurfaceRemeshing()
-            surfaceRemesh.Surface = self.Surface
-            surfaceRemesh.ElementSizeMode = 'edgelength'
-            surfaceRemesh.TargetEdgeLength = 0.1
-            surfaceRemesh.TargetEdgeLengthFactor = 1
-            surfaceRemesh.PreserveBoundaryEdges = 1
-            surfaceRemesh.Execute()
-
-            self.Surface = surfaceRemesh.Surface
-
         surfaceFlowExtensions = vmtkscripts.vmtkFlowExtensions()
         surfaceFlowExtensions.Surface = self.Surface
         surfaceFlowExtensions.InterpolationMode = 'thinplatespline'
@@ -87,8 +76,21 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
         surfaceFlowExtensions.Sigma = 1.0
         surfaceFlowExtensions.Execute()
 
+        self.Surface = surfaceFlowExtensions.Surface
+
+        if self.Remesh:
+            surfaceRemesh = vmtkscripts.vmtkSurfaceRemeshing()
+            surfaceRemesh.Surface = self.Surface
+            surfaceRemesh.ElementSizeMode = 'edgelength'
+            surfaceRemesh.TargetEdgeLength = 0.1
+            surfaceRemesh.TargetEdgeLengthFactor = 1
+            surfaceRemesh.PreserveBoundaryEdges = 1
+            surfaceRemesh.Execute()
+
+            self.Surface = surfaceRemesh.Surface
+
         boundaryReferenceSystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
-        boundaryReferenceSystems.SetInputData(surfaceFlowExtensions.Surface)
+        boundaryReferenceSystems.SetInputData(self.Surface)
         boundaryReferenceSystems.SetBoundaryRadiusArrayName("BoundaryRadius")
         boundaryReferenceSystems.SetBoundaryNormalsArrayName("BoundaryNormals")
         boundaryReferenceSystems.SetPoint1ArrayName("Point1Array")
@@ -148,7 +150,7 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
         transform.RotateWXYZ(angle, cross)
 
         transformFilter = vtk.vtkTransformPolyDataFilter()
-        transformFilter.SetInputData(surfaceFlowExtensions.Surface)
+        transformFilter.SetInputData(self.Surface)
         transformFilter.SetTransform(transform)
         transformFilter.Update()
 
