@@ -43,6 +43,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.SelectAneurysmRegions = False
         self.LocalScaleFactor = 0.75
+        self.OnlyUpdateThickness = False
 
         self.GenerateWallMesh = False
         self.WallMesh = None
@@ -96,6 +97,10 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             ['LocalScaleFactor', 'localfactor', 'float', 1, '',
                 'scale fator to control local aneurysm thickness'],
+
+            ['OnlyUpdateThickness', 'updatethickness', 'bool', 1, '',
+                'if the thickness array already exists, this options enables '\
+                'only to update it'],
         ])
 
         self.SetOutputMembers([
@@ -198,7 +203,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         Based on the surface and assuming that the inlet is the
         open profile with largest area, return a tuple with two lists:
-        the first includes the coordinates of the inlet and the second 
+        the first includes the coordinates of the inlet and the second
         the coordinates of the outlets.
         """
 
@@ -394,20 +399,20 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         distanceToCenterlines.SetEvaluateCenterlineRadius(True)
         distanceToCenterlines.SetEvaluateTubeFunction(False)
         distanceToCenterlines.SetProjectPointArrays(False)
-        
+
         distanceToCenterlines.SetDistanceToCenterlinesArrayName(
             self.ThicknessArrayName
         )
 
         distanceToCenterlines.SetCenterlineRadiusArrayName(self.RadiusArrayName)
-        distanceToCenterlines.Update()    
-        
+        distanceToCenterlines.Update()
+
         surface = distanceToCenterlines.GetOutput()
 
         distanceArray = surface.GetPointData().GetArray(self.ThicknessArrayName)
         radiusArray   = surface.GetPointData().GetArray(self.RadiusArrayName)
 
-        # This portion evaluates if distance is much higher 
+        # This portion evaluates if distance is much higher
         # than the actual radius array
         # This necessarily will need ome smoothing
 
@@ -431,7 +436,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         # Remove radius array
         surface.GetPointData().RemoveArray(self.RadiusArrayName)
-            
+
         # Smooth the distance to centerline array
         # to avoid sudden changes of thickness in
         # certain regions
@@ -446,12 +451,12 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # the local radius array by using the algorithm contained
         # in the vmtksurfacearrayoperation script
         array = surface.GetPointData().GetArray(self.ThicknessArrayName)
-        
+
         for index in range(array.GetNumberOfTuples()):
             # Get value
             value = array.GetTuple1(index)
             array.SetTuple1(index, 2.0*self.WallLumenRatio*value)
-            
+
         self.Surface = surface
 
     def SetAneurysmThickness(self):
@@ -553,7 +558,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             thicknessValue = thicknessArray.GetTuple1(i)
 
             if selectionValue > 0.0:
-                # Selection value in this case is the distance to the neck 
+                # Selection value in this case is the distance to the neck
                 # contour: so a distance based average
                 weight = 1.0/(selectionValue + _SMALL)
 
@@ -693,13 +698,13 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         wallMesh.IncludeSurfaceCells = 0
         wallMesh.NegateWarpVectors = 0
         wallMesh.Execute()
-        
+
         # Clean fields and cell arrays
         solidWallMesh = wallMesh.Mesh
-        
+
         nFields     = solidWallMesh.GetFieldData().GetNumberOfArrays()
         nCellArrays = solidWallMesh.GetCellData().GetNumberOfArrays()
-        
+
         for field in range(nFields):
             solidWallMesh.GetFieldData().RemoveArray(field)
 
@@ -713,14 +718,14 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
-        # I had a bug with the 'select thinner regions' with 
+        # I had a bug with the 'select thinner regions' with
         # polygonal meshes. So, operate on a triangulated surface
         # and map final result to orignal surface
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInputData(self.Surface)
         cleaner.Update()
-        
-        # Reference to original surface 
+
+        # Reference to original surface
         polygonalSurface = cleaner.GetOutput()
 
         # But will operate on this one
@@ -741,18 +746,23 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.vmtkRenderer.RegisterScript(self)
 
-        self.ComputeVasculatureThickness()
+        if not self.OnlyUpdateThickness:
 
-        if self.Aneurysm:
-            for _ in range(self.NumberOfAneurysms):
-                self.SetAneurysmThickness()
+            self.ComputeVasculatureThickness()
 
-            if self.OwnRenderer:
-                self.vmtkRenderer.Deallocate()
-                self.OwnRenderer = 0
+            if self.Aneurysm:
+                for _ in range(self.NumberOfAneurysms):
+                    self.SetAneurysmThickness()
 
-            if self.SelectAneurysmRegions:
-                self.SelectThinnerRegions()
+                if self.OwnRenderer:
+                    self.vmtkRenderer.Deallocate()
+                    self.OwnRenderer = 0
+
+                if self.SelectAneurysmRegions:
+                    self.SelectThinnerRegions()
+
+        else:
+            self.SelectThinnerRegions()
 
 
         # After array create, smooth it hard
