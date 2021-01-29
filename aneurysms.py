@@ -9,11 +9,10 @@ from vmtk import vmtkscripts
 from scipy.spatial import ConvexHull
 
 # Local modules
+from .lib import names 
 from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
-
-_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
 
 # Field names
 AneurysmNeckArrayName = 'AneurysmNeckContourArray'
@@ -21,7 +20,7 @@ ParentArteryArrayName = 'ParentArteryContourArray'
 
 NeckIsoValue = 0.5
 
-def SelectAneurysm(surface: _polyDataType) -> _polyDataType:
+def SelectAneurysm(surface: names.polyDataType) -> names.polyDataType:
     """Compute array marking the aneurysm neck.
 
     Given a vasculature with the an aneurysm, prompts the user to draw the
@@ -84,7 +83,7 @@ def SelectAneurysm(surface: _polyDataType) -> _polyDataType:
 
     return surfaceProjection.GetOutput()
 
-def SelectParentArtery(surface: _polyDataType) -> _polyDataType:
+def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
     """Compute array masking the parent vessel region."""
     parentArteryDrawer = vmtkscripts.vmtkSurfaceRegionDrawing()
     parentArteryDrawer.Surface = surface

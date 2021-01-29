@@ -7,16 +7,9 @@ from vmtk import vtkvmtk
 from numpy import multiply, zeros, where
 from vtk.numpy_interface import dataset_adapter as dsa
 
+from . import names 
 from . import constants as const
 from . import polydatatools as tools
-
-# Attribute array names
-_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
-_multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
-
-_grad = '_gradient'
-_sgrad = '_sgradient'
-_normals = 'Normals'
 
 def Distance(point1, point2):
     """Compute distance between two points."""
@@ -27,8 +20,8 @@ def Distance(point1, point2):
 
     return math.sqrt(sqrDistance)
 
-def SpatialGradient(surface: _polyDataType,
-                    field_name: str) -> _polyDataType:
+def SpatialGradient(surface: names.polyDataType,
+                    field_name: str) -> names.polyDataType:
     """Compute gradient of field on a surface."""
 
     gradient = vtk.vtkGradientFilter()
@@ -38,7 +31,7 @@ def SpatialGradient(surface: _polyDataType,
     # scalar or vector
     # 1 is the field type: means vector
     gradient.SetInputScalars(1, field_name)
-    gradient.SetResultArrayName(field_name+_grad)
+    gradient.SetResultArrayName(field_name+names.grad)
     gradient.ComputeDivergenceOff()
     gradient.ComputeGradientOn()
     gradient.ComputeQCriterionOff()
@@ -47,8 +40,8 @@ def SpatialGradient(surface: _polyDataType,
 
     return gradient.GetOutput()
 
-def SurfaceGradient(surface: _polyDataType,
-                    field_name: str) -> _polyDataType:
+def SurfaceGradient(surface: names.polyDataType,
+                    field_name: str) -> names.polyDataType:
     """Compute surface gradient of field on a surface.
 
     Given the surface (vtkPolyData) and the scalar field name, compute the
@@ -62,7 +55,7 @@ def SurfaceGradient(surface: _polyDataType,
     arrays = (cellData.GetArray(id_).GetName()
               for id_ in range(nArrays))
 
-    if _normals not in arrays:
+    if names.normals not in arrays:
         surface = SurfaceNormals(surface)
 
     # Compute spatial gradient (adds field)
@@ -72,8 +65,8 @@ def SurfaceGradient(surface: _polyDataType,
     npSurface = dsa.WrapDataObject(surfaceWithGradient)
     getArray = npSurface.GetCellData().GetArray
 
-    normalsArray  = getArray(_normals)
-    gradientArray = getArray(field_name + _grad)
+    normalsArray  = getArray(names.normals)
+    gradientArray = getArray(field_name + names.grad)
 
     # Compute the normal gradient = vec(n) dot grad(field)
     normalGradient = multiply(normalsArray, gradientArray).sum(axis=1)
@@ -82,10 +75,10 @@ def SurfaceGradient(surface: _polyDataType,
     surfaceGrad = gradientArray - normalGradient*normalsArray
 
     npSurface.CellData.append(surfaceGrad,
-                              field_name + _sgrad)
+                              field_name + names.sgrad)
 
     # Clean up
-    npSurface.GetCellData().RemoveArray(field_name + _grad)
+    npSurface.GetCellData().RemoveArray(field_name + names.grad)
 
     return npSurface.VTKObject
 
@@ -219,7 +212,7 @@ class Surface():
         return cls(tools.ReadSurface(file_name))
 
     @staticmethod
-    def Area(surface_object: _polyDataType) -> float:
+    def Area(surface_object: names.polyDataType) -> float:
         """Return the surface area in the units of the original data."""
 
         triangulate = vtk.vtkTriangleFilter()
@@ -233,7 +226,7 @@ class Surface():
         return surface_area.GetSurfaceArea()
 
     @staticmethod
-    def Volume(surface_object: _polyDataType) -> float:
+    def Volume(surface_object: names.polyDataType) -> float:
         """Compute volume of closed surface.
 
         Computes the volume of an assumed orientable surface. Works internally
@@ -258,7 +251,7 @@ class Surface():
         return volume.GetVolume()
 
     @staticmethod
-    def Normals(surface_object: _polyDataType) -> _polyDataType:
+    def Normals(surface_object: names.polyDataType) -> names.polyDataType:
         """Compute outward surface normals."""
 
         normals = vtk.vtkPolyDataNormals()
@@ -273,7 +266,7 @@ class Surface():
         return normals.GetOutput()
 
     @staticmethod
-    def Curvatures(surface_object: _polyDataType) -> _polyDataType:
+    def Curvatures(surface_object: names.polyDataType) -> names.polyDataType:
         """Compute curvature of surface.
 
         Uses VTK to compute the mean and Gauss curvature of a surface

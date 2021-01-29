@@ -11,16 +11,9 @@ from vmtk import vmtkrenderer
 from vtk.numpy_interface import dataset_adapter as dsa
 
 from . import constants as const
+from . import names
 
-# Types
-_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
-_multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
-
-xAxisSufx = "X"
-yAxisSufx = "Y"
-zAxisSufx = "Z"
-
-def ReadSurface(file_name: str) -> _polyDataType:
+def ReadSurface(file_name: str) -> names.polyDataType:
     """Read surface file to VTK object.
 
     Arguments:
@@ -63,7 +56,7 @@ def ViewSurface(surface, array_name=None):
 
     viewer.Execute()
 
-def WriteSurface(surface: _polyDataType,
+def WriteSurface(surface: names.polyDataType,
                  file_name: str) -> None:
     """Write surface vtkPolyData.
 
@@ -220,10 +213,10 @@ def ExtractConnectedRegion(regions, method, closest_point=None):
 
     return connectivity.GetOutput()
 
-def ClipWithScalar(surface: _polyDataType,
+def ClipWithScalar(surface: names.polyDataType,
                    array_name: str,
                    value: float,
-                   inside_out=True) -> _polyDataType:
+                   inside_out=True) -> names.polyDataType:
     """ Clip surface with scalar field.
 
     Provided a surface (vtkPolyData), a point scalar array and a 'value' of
@@ -324,7 +317,7 @@ def ComputeSurfacesDistance(isurface,
 
     return surfaceDistance.GetOutput()
 
-def vtkPolyDataToDataFrame(polydata: _polyDataType) -> pd.core.frame.DataFrame:
+def vtkPolyDataToDataFrame(polydata: names.polyDataType) -> pd.core.frame.DataFrame:
     """Convert a vtkPolyData with cell arrays to Pandas DataFrame.
 
     Given a vtkPolyData object containing cell arrays of any kind (scalars,
@@ -354,11 +347,25 @@ def vtkPolyDataToDataFrame(polydata: _polyDataType) -> pd.core.frame.DataFrame:
     npPolyData = dsa.WrapDataObject(cellCenters.GetOutput())
 
     cellCenterArrayName = "CellCenter"
-    axSuffixes = [xAxisSufx, yAxisSufx, zAxisSufx]
+
+    # Fields components suffixes
+    threeDimvectorCompSuffixes = [names.xAxisSufx, 
+                                  names.yAxisSufx, 
+                                  names.zAxisSufx]
+
+    symmTensorCompSuffix = [2*names.xAxisSufx, 
+                            2*names.yAxisSufx, 
+                            2*names.zAxisSufx, 
+                            names.xAxisSufx + names.yAxisSufx,
+                            names.yAxisSufx + names.zAxisSufx,
+                            names.xAxisSufx + names.zAxisSufx]
+
+    twoDimVectorCompSuffixes = [names.xAxisSufx, 
+                                names.yAxisSufx]
 
     pointsToDataFrame = pd.DataFrame(npPolyData.GetPoints(),
                                      columns=["_".join([cellCenterArrayName,sfx])
-                                              for sfx in axSuffixes])
+                                              for sfx in threeDimvectorCompSuffixes])
 
     pointData = npPolyData.GetPointData()
 
@@ -369,11 +376,24 @@ def vtkPolyDataToDataFrame(polydata: _polyDataType) -> pd.core.frame.DataFrame:
 
     for arrayName in arrayNames:
         # Get array dimension to define columns names
-        if pointData.GetArray(arrayName).ndim == 2:
-            colNames = ["_".join([arrayName, sfx])
-                        for sfx in axSuffixes]
+        fieldArray = pointData.GetArray(arrayName)
+        nComponents = fieldArray.shape[-1]
+        numpyArrayDimension = fieldArray.ndim
 
-        elif pointData.GetArray(arrayName).ndim == 1:
+        # Not scalar and 3D vector arrays
+        if  numpyArrayDimension == 2 and nComponents == 3:
+            colNames = ["_".join([arrayName, sfx])
+                        for sfx in threeDimvectorCompSuffixes]
+
+        elif numpyArrayDimension == 2 and nComponents == 2:
+            colNames = ["_".join([arrayName, sfx])
+                        for sfx in twoDimVectorCompSuffixes]
+
+        elif numpyArrayDimension == 2 and nComponents == 6:
+            colNames = ["_".join([arrayName, sfx])
+                        for sfx in symmTensorCompSuffix]
+
+        elif numpyArrayDimension == 1:
             colNames = [arrayName]
 
         else:

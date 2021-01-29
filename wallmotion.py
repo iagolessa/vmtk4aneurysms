@@ -3,15 +3,14 @@
 import sys
 import vtk
 
+from .lib import names
 from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
 from . import aneurysms as aneu
 
-_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
-
-def AneurysmPulsatility(displacement_surface: _polyDataType,
+def AneurysmPulsatility(displacement_surface: names.polyDataType,
                         ps_displ_field_name: str,
                         ld_displ_field_name: str,
                         aneurysm_neck_array_name: str = aneu.AneurysmNeckArrayName):
@@ -50,7 +49,7 @@ def AneurysmPulsatility(displacement_surface: _polyDataType,
 
     return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
 
-def AneurysmPulsatility2(lumen_surface: _polyDataType,
+def AneurysmPulsatility2(lumen_surface: names.polyDataType,
                          displacement_over_time: dict,
                          peak_systole_instant: float,
                          low_diastole_instant: float,
