@@ -16,334 +16,27 @@ import os
 import sys
 import warnings
 import numpy as np
-from scipy.integrate import simps
 
 import vtk
 from vmtk import vtkvmtk
-from vmtk import vmtkscripts
 from vtk.numpy_interface import dataset_adapter as dsa
 
+from .lib import names
 from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
+from .lib import polydatamath as pmath
+from .lib import foamtovtk as fvtk
 
 from . import aneurysms as aneu
 
-# Attribute array names
-_polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
-_multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
-
-_density = 1056.0 # SI units
-
-# Field suffixes
-_avg = '_average'
-_min = '_minimum'
-_max = '_maximum'
-_mag = '_magnitude'
-_grad = '_gradient'
-_sgrad = '_sgradient'
-
-# Attribute array names
-_WSS = 'WSS'
-_OSI = 'OSI'
-_RRT = 'RRT'
-_AFI = 'AFI'
-_GON = 'GON'
-_TAWSS = 'TAWSS'
-_WSSPI = 'WSSPI'
-_WSSTG = 'WSSTG'
-_TAWSSG = 'TAWSSG'
-_transWSS = 'transWSS'
-
-_WSSmag = _WSS + _mag
-_peakSystoleWSS = 'PSWSS'
-_lowDiastoleWSS = 'LDWSS'
-
-_WSSSG = 'WSSSG' + _avg
-_WSSSGmag = 'WSSSG' + _mag +_avg
-_WSSDotP = 'WSSDotP'
-_WSSDotQ = 'WSSDotQ'
-
-# Possibly deprecated
-_WSSGrad = 'WSSGradient'
-_WSS_surf_avg = 'WSS_surf_avg'
-
-# Local coordinate system
-_pHat = 'pHat'
-_qHat = 'qHat'
-_normals = 'Normals'
-
-# Other attributes
-_foamWSS = 'wallShearComponent'
-_wallPatch = 'wall'
-
-
-def _normL2(array, axis):
-    """Compute L2-norm of an array along an axis."""
-
-    return np.linalg.norm(array, ord=2, axis=axis)
-
-def _time_average(array, step, period):
-    """Compute temporal average of a time-dependent variable."""
-
-    return simps(array, dx=step, axis=0)/period
-
-# TODO: improve this computattion. I thought about using vtkIntegrateAttributes
-# but is not available in the version shipped with vmtk!
-def _area_average(surface, array_name):
-    """Compute area-averaged array over surface with first-order accuracy."""
-
-    triangulate = vtk.vtkTriangleFilter()
-    triangulate.SetInputData(surface)
-    triangulate.Update()
-
-    surface = triangulate.GetOutput()
-
-    # Helper functions
-    cellData = surface.GetCellData()
-    getArea  = lambda id_: surface.GetCell(id_).ComputeArea()
-    getValue = lambda id_, name: cellData.GetArray(name).GetValue(id_)
-
-    def getCellValue(id_):
-        cellArea   = getArea(id_)
-        arrayValue = getValue(id_, array_name)
-
-        return cellArea, arrayValue
-
-    integral = 0.0
-    cellIds = range(surface.GetNumberOfCells())
-
-    # Map function to cell ids
-    integral = sum(area*value for area, value in map(getCellValue, cellIds))
-
-    surfaceArea = geo.Surface.Area(surface)
-
-    # Compute L2-norm
-    return integral/surfaceArea
-
-def _HadamardDot(np_array1, np_array2):
-    """Computes dot product in a Hadamard product way.
-
-    Given two Numpy arrays representing arrays of vectors on a surface, compute
-    the vector-wise dot product between each element.
-    """
-    # Seems that multiply is faster than a*b
-    return np.multiply(np_array1, np_array2).sum(axis=1)
-
-def GetPatchFieldOverTime(foam_case: str,
-                          field_name: str,
-                          active_patch_name: str) -> (_polyDataType, dict):
-    """Gets a time-varying patch field from an OpenFOAM case.
-
-    Given an OpenFOAM case, the field name and the patch name, return a tuple
-    with the patch surface and a dictionary with the time-varying field with
-    the instants as keys and the value the field given as a VTK Numpy Array.
-    """
-
-    # Read OF case reader
-    ofReader = vtk.vtkPOpenFOAMReader()
-    ofReader.SetFileName(foam_case)
-    ofReader.AddDimensionsToArrayNamesOff()
-    ofReader.DecomposePolyhedraOff()
-    ofReader.SkipZeroTimeOn()
-    ofReader.CreateCellToPointOff()
-    ofReader.DisableAllLagrangianArrays()
-    ofReader.DisableAllPointArrays()
-    ofReader.EnableAllCellArrays()
-    ofReader.Update()
-
-    # Get list with time steps
-    nTimeSteps = ofReader.GetTimeValues().GetNumberOfValues()
-    timeSteps  = list((ofReader.GetTimeValues().GetValue(id_)
-                       for id_ in range(nTimeSteps)))
-
-    # Update OF reader with only selected patch
-    patches = list((ofReader.GetPatchArrayName(index)
-                    for index in range(ofReader.GetNumberOfPatchArrays())))
-
-    if active_patch_name not in patches:
-        message = "Patch {} not in geometry surface.".format(active_patch_name)
-        sys.exit(message)
-    else:
-        pass
-
-    patches.remove('internalMesh')
-
-    # Set active patch
-    for patchName in patches:
-        if patchName == active_patch_name:
-            ofReader.SetPatchArrayStatus(patchName, 1)
-        else:
-            ofReader.SetPatchArrayStatus(patchName, 0)
-
-    ofReader.Update()
-
-    # Get blocks and get surface block
-    blocks  = ofReader.GetOutput()
-    nBlocks = blocks.GetNumberOfBlocks()
-
-    # Surface is the last one (0: internalMesh, 1:surface)
-    surface = blocks.GetBlock(nBlocks - 1)
-
-    # The active patch is the only one left
-    activePatch = surface.GetBlock(0)
-
-    # Check if array in surface
-    cellArraysInPatch  = tools.GetCellArrays(activePatch)
-    pointArraysInPatch = tools.GetPointArrays(activePatch)
-
-    if field_name not in cellArraysInPatch:
-        message = "Field {} not in surface patch {}.".format(field_name,
-                                                             active_patch_name)
-
-        sys.exit(message)
-    else:
-        pass
-
-    npActivePatch = dsa.WrapDataObject(activePatch)
-
-    def _get_field(time):
-        ofReader.UpdateTimeStep(time)
-        return npActivePatch.GetCellData().GetArray(field_name)
-
-    fieldOverTime = {time: _get_field(time) for time in timeSteps}
-
-    # Clean surface from any point or cell field
-    activePatch = npActivePatch.VTKObject
-
-    for arrayName in cellArraysInPatch:
-        activePatch.GetCellData().RemoveArray(arrayName)
-
-    for arrayName in pointArraysInPatch:
-        activePatch.GetPointData().RemoveArray(arrayName)
-
-    return npActivePatch.VTKObject, fieldOverTime
-
-def FieldTimeStats(surface: _polyDataType,
-                   field_name: str,
-                   temporal_field: dict,
-                   t_peak_systole: float,
-                   t_low_diastole: float) -> _polyDataType:
-    """Compute field time statistics from OpenFOAM data.
-
-    Get time statistics of a field defined on a surface S
-    over time for a cardiac cycle, generated with OpenFOAM. Outputs a surface
-    with: the time-averaged of the field magnitude (if not a scalar), maximum
-    and minimum over time, peak-systole and low-diastole fields.
-
-    Arguments:
-        surface (vtkPolyData) -- the surface where the field is defined;
-        temporal_field (dict) -- a dictuionary with the field over each instant;
-        t_peak_systole (float) -- instant of the peak systole;
-        t_low_diastole (float) -- instant of the low diastole;
-    """
-    npSurface = dsa.WrapDataObject(surface)
-
-    # Get field over time as a Numpy array in ordered manner
-    timeSteps = list(temporal_field.keys())
-
-    # Sort list of time steps
-    timeSteps.sort()
-    fieldOverTime = dsa.VTKArray([temporal_field.get(time)
-                                  for time in timeSteps])
-
-    # Assum that the input field is a scalar field
-    # then assign the magnitude field to itself
-    # it will be changed later if tensor order higher than 1
-    fieldMagOverTime = fieldOverTime.copy()
-
-    # Check if size of field equals number of cells
-    if surface.GetNumberOfCells() not in fieldOverTime.shape:
-        sys.exit("Size of surface and of field do not match.")
-    else:
-        pass
-
-    # Check if low diastole or peak systoel not in time list
-    lastTimeStep  = max(timeSteps)
-    firstTimeStep = min(timeSteps)
-
-    if t_low_diastole not in timeSteps:
-        warningMsg = "Low diastole instant not in " \
-                     "time-steps list. Using last time-step."
-        warnings.warn(warningMsg)
-
-        t_low_diastole = lastTimeStep
-
-    elif t_peak_systole not in timeSteps:
-        warningMsg = "Peak-systole instant not in " \
-                     "time-steps list. Using first time-step."
-        warnings.warn(warningMsg)
-
-        t_peak_systole = firstTimeStep
-    else:
-        pass
-
-    # List of tuples to store stats arrays and their name
-    # [(array1, name1), ... (array_n, name_n)]
-    arraysToBeStored = []
-    storeArray = arraysToBeStored.append
-
-    # Get peak-systole and low-diastole WSS
-    storeArray(
-        (temporal_field.get(t_peak_systole, None),
-         _peakSystoleWSS if field_name == _WSS
-                         else '_'.join([field_name, "peak_systole"]))
-    )
-
-    storeArray(
-        (temporal_field.get(t_low_diastole, None),
-         _lowDiastoleWSS if field_name == _WSS
-                         else '_'.join([field_name, "low_diastole"]))
-    )
-
-    # Get period of time steps
-    period   = lastTimeStep - firstTimeStep
-    timeStep = period/len(timeSteps)
-
-    # Append to the numpy surface wrap
-    appendToSurface = npSurface.CellData.append
-
-    # Compute the time-average of the WSS vector
-    # assumes uniform time-step (calculated above)
-    storeArray(
-        (_time_average(fieldOverTime, timeStep, period),
-         field_name + _avg)
-    )
-
-    # If the array is a tensor of order higher than one
-    # compute its magnitude too
-    if len(fieldOverTime.shape) == 3:
-        # Compute the time-average of the magnitude of the WSS vector
-        fieldMagOverTime = _normL2(fieldOverTime, 2)
-
-        storeArray(
-            (_time_average(fieldMagOverTime, timeStep, period),
-             _TAWSS if field_name == _WSS else field_name + _mag + _avg)
-        )
-
-    else:
-        pass
-
-    storeArray(
-        (fieldMagOverTime.max(axis=0),
-         field_name + _mag + _max)
-    )
-
-    storeArray(
-        (fieldMagOverTime.min(axis=0),
-         field_name + _mag + _min)
-    )
-
-    # Finally, append all arrays to surface
-    for array, name in arraysToBeStored:
-        appendToSurface(array, name)
-
-    return npSurface.VTKObject
+# Default density used for WSS
+_density = 1056.0 # kg/m3
 
 def _wss_over_time(foam_case: str,
                    density=_density,
-                   field=_foamWSS,
-                   patch=_wallPatch) -> tuple:
+                   field=names.foamWSS,
+                   patch=names.wallPatchName) -> tuple:
     """Get surface object and the WSS vector field over time.
 
     Given the OpenFOAM case with the WSS calculated at each time-step, extracts
@@ -355,9 +48,9 @@ def _wss_over_time(foam_case: str,
     of the patch where the WSS is defined.
     """
 
-    surface, fieldOverTime = GetPatchFieldOverTime(foam_case,
-                                                   field,
-                                                   patch)
+    surface, fieldOverTime = fvtk.GetPatchFieldOverTime(foam_case,
+                                                        field,
+                                                        patch)
 
     # Compute the WSS = density * wallShearComponent
     wssVectorOverTime = {time: _density*wssField
@@ -365,10 +58,10 @@ def _wss_over_time(foam_case: str,
 
     return surface, wssVectorOverTime
 
-def _wss_time_stats(surface: _polyDataType,
+def _wss_time_stats(surface: names.polyDataType,
                     temporal_wss: dict,
                     t_peak_systole: float,
-                    t_low_diastole: float) -> _polyDataType:
+                    t_low_diastole: float) -> names.polyDataType:
     """Compute WSS time statistics from OpenFOAM data.
 
     Get time statistics of the wall shear stress field defined on a surface S
@@ -378,10 +71,10 @@ def _wss_time_stats(surface: _polyDataType,
     specify the density considered.
     """
 
-    return FieldTimeStats(surface, _WSS,
-                          temporal_wss,
-                          t_peak_systole,
-                          t_low_diastole)
+    return fvtk.FieldTimeStats(surface, names.WSS,
+                               temporal_wss,
+                               t_peak_systole,
+                               t_low_diastole)
 
 def _compute_gon(np_surface,
                  temporal_wss,
@@ -398,26 +91,26 @@ def _compute_gon(np_surface,
     addInstantGVec = GVecOverTime.append
 
     for time in time_steps:
-        wssVecDotQHat = _HadamardDot(temporal_wss.get(time), q_hat_array)
-        wssVecDotPHat = _HadamardDot(temporal_wss.get(time), p_hat_array)
+        wssVecDotQHat = pmath.HadamardDot(temporal_wss.get(time), q_hat_array)
+        wssVecDotPHat = pmath.HadamardDot(temporal_wss.get(time), p_hat_array)
 
-        setArray(wssVecDotPHat, _WSSDotP)
-        setArray(wssVecDotQHat, _WSSDotQ)
+        setArray(wssVecDotPHat, names.WSSDotP)
+        setArray(wssVecDotQHat, names.WSSDotQ)
 
         # Compute the surface gradient of (wss dot p) and (wss dot q)
-        surfaceWithSGrad = geo.SurfaceGradient(np_surface.VTKObject, _WSSDotP)
-        surfaceWithSGrad = geo.SurfaceGradient(surfaceWithSGrad, _WSSDotQ)
+        surfaceWithSGrad = geo.SurfaceGradient(np_surface.VTKObject, names.WSSDotP)
+        surfaceWithSGrad = geo.SurfaceGradient(surfaceWithSGrad, names.WSSDotQ)
 
         tSurface = dsa.WrapDataObject(surfaceWithSGrad)
 
         # Now project each surface gradient on coordinate direction
-        sGradDotPHat = _HadamardDot(
-                            tSurface.CellData.GetArray(_WSSDotP+_sgrad),
+        sGradDotPHat = pmath.HadamardDot(
+                            tSurface.CellData.GetArray(names.WSSDotP+names.sgrad),
                             p_hat_array
                         )
 
-        sGradDotQHat = _HadamardDot(
-                            tSurface.CellData.GetArray(_WSSDotQ+_sgrad),
+        sGradDotQHat = pmath.HadamardDot(
+                            tSurface.CellData.GetArray(names.WSSDotQ+names.sgrad),
                             q_hat_array
                         )
 
@@ -435,34 +128,34 @@ def _compute_gon(np_surface,
     period = max(time_steps) - min(time_steps)
     timeStep = period/len(time_steps)
 
-    avgGVecArray = _time_average(GVecOverTime, timeStep, period)
-    magAvgGVecArray = _normL2(avgGVecArray, 1)
+    avgGVecArray = pmath.TimeAverage(GVecOverTime, timeStep, period)
+    magAvgGVecArray = pmath.NormL2(avgGVecArray, 1)
 
     # Compute the average of the magnitude of G vec
-    magGVecArray = _normL2(GVecOverTime, 2)
-    avgMagGVecArray = _time_average(magGVecArray, timeStep, period)
+    magGVecArray = pmath.NormL2(GVecOverTime, 2)
+    avgMagGVecArray = pmath.TimeAverage(magGVecArray, timeStep, period)
 
     GON = 1.0 - magAvgGVecArray/avgMagGVecArray
 
     # Array clean-up
-    delArray(_WSSDotP)
-    delArray(_WSSDotQ)
-    delArray(_WSSDotP+_sgrad)
-    delArray(_WSSDotQ+_sgrad)
+    delArray(names.WSSDotP)
+    delArray(names.WSSDotQ)
+    delArray(names.WSSDotP+names.sgrad)
+    delArray(names.WSSDotQ+names.sgrad)
 
-    setArray(GON, _GON)
-    setArray(avgGVecArray, _WSSSG)
-    setArray(avgMagGVecArray, _WSSSGmag)
+    setArray(GON, names.GON)
+    setArray(avgGVecArray, names.WSSSG)
+    setArray(avgMagGVecArray, names.WSSSGmag)
 
 
 def Hemodynamics(foam_case: str,
                  t_peak_systole: float,
                  t_low_diastole: float,
                  density: float = _density,  # kg/m3
-                 field: str = _foamWSS,
-                 patch: str = _wallPatch,
+                 field: str = names.foamWSS,
+                 patch: str = names.wallPatchName,
                  compute_gon: bool = False,
-                 compute_afi: bool = False) -> _polyDataType:
+                 compute_afi: bool = False) -> names.polyDataType:
     """Compute hemodynamics of WSS field.
 
     Based on the temporal statistics of the WSS field over a vascular and
@@ -486,7 +179,7 @@ def Hemodynamics(foam_case: str,
 
     # Compute normals and gradient of TAWSS
     surfaceWithNormals  = geo.Surface.Normals(surface)
-    surfaceWithGradient = geo.SurfaceGradient(surfaceWithNormals, _TAWSS)
+    surfaceWithGradient = geo.SurfaceGradient(surfaceWithNormals, names.TAWSS)
 
     # Convert VTK polydata to numpy object
     numpySurface = dsa.WrapDataObject(surfaceWithGradient)
@@ -497,15 +190,15 @@ def Hemodynamics(foam_case: str,
 
     # Get arrays currently on the surface
     # that will be used for the calculations
-    avgVecWSSArray = getArray(_WSS + _avg)
-    avgMagWSSArray = getArray(_TAWSS)
-    maxMagWSSArray = getArray(_WSSmag + _max)
-    minMagWSSArray = getArray(_WSSmag + _min)
-    normalsArray   = getArray(_normals)
-    sGradientArray = getArray(_TAWSS + _sgrad)
+    avgVecWSSArray = getArray(names.WSS + names.avg)
+    avgMagWSSArray = getArray(names.TAWSS)
+    maxMagWSSArray = getArray(names.WSSmag + names.max_)
+    minMagWSSArray = getArray(names.WSSmag + names.min_)
+    normalsArray   = getArray(names.normals)
+    sGradientArray = getArray(names.TAWSS + names.sgrad)
 
     # Compute the magnitude of the WSS vector time average
-    magAvgVecWSSArray = _normL2(avgVecWSSArray, 1)
+    magAvgVecWSSArray = pmath.NormL2(avgVecWSSArray, 1)
 
     # Several array will be stored at the end
     # of this procedure. So, create list to
@@ -516,45 +209,45 @@ def Hemodynamics(foam_case: str,
     # Compute WSS derived quantities
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     storeArray(
-        (_WSSPI, (maxMagWSSArray - minMagWSSArray)/avgMagWSSArray)
+        (names.WSSPI, (maxMagWSSArray - minMagWSSArray)/avgMagWSSArray)
     )
 
 
     OSIArray = 0.5*(1 - magAvgVecWSSArray/avgMagWSSArray)
     storeArray(
-        (_OSI, OSIArray)
+        (names.OSI, OSIArray)
     )
 
     storeArray(
-        (_RRT, 1.0/((1.0 - 2.0*OSIArray)*avgMagWSSArray))
+        (names.RRT, 1.0/((1.0 - 2.0*OSIArray)*avgMagWSSArray))
     )
 
     # Calc surface orthogonal vectors
     # -> p: timeAvg WSS vector
     pHatArray = avgVecWSSArray/avgMagWSSArray
     storeArray(
-        (_pHat, pHatArray)
+        (names.pHat, pHatArray)
     )
 
     # -> q: perpendicular to p and normal
     qHatArray = np.cross(pHatArray, normalsArray)
     storeArray(
-        (_qHat, qHatArray)
+        (names.qHat, qHatArray)
     )
 
     # Compute the TAWSSG = surfaceGradTAWSS dot p
     storeArray(
-        (_TAWSSG, _HadamardDot(pHatArray, sGradientArray))
+        (names.TAWSSG, pmath.HadamardDot(pHatArray, sGradientArray))
     )
 
     if compute_afi:
         # AFI at peak-systole
-        psWSS = getArray(_peakSystoleWSS)
-        psWSSmag = _normL2(psWSS, axis=1)
+        psWSS = getArray(names.peakSystoleWSS)
+        psWSSmag = pmath.NormL2(psWSS, axis=1)
 
         storeArray(
-            (_AFI + '_peak_systole',
-             _HadamardDot(pHatArray, psWSS)/psWSSmag)
+            (names.AFI + '_peak_systole',
+             pmath.HadamardDot(pHatArray, psWSS)/psWSSmag)
         )
 
     # Get time step list (ordered)
@@ -573,7 +266,7 @@ def Hemodynamics(foam_case: str,
     # TransWss = tavg(abs(wssVecOverTime dot qHat))
     # I had to compute the transWSS here because it needs
     # an averaged array (qHat) and a time-dependent array
-    wssVecDotQHatProd = lambda time: abs(_HadamardDot(temporalWss.get(time),
+    wssVecDotQHatProd = lambda time: abs(pmath.HadamardDot(temporalWss.get(time),
                                          qHatArray))
 
     # Get array with product
@@ -581,18 +274,18 @@ def Hemodynamics(foam_case: str,
                                   for time in timeSteps])
 
     storeArray(
-        (_transWSS,
-         _time_average(wssVecDotQHat, timeStep, period))
+        (names.transWSS,
+         pmath.TimeAverage(wssVecDotQHat, timeStep, period))
     )
 
     # Compute the WSSTG = max(dWSSdt) over time
-    magWssOverTime = np.array([_normL2(temporalWss.get(time), axis=1)
+    magWssOverTime = np.array([pmath.NormL2(temporalWss.get(time), axis=1)
                                for time in timeSteps])
 
     dWssdt = np.gradient(magWssOverTime, timeStep, axis=0)
 
     storeArray(
-        (_WSSTG,
+        (names.WSSTG,
          dWssdt.max(axis=0))
     )
 
@@ -601,7 +294,7 @@ def Hemodynamics(foam_case: str,
 
     return numpySurface.VTKObject
 
-def AneurysmStats(neck_surface: _polyDataType,
+def AneurysmStats(neck_surface: names.polyDataType,
                   array_name: str,
                   neck_array_name: str = aneu.AneurysmNeckArrayName,
                   n_percentile: float = 95,
@@ -654,7 +347,7 @@ def AneurysmStats(neck_surface: _polyDataType,
     nComponents = arrayOnAneurysm.shape[-1]
 
     if nComponents == 3:
-        arrayOnAneurysm = _normL2(arrayOnAneurysm, 1)
+        arrayOnAneurysm = pmath.NormL2(arrayOnAneurysm, 1)
     else:
         pass
 
@@ -663,20 +356,20 @@ def AneurysmStats(neck_surface: _polyDataType,
     minimum = np.min(np.array(arrayOnAneurysm))
     average = np.average(np.array(arrayOnAneurysm))
     percentile  = np.percentile(np.array(arrayOnAneurysm), n_percentile)
-    areaAverage = _area_average(aneurysm, array_name)
+    areaAverage = pmath.SurfaceAverage(aneurysm, array_name)
 
-    return {'surf_avg': _area_average(aneurysm, array_name),
+    return {'surf_avg': pmath.SurfaceAverage(aneurysm, array_name),
             'average': np.average(arrayOnAneurysm),
             'maximum': np.max(arrayOnAneurysm),
             'minimum': np.min(arrayOnAneurysm),
             'percentil'+str(n_percentile): np.percentile(arrayOnAneurysm,
                                                          n_percentile)}
 
-def LsaAverage(neck_surface: _polyDataType,
-                  lowWSS: float,
-                  neck_array_name: str = aneu.AneurysmNeckArrayName,
-                  neck_iso_value: float = aneu.NeckIsoValue,
-                  avgMagWSSArray: str = _TAWSS):
+def LsaAverage(neck_surface: names.polyDataType,
+               lowWSS: float,
+               neck_array_name: str = aneu.AneurysmNeckArrayName,
+               neck_iso_value: float = aneu.NeckIsoValue,
+               avgMagWSSArray: str = names.TAWSS):
     """Computes the LSA based on the time-averaged WSS field.
 
     Calculates the LSA (low WSS area ratio) for aneurysms simulations performed
@@ -709,10 +402,10 @@ def LsaAverage(neck_surface: _polyDataType,
 # contour in the same way as the aneurysm neck is beuild. So, I will assume in
 # this function that the surface is already cut to in- clude only the parent
 # artery portion and that includes
-def WssParentVessel(parent_artery_surface: _polyDataType,
+def WssParentVessel(parent_artery_surface: names.polyDataType,
                     parent_artery_array: str = aneu.ParentArteryArrayName,
                     parent_artery_iso_value: float = aneu.NeckIsoValue,
-                    wss_field: str = _TAWSS) -> float:
+                    wss_field: str = names.TAWSS) -> float:
     """Calculates the surface averaged WSS value over the parent artery."""
 
     try:
@@ -743,15 +436,15 @@ def WssParentVessel(parent_artery_surface: _polyDataType,
     # minimum = np.min(np.array(wssArray))
     # percentile = np.percentile(np.array(wssArray), n_percentile)
     # average = np.average(np.array(wssArray))
-    return _area_average(parentArtery, wss_field)
+    return pmath.SurfaceAverage(parentArtery, wss_field)
 
 def WssSurfaceAverage(foam_case: str,
-                      neck_surface: _polyDataType = None,
+                      neck_surface: names.polyDataType = None,
                       neck_array_name: str = aneu.AneurysmNeckArrayName,
                       neck_iso_value: float = aneu.NeckIsoValue,
                       density: float = _density,
-                      field: str = _foamWSS,
-                      patch: str = _wallPatch):
+                      field: str = names.foamWSS,
+                      patch: str = names.wallPatchName):
     """Compute the surface-averaged WSS over time.
 
     Function to compute surface integrals of WSS over an aneurysm or vessels
@@ -762,7 +455,7 @@ def WssSurfaceAverage(foam_case: str,
     same as the wall surface of the OpenFOAM case, i.e. they are the same mesh.
     """
     # Define condition to compute on aneurysm portion
-    computeOnAneurysm = neck_surface is not None and neck_array_name is not None
+    computeOnAneurysm = neck_surface is not None
 
     surface, temporalWss = _wss_over_time(foam_case,
                                           density=density,
@@ -790,7 +483,7 @@ def WssSurfaceAverage(foam_case: str,
     def wss_average_on_surface(t):
         # Add WSSt array on surface
         wsst = temporalWss.get(t)
-        npSurface.CellData.append(_normL2(wsst, 1), 'WSSt')
+        npSurface.CellData.append(pmath.NormL2(wsst, 1), 'WSSt')
 
         if computeOnAneurysm:
             # Clip aneurysm portion
@@ -804,19 +497,19 @@ def WssSurfaceAverage(foam_case: str,
         else:
             surfaceToComputeAvg = npSurface
 
-        return _area_average(surfaceToComputeAvg.VTKObject, 'WSSt')
+        return pmath.SurfaceAverage(surfaceToComputeAvg.VTKObject, 'WSSt')
 
     return {time: wss_average_on_surface(time)
             for time in temporalWss.keys()}
 
 def LsaInstant(foam_case: str,
-               neck_surface: _polyDataType,
+               neck_surface: names.polyDataType,
                low_wss: float,
                neck_array_name: str = aneu.AneurysmNeckArrayName,
                neck_iso_value: float = aneu.NeckIsoValue,
                density: float = _density,
-               field: str = _foamWSS,
-               patch: str = _wallPatch) -> list:
+               field: str = names.foamWSS,
+               patch: str = names.wallPatchName) -> list:
     """Compute the LSA over time.
 
     Calculates the LSA (low WSS area ratio) for aneurysm simulations performed
@@ -864,7 +557,7 @@ def LsaInstant(foam_case: str,
 
     def lsa_on_surface(t):
         wsst = temporalWss.get(t)
-        npSurface.CellData.append(_normL2(wsst, 1), _WSSmag)
+        npSurface.CellData.append(pmath.NormL2(wsst, 1), names.WSSmag)
 
         # Clip aneurysm portion
         aneurysm = tools.ClipWithScalar(npSurface.VTKObject,
@@ -874,7 +567,7 @@ def LsaInstant(foam_case: str,
         # Get low shear area
         # Wonder: does the surface project works in only a portion of the
         # surface? If yes, I could do the mapping directly on the aneurysm
-        lsaPortion = tools.ClipWithScalar(aneurysm, _WSSmag, low_wss)
+        lsaPortion = tools.ClipWithScalar(aneurysm, names.WSSmag, low_wss)
         lsaArea = geo.Surface.Area(lsaPortion)
 
         return lsaArea/aneurysmArea
