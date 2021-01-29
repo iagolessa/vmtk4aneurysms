@@ -3,8 +3,10 @@ from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py
 __all__ = [
     '.vmtkextractaneurysm',
     '.vmtkextractrawsurface',
+    '.vmtkmeshpointdatatocelldata'
     '.vmtksurfaceclipaddflowextension',
     '.vmtksurfaceremeshwithresolution',
+    '.vmtksurfaceaneurysmstiffness',
     '.vmtksurfacevasculaturesections',
     '.vmtksurfacevasculaturethickness',
     '.vmtksurfacevasculaturetransform',
