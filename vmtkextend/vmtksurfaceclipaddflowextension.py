@@ -16,6 +16,8 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
 
         self.Surface = None
         self.ClipMode = 'interactive'
+        self.Remesh = False
+        self.Cap = False
 
         self.SetScriptName('vmtksurfaceclipaddflowextension')
         self.SetScriptDoc('Interactively clip a surface and add small flow '
@@ -24,6 +26,12 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         self.SetInputMembers([
             ['Surface',	'i', 'vtkPolyData', 1, '', 
                  'the input surface', 'vmtksurfacereader'],
+
+            ['Remesh' , 'remesh', 'bool', 1, '', 
+                'to apply remeshing procedure after fixing it'],
+
+            ['Cap'   , 'cap'  ,'bool',1,'',
+                'to cap surface after clipping'],
 
             ['ClipMode','clipmode', 'str' , 1, '["interactive","centerlinebased"]', 
                  'the clip mode: manual enables widget'],
@@ -82,14 +90,27 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         surfaceFlowExtensions.Sigma = 1.0
         surfaceFlowExtensions.Execute()
 
-        # Capping surface
-        capper = vmtkscripts.vmtkSurfaceCapper()
-        capper.Surface = surfaceFlowExtensions.Surface
-        capper.Method = 'centerpoint'
-        capper.Interactive = 0
-        capper.Execute()
+        self.Surface = surfaceFlowExtensions.Surface
 
-        self.Surface = capper.Surface
+        if self.Remesh:
+            remesher = vmtkscripts.vmtkSurfaceRemeshing()
+            remesher.Surface = self.Surface 
+            remesher.ElementSizeMode = "edgelength"
+            remesher.TargetEdgeLength = 0.20
+            remesher.OutputText("Remeshing procedure ...")
+            remesher.Execute()
+
+            self.Surface = remesher.Surface
+     
+        # Capping surface
+        if self.Cap:
+            capper = vmtkscripts.vmtkSurfaceCapper()
+            capper.Surface = self.Surface
+            capper.Method = 'centerpoint'
+            capper.Interactive = 0
+            capper.Execute()
+
+            self.Surface = capper.Surface
 
 
 if __name__=='__main__':
