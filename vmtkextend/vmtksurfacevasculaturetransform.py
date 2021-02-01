@@ -19,6 +19,7 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
 
         self.Surface = None
         self.Remesh = False
+        self.AddFlowExtensions = False
 
         self.SetScriptName('vmtksurfacevasculaturetransform')
         self.SetScriptDoc('Transform a vasculature surface by rotating and '
@@ -34,7 +35,10 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
                  'the input surface', 'vmtksurfacereader'],
 
             ['Remesh' , 'remesh', 'bool', 1, '', 
-                'to apply remeshing procedure before transforming the surface']
+                'to apply remeshing procedure before transforming the surface'],
+
+            ['AddFlowExtensions' , 'addextensions', 'bool', 1, '', 
+                'to add short flow extensions before transforming the surface']
         ])
 
         self.SetOutputMembers([
@@ -59,24 +63,25 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
-        surfaceFlowExtensions = vmtkscripts.vmtkFlowExtensions()
-        surfaceFlowExtensions.Surface = self.Surface
-        surfaceFlowExtensions.InterpolationMode = 'thinplatespline'
-        surfaceFlowExtensions.ExtensionMode = 'boundarynormal'
-        # boolean flag which enables computing the length of each
-        # flowextension proportional to the mean profile radius
-        surfaceFlowExtensions.AdaptiveExtensionLength = 1
-        # The proportionality factor is set through 'extensionratio'
-        surfaceFlowExtensions.ExtensionRatio = 2
-        surfaceFlowExtensions.Interactive = 0
-        surfaceFlowExtensions.TransitionRatio = 0.5
-        surfaceFlowExtensions.AdaptiveExtensionRadius = 1
-        surfaceFlowExtensions.AdaptiveNumberOfBoundaryPoints = 1
-        surfaceFlowExtensions.TargetNumberOfBoundaryPoints = 50
-        surfaceFlowExtensions.Sigma = 1.0
-        surfaceFlowExtensions.Execute()
+        if self.AddFlowExtensions:
+            surfaceFlowExtensions = vmtkscripts.vmtkFlowExtensions()
+            surfaceFlowExtensions.Surface = self.Surface
+            surfaceFlowExtensions.InterpolationMode = 'thinplatespline'
+            surfaceFlowExtensions.ExtensionMode = 'boundarynormal'
+            # boolean flag which enables computing the length of each
+            # flowextension proportional to the mean profile radius
+            surfaceFlowExtensions.AdaptiveExtensionLength = 1
+            # The proportionality factor is set through 'extensionratio'
+            surfaceFlowExtensions.ExtensionRatio = 2
+            surfaceFlowExtensions.Interactive = 0
+            surfaceFlowExtensions.TransitionRatio = 0.5
+            surfaceFlowExtensions.AdaptiveExtensionRadius = 1
+            surfaceFlowExtensions.AdaptiveNumberOfBoundaryPoints = 1
+            surfaceFlowExtensions.TargetNumberOfBoundaryPoints = 50
+            surfaceFlowExtensions.Sigma = 1.0
+            surfaceFlowExtensions.Execute()
 
-        self.Surface = surfaceFlowExtensions.Surface
+            self.Surface = surfaceFlowExtensions.Surface
 
         if self.Remesh:
             surfaceRemesh = vmtkscripts.vmtkSurfaceRemeshing()
@@ -101,6 +106,7 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
 
         # Gettig point, normal, and radius of inlet (largest radius)
         maxRadius = 0
+        idMaxRadius = 1
 
         for point_id in range(refSystems.GetPoints().GetNumberOfPoints()):
             radius = refSystems.GetPointData().GetArray("BoundaryRadius").GetValue(point_id)
