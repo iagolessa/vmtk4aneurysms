@@ -439,7 +439,7 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             # # subdivider.NumberOfSubdivisions = 2
             # subdivider.Execute()
             
-            self.Surface = subdivider.Surface
+            self.Surface = smoother.Surface
 
         
         # Start representation and access to all operations
