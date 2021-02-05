@@ -37,6 +37,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.NumberOfAneurysms = 1
 
         self.GlobalScaleFactor = 0.75
+        self.UniformWallToLumenRatio = True
         self.WallLumenRatio = self._wlrMedium
         self.ThicknessArrayName = 'Thickness'
         self.SmoothingIterations = 10
@@ -79,6 +80,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             ['WallLumenRatio', 'wlr', 'float', 1, '',
                 'wall to lumen ration'],
+
+            ['UniformWallToLumenRatio', 'uniformwlr', 'bool', 1, '',
+                'indicates a uniform WLR informed by the user'],
 
             ['ThicknessArrayName', 'thicknessarray', 'str', 1, '',
                 'name of the resulting thickness array'],
@@ -414,9 +418,10 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         # This portion evaluates if distance is much higher
         # than the actual radius array
-        # This necessarily will need ome smoothing
+        # This necessarily will need some smoothing
 
         # Set high and low threshold factors
+        # Are they arbitrary?
         highRadiusThresholdFactor = 1.4
         lowRadiusThresholdFactor  = 0.9
 
@@ -424,7 +429,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             distance = distanceArray.GetTuple1(index)
             radius   = radiusArray.GetTuple1(index)
 
-            # Are they arbitrary
             maxRadiusLim = highRadiusThresholdFactor*radius
             minRadiusLim = lowRadiusThresholdFactor*radius
 
@@ -450,12 +454,29 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # but I can change this in a point-wise manner based on
         # the local radius array by using the algorithm contained
         # in the vmtksurfacearrayoperation script
-        array = surface.GetPointData().GetArray(self.ThicknessArrayName)
+        distanceArray = surface.GetPointData().GetArray(self.ThicknessArrayName)
 
-        for index in range(array.GetNumberOfTuples()):
-            # Get value
-            value = array.GetTuple1(index)
-            array.SetTuple1(index, 2.0*self.WallLumenRatio*value)
+        # TODO: vectorize these operations with vtk numpy adapter
+        if self.UniformWallToLumenRatio:
+            for index in range(distanceArray.GetNumberOfTuples()):
+                # Get value
+                diameter = 2.0*distanceArray.GetTuple1(index)
+
+                # Update array to thickness
+                distanceArray.SetTuple1(index, self.WallLumenRatio*diameter)
+
+        else:
+            print("Using non uniform WLR", end="\n")
+
+            for index in range(distanceArray.GetNumberOfTuples()):
+                # Get value
+                diameter = 2.0*distanceArray.GetTuple1(index)
+
+                # Get local WLR based on diameter
+                localWRL = self._wlrLarge if diameter > 3.0 else self._wlrMedium
+
+                # Update array to thickness
+                distanceArray.SetTuple1(index, localWRL*diameter)
 
         self.Surface = surface
 
@@ -746,8 +767,10 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.vmtkRenderer.RegisterScript(self)
 
-        if not self.OnlyUpdateThickness:
+        if self.OnlyUpdateThickness:
+            self.SelectThinnerRegions()
 
+        else:
             self.ComputeVasculatureThickness()
 
             if self.Aneurysm:
@@ -761,8 +784,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 if self.SelectAneurysmRegions:
                     self.SelectThinnerRegions()
 
-        else:
-            self.SelectThinnerRegions()
 
 
         # After array create, smooth it hard
