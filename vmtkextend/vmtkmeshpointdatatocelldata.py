@@ -7,6 +7,8 @@ import sys
 
 from vmtk import pypes
 
+vmtkmeshpointdatatocelldata = 'vmtkMeshPointDataToCellData'
+
 class vmtkMeshPointDataToCellData(pypes.pypeScript):
 
     def __init__(self):
