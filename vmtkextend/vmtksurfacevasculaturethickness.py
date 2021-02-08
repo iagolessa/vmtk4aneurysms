@@ -28,6 +28,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # "Private" members
         self._wlrMedium = 0.07
         self._wlrLarge = 0.088
+        self._diameterMedium = 2.0
+        self._diameterLarge = 3.0
 
         # Public member
         self.Surface = None
@@ -382,6 +384,21 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Surface.Modified()
         self.ContourWidget.Initialize()
 
+    def _compute_local_wlr(self, diameter):
+        if diameter > self._diameterLarge:
+            return self._wlrLarge
+
+        elif diameter < self._diameterMedium:
+            return self._wlrMedium
+        
+        else:
+            # Linear threshold
+            deltaWlr = self._wlrLarge - self._wlrMedium
+            deltaDiameter = self._diameterLarge - self._diameterMedium
+            angCoeff = deltaWlr/deltaDiameter
+
+            return self._wlrMedium + angCoeff*(diameter - self._diameterMedium)
+
     def ComputeVasculatureThickness(self):
         """Compute thickness array based on diameter and WLR.
 
@@ -439,7 +456,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 distanceArray.SetTuple1(index, radius)
 
         # Remove radius array
-        surface.GetPointData().RemoveArray(self.RadiusArrayName)
+        # surface.GetPointData().RemoveArray(self.RadiusArrayName)
 
         # Smooth the distance to centerline array
         # to avoid sudden changes of thickness in
@@ -473,7 +490,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 diameter = 2.0*distanceArray.GetTuple1(index)
 
                 # Get local WLR based on diameter
-                localWRL = self._wlrLarge if diameter > 3.0 else self._wlrMedium
+                # localWRL = self._wlrLarge if diameter > 3.0 else self._wlrMedium
+                localWRL = self._compute_local_wlr(diameter)
+
+                # Update radius arrays to hold the local WLR for debugging
+                # radiusArray.SetTuple1(index, localWRL)
 
                 # Update array to thickness
                 distanceArray.SetTuple1(index, localWRL*diameter)
