@@ -163,7 +163,7 @@ def WallTypeCharacterization(surface: names.polyDataType,
     fieldsDf[wallTypeArrayName] = normalWall
 
     # Groups of conditions
-    isAneurysm = fieldsDf[aneurysmNeckArrayName] == 0.0
+    isAneurysm = fieldsDf[aneurysmNeckArrayName] < 0.5
 
     isHighWss = fieldsDf[names.TAWSS] > limitHemodynamics[names.TAWSS]["high"]
     isHighOsi = fieldsDf[names.OSI] > limitHemodynamics[names.OSI]["high"]
