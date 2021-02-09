@@ -32,6 +32,11 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         self.LocalScaleFactor = 0.75
         self.OnlyUpdateStiffness = False
 
+        self.AbnormalHemodynamicsRegions = False
+        self.WallTypeArrayName = "WallType"
+        self.AtheroscleroticFactor = 1.15
+        self.RedRegionsFactor = 0.95
+
         self.vmtkRenderer = None
         self.OwnRenderer = 0
         self.ContourWidget = None
@@ -58,19 +63,36 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
                 'aneurysm stiffness (also aneurysm fundus stiffness)'],
 
             ['SelectAneurysmRegions', 'aneurysmregions', 'bool', 1, '',
-                'enable selection of aneurysm thinner or thicker regions'],
+                'enable selection of aneurysm less stiff or stiffer regions'],
 
             ['LocalScaleFactor', 'localfactor', 'float', 1, '',
-                'scale fator to control local aneurysm thickness'],
+                'scale fator to control local aneurysm stiffness'],
 
             ['OnlyUpdateStiffness', 'updatestiffness', 'bool', 1, '',
                 'if the stiffness array already exists, this options enables '\
                 'only to update it'],
+
+            ['AbnormalHemodynamicsRegions', 'abnormalregions', 'bool', 1, '',
+                'enable update on stiffness based on WallType array created '\
+                'based on hemodynamics variables (must be used with '\
+                'OnlyUpdateStiffness on)'],
+
+            ['AtheroscleroticFactor', 'atheroscleroticfactor', 'float', 1, '',
+                'scale fator to update stiffness of atherosclerotic regions '\
+                'if AbnormalHemodynamicsRegions is true'],
+
+            ['RedRegionsFactor', 'redregionsfactor', 'float', 1, '',
+                'scale fator to update stiffness of red regions '\
+                'if AbnormalHemodynamicsRegions is true'],
+
+            ['WallTypeArrayName', 'walltypearray', 'str', 1, '',
+                'name of wall type characterization array']
+
         ])
 
         self.SetOutputMembers([
             ['Surface', 'o', 'vtkPolyData', 1, '',
-                'the input surface with thickness array', 'vmtksurfacewriter'],
+                'the input surface with stiffness array', 'vmtksurfacewriter'],
         ])
 
     def _delete_contour(self, obj):
@@ -201,7 +223,7 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         # self.LocalScaleFactor = int(self.InputText(queryString))
         # print(self.LocalScaleFactor)
 
-        # multiply thickness by scale factor in inside regions
+        # multiply stiffness by scale factor in inside regions
         # where selection value is < 0.0, for this case
         for i in range(stiffnessArray.GetNumberOfTuples()):
             selectionValue = selectionScalars.GetTuple1(i)
@@ -309,6 +331,87 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
             self.vmtkRenderer.Deallocate()
             self.OwnRenderer = 0
 
+    def UpdateAbnormalHemodynamicsRegions(self):
+        """Based on wall type array, increase or deacrease stiffness.
+
+        With a global stiffness array already defined on the surface, update
+        the stiffness based on the wall type array created based on the
+        hemodynamics variables, by multiplying it by a factor defined below. As
+        explained in the function WallTypeCharacterization of wallmotion.py,
+        the three types of wall and the operation performed here for each are:
+
+            Label   Wall Type       Operation
+            -----   ---------       ---------
+                0   Normal wall     Nothing (default = 1)
+                1   Atherosclerotic Increase stiffness (default factor = 1.15)
+                2   "Red" wall      Decrease stiffness (default factor = 0.95)
+
+        The multiplying factors for the atherosclerotic and red wall must be
+        provided at object instantiation, with default values given above.
+        The function will look for the array named "WallType" for defining
+        its operation. 
+
+        Note also that, although our indication with this description does
+        indicate that atherosclerotic regions are stiffer, this may not be true
+        hence the user is free to input an atherosclerotic scale factor 
+        smaller than 1 to this case. The same comment is valid for the red
+        wall cases.
+        """
+        # Labels for wall classification
+        normalWall  = 0
+        stifferWall = 1
+        lessStiffWall = 2
+
+        # Update both fields with selection
+        stiffnessArray = self.Surface.GetPointData().GetArray(
+                             self.StiffnessArrayName
+                         )
+
+        # factor array: name WallType
+        wallTypeArray = self.Surface.GetCellData().GetArray(
+                            self.WallTypeArrayName
+                        )
+
+        # Update WallType array with scale factor
+        # this is important to have a smooth field to multiply with the
+        # stiffness array (scale factor can be viewed as a continous
+        # distribution in contrast to the WallType array that is discrete)
+        for i in range(wallTypeArray.GetNumberOfTuples()):
+            wallTypeValue  = wallTypeArray.GetTuple1(i)
+
+            if wallTypeValue == stifferWall:
+                newValue = self.AtheroscleroticFactor
+
+            elif wallTypeValue == lessStiffWall:
+                newValue = self.RedRegionsFactor
+
+            else:
+                newValue = 1.0
+
+            wallTypeArray.SetTuple1(i, newValue)
+
+        # Interpolate WallType cell data to point data
+        cellDataToPointData = vtk.vtkCellDataToPointData()
+        cellDataToPointData.SetInputData(self.Surface)
+        cellDataToPointData.PassCellDataOff()
+        cellDataToPointData.Update()
+
+        self.Surface = cellDataToPointData.GetOutput()
+
+        wallTypeArray = self.Surface.GetPointData().GetArray(
+                            self.WallTypeArrayName
+                        )
+
+        # multiply stiffness by scale factor
+        for i in range(stiffnessArray.GetNumberOfTuples()):
+            wallTypeValue  = wallTypeArray.GetTuple1(i)
+            stiffnessValue = stiffnessArray.GetTuple1(i)
+
+            stiffnessArray.SetTuple1(i, wallTypeValue*stiffnessValue)
+
+        # Update name of abnormal regions factor final array
+        wallTypeArray.SetName("AbnormalFactorArray")
+
 
     def Execute(self):
 
@@ -339,7 +442,19 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
         self.Surface = triangulate.GetOutput()
 
-        if not self.OnlyUpdateStiffness:
+        if self.OnlyUpdateStiffness and not self.AbnormalHemodynamicsRegions:
+            self.SelectPatchStiffness()
+
+            self.Surface = self._smooth_array(self.Surface,
+                                              self.StiffnessArrayName)
+
+        elif self.OnlyUpdateStiffness and self.AbnormalHemodynamicsRegions:
+            self.UpdateAbnormalHemodynamicsRegions()
+
+            self.Surface = self._smooth_array(self.Surface,
+                                              self.StiffnessArrayName)
+
+        else:
 
             selectAneurysm = vmtkscripts.vmtkSurfaceRegionDrawing()
             selectAneurysm.Surface = self.Surface
@@ -388,17 +503,14 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
                 self.Surface = npDistanceSurface.VTKObject
 
-        else:
-            self.SelectAneurysmRegions = True
+                # Update with stiffer regions
+                if self.SelectAneurysmRegions:
+                    self.SelectPatchStiffness()
 
-        # Update with stiffer regions
-        if self.SelectAneurysmRegions:
-            self.SelectPatchStiffness()
+                self.Surface = self._smooth_array(self.Surface,
+                                                  self.StiffnessArrayName)
 
-            self.Surface = self._smooth_array(self.Surface,
-                                              self.StiffnessArrayName)
-
-        # Map final thickness field to original surface
+        # Map final stiffness field to original surface
         surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
         surfaceProjection.SetInputData(polygonalSurface)
         surfaceProjection.SetReferenceSurface(self.Surface)
