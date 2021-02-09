@@ -100,11 +100,11 @@ def AneurysmPulsatility2(lumen_surface: names.polyDataType,
     # Compute pulsatility
     return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
 
-def WallTypeCharacterization(surface: names.polyDataType,
-                             low_wss: float = 5.0,
-                             high_wss: float = 10.0,
-                             low_osi: float = 0.001,
-                             high_osi: float = 0.01) -> names.polyDataType:
+def WallTypeClassification(surface: names.polyDataType,
+                           low_wss: float = 5.0,
+                           high_wss: float = 10.0,
+                           low_osi: float = 0.001,
+                           high_osi: float = 0.01) -> names.polyDataType:
     """Based on hemodynamics, characterize wall morphology.
 
     Based on the TAWSS and OSI fields, identifies the aneurysm regions prone to
