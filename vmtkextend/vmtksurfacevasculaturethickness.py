@@ -1,8 +1,5 @@
 #! /usr/bin/env python
 
-# Creating Python Class to handle aneurysms operations
-# My idea is to expand this class in the future:
-# extract the aneyurysm and calculate other geometric parameters
 import sys
 import vtk
 import math
@@ -13,9 +10,7 @@ from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 from vmtk import pypes
 
-
 vmtksurfacevasculaturethickness = 'vmtkSurfaceVasculatureThickness'
-
 
 class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
@@ -50,7 +45,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.AbnormalHemodynamicsRegions = False
         self.WallTypeArrayName = "WallType"
-        self.AtheroscleroticFactor = 1.15
+        self.AtheroscleroticFactor = 1.20
         self.RedRegionsFactor = 0.95
 
         self.GenerateWallMesh = False
@@ -151,6 +146,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
     def _display(self):
         self.vmtkRenderer.Render()
 
+    # Code based on the vmtksurfacearraysmoothing.py script of the VMTK library
     def _smooth_array(self, surface, array, niterations=5, relax_factor=1.0):
         """Surface array smoother."""
 
@@ -272,6 +268,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         return inletCenter, outletCenters
 
+    # Code based on the vmtkcenterlines.py script of the VMTK library
     def _generate_centerlines(self):
         """Compute centerlines automatically"""
 
