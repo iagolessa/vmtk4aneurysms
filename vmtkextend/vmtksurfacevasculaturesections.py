@@ -31,37 +31,36 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
                           "number of incribed spheres.")
 
         self.SetInputMembers([
-            ['Surface',	'i', 'vtkPolyData', 1, '', 
+            ['Surface', 'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
 
-            ['Remesh' , 'remesh', 'bool', 1, '', 
-                'to apply remeshing procedure after fixing it'],
+            ['Remesh' , 'remesh', 'bool', 1, '',
+                'apply remeshing procedure to the sections'],
 
             ['Clip' , 'clip' ,'bool', 1,'',
-                'to clip surface with a box before fixing it'],
+                'clip surface with a box before computing sections'],
 
-            ['SpheresDistance',	'spheresdistance', 'int', 1, '', 
+            ['SpheresDistance', 'spheresdistance', 'int', 1, '',
                 'the number of spheres to be accouted as '
                 'distance between the sections'],
 
-            ['ElementAreaSize',	'elementareasize', 'float', 1, '', 
+            ['ElementAreaSize', 'elementareasize', 'float', 1, '',
                 'the size of area element if remeshing sections'],
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 
+            ['Surface', 'o', 'vtkPolyData', 1, '',
                 'the output surface with the sections', 'vmtksurfacewriter']
         ])
-
 
 
     def _get_inlet_and_outlets(self):
         """Compute inlet and outlets centers of vascular surface.
 
-        Based on the surface and assuming that the inlet is the
-        open profile with largest area, return a tuple with two lists:
-        the first includes the coordinates of the inlet and the second 
-        the coordinates of the outlets.
+        Based on the surface and assuming that the inlet is the open profile
+        with largest area, return a tuple with two lists: the first includes
+        the coordinates of the inlet and the second the coordinates of the
+        outlets.
         """
 
         boundaryRadiusArrayName  = "Radius"
@@ -101,8 +100,9 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
 
         return inletCenter, outletCenters
 
+    # Code partially based on the vmtkcenterlines.py script
     def _generate_centerlines(self):
-        """Compute centerlines automatically"""
+        """Compute centerlines automatically."""
 
         # Get inlet and outlet centers of surface
         sourcePoints, targetPoints = self._get_inlet_and_outlets()
@@ -189,27 +189,20 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
 
         self.Surface = clipper.Surface
 
-
-    def AutomaticClipping(self):
-        """Automatically clip models based on centerlines."""
-        pass
-        # # Procedure to automatically clip model
-        # centerlines = vmtkscripts.vmtkCenterlines()
-        # centerlines.SurfaceInputFileName = surfacesDir+'surfaceT1.vtp'
-        # centerlines.IORead()
-        # centerlines.Execute()
-
-        # endPointExtractor = vmtkscripts.vmtkEndpointExtractor()
-        # endPointExtractor.Centerlines = centerlines.Centerlines
-        # endPointExtractor.RaiusArrayName = centerlines.RadiusArrayName
-        # endPointExtractor.Execute()
-        # endPointExtractor.PrintOutputMembers()
-
-
     def Execute(self):
 
         if self.Clip:
             self.ClipModel()
+
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(self.Surface)
+        cleaner.Update()
+
+        triangulate = vtk.vtkTriangleFilter()
+        triangulate.SetInputData(cleaner.GetOutput())
+        triangulate.Update()
+
+        self.Surface = triangulate.GetOutput()
 
         # Compute centerlines of model
         self._generate_centerlines()
@@ -259,7 +252,7 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         sections.ReverseDirection = 0
         sections.NumberOfDistanceSpheres = self.SpheresDistance
         sections.Execute()
-        
+
         triangulater = vmtkscripts.vmtkSurfaceTriangle()
         triangulater.Surface = sections.BranchSections
         triangulater.Execute()
@@ -271,7 +264,7 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
             remesher = vmtkscripts.vmtkSurfaceRemeshing()
             remesher.Surface = self.Surface
             remesher.ElementSizeMode = "area"
-            remesher.TargetArea = self.ElementAreaSize 
+            remesher.TargetArea = self.ElementAreaSize
             remesher.Execute()
 
             self.Surface = remesher.Surface
