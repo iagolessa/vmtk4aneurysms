@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py2-3 COMPATIBILITY
+from __future__ import absolute_import
 
 import sys
 import math
 import vtk
+
 from vmtk import vmtkscripts
 from vmtk import pypes
 from vmtk import vtkvmtk
@@ -19,6 +20,7 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
 
         self.Surface = None
         self.Remesh = False
+        self.Cap = False
         self.AddFlowExtensions = False
 
         self.SetScriptName('vmtksurfacevasculaturetransform')
@@ -31,18 +33,21 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
                           'boundary before the transformation.')
 
         self.SetInputMembers([
-            ['Surface',	'i', 'vtkPolyData', 1, '', 
+            ['Surface', 'i', 'vtkPolyData', 1, '',
                  'the input surface', 'vmtksurfacereader'],
 
-            ['Remesh' , 'remesh', 'bool', 1, '', 
+            ['Remesh' , 'remesh', 'bool', 1, '',
                 'to apply remeshing procedure before transforming the surface'],
 
-            ['AddFlowExtensions' , 'addextensions', 'bool', 1, '', 
+            ['Cap' , 'cap', 'bool', 1, '',
+                'to cap surface after transfrom it'],
+
+            ['AddFlowExtensions' , 'addextensions', 'bool', 1, '',
                 'to add short flow extensions before transforming the surface']
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 
+            ['Surface', 'o', 'vtkPolyData', 1, '',
                 'the output surface', 'vmtksurfacewriter']
         ])
 
@@ -56,8 +61,8 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
 
         dotProduct = sum((a*b) for a, b in zip(vector1, vector2))
         radAngle = math.acos(dotProduct)
-        
-        return 180.0*radAngle/vtk.vtkMath.Pi()     
+
+        return 180.0*radAngle/vtk.vtkMath.Pi()
 
     def Execute(self):
         if self.Surface == None:
@@ -104,7 +109,7 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
 
         refSystems = boundaryReferenceSystems.GetOutput()
 
-        # Gettig point, normal, and radius of inlet (largest radius)
+        # Getting point, normal, and radius of inlet (largest radius)
         maxRadius = 0
         idMaxRadius = 1
 
@@ -116,7 +121,7 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
                 maxRadius = radius
 
         # The new origin and outward normal of the inlet surface
-        # Eventual TODO: set then as user input
+        # Eventual TODO: set as user input
         zero3dVector = [0.0, 0.0, 0.0]
         origin = zero3dVector
         orientation = [0, 0, -1]
@@ -162,14 +167,17 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
 
         surfaceTranformed = transformFilter.GetOutput()
 
-        # cap surface automatically
-        capper = vmtkscripts.vmtkSurfaceCapper()
-        capper.Surface = surfaceTranformed
-        capper.Method  = 'centerpoint'
-        capper.Interactive = 0
-        capper.Execute()
+        self.Surface = surfaceTranformed
 
-        self.Surface = capper.Surface
+        # cap surface automatically
+        if self.Cap:
+            capper = vmtkscripts.vmtkSurfaceCapper()
+            capper.Surface = surfaceTranformed
+            capper.Method  = 'centerpoint'
+            capper.Interactive = 0
+            capper.Execute()
+
+            self.Surface = capper.Surface
 
 if __name__=='__main__':
     main = pypes.pypeMain()
