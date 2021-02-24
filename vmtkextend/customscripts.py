@@ -6,7 +6,7 @@ __all__ = [
     '.vmtkmeshpointdatatocelldata',
     '.vmtksurfaceclipaddflowextension',
     '.vmtksurfaceremeshwithresolution',
-    '.vmtksurfaceaneurysmstiffness',
+    '.vmtksurfaceaneurysmelasticity',
     '.vmtksurfacevasculaturesections',
     '.vmtksurfacevasculaturethickness',
     '.vmtksurfacevasculaturetransform',

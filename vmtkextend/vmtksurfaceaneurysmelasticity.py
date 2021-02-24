@@ -13,28 +13,28 @@ from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 from vmtk import pypes
 
-vmtksurfaceaneurysmstiffness = 'vmtkSurfaceAneurysmStiffness'
+vmtksurfaceaneurysmelasticity = 'vmtkSurfaceAneurysmelasticity'
 
-class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
+class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
     def __init__(self):
         pypes.pypeScript.__init__(self)
 
         self.Surface = None
-        self.UniformStiffness = False
-        self.StiffnessArrayName = "E"
+        self.UniformElasticity = False
+        self.ElasticityArrayName = "E"
         self.DistanceArrayName = "DistanceToNeckArray"
 
-        self.ArteriesStiffness = 5e6
-        self.AneurysmStiffness = 1e6
+        self.ArteriesElasticity = 5e6
+        self.AneurysmElasticity = 2e6
 
         self.SelectAneurysmRegions = False
         self.LocalScaleFactor = 0.75
-        self.OnlyUpdateStiffness = False
+        self.OnlyUpdateElasticity = False
 
         self.AbnormalHemodynamicsRegions = False
         self.WallTypeArrayName = "WallType"
-        self.AtheroscleroticFactor = 1.15
+        self.AtheroscleroticFactor = 1.20
         self.RedRegionsFactor = 0.95
 
         self.vmtkRenderer = None
@@ -43,46 +43,46 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         self.Actor = None
         self.Interpolator = None
 
-        self.SetScriptName('vmtksurfaceaneurysmstiffness')
+        self.SetScriptName('vmtksurfaceaneurysmelasticity')
         self.SetScriptDoc('')
 
         self.SetInputMembers([
             ['Surface', 'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
 
-            ['UniformStiffness', 'uniformstiffness', 'bool', 1, '',
-                'indicates uniform aneurysm stiffness'],
+            ['UniformElasticity', 'uniformelasticity', 'bool', 1, '',
+                'indicates uniform aneurysm elasticity'],
 
-            ['StiffnessArrayName', 'stiffnessarray', 'str', 1, '',
-                'name of the resulting stiffness array'],
+            ['ElasticityArrayName', 'elasticityarray', 'str', 1, '',
+                'name of the resulting elasticity array'],
 
-            ['ArteriesStiffness', 'arteriesstiffness', 'float', 1, '',
-                'stiffness of the arteries (and aneurysm neck)'],
+            ['ArteriesElasticity', 'arterieselasticity', 'float', 1, '',
+                'elasticity of the arteries (and aneurysm neck)'],
 
-            ['AneurysmStiffness', 'aneurysmstiffness', 'float', 1, '',
-                'aneurysm stiffness (also aneurysm fundus stiffness)'],
+            ['AneurysmElasticity', 'aneurysmelasticity', 'float', 1, '',
+                'aneurysm elasticity (also aneurysm fundus elasticity)'],
 
             ['SelectAneurysmRegions', 'aneurysmregions', 'bool', 1, '',
                 'enable selection of aneurysm less stiff or stiffer regions'],
 
             ['LocalScaleFactor', 'localfactor', 'float', 1, '',
-                'scale fator to control local aneurysm stiffness'],
+                'scale fator to control local aneurysm elasticity'],
 
-            ['OnlyUpdateStiffness', 'updatestiffness', 'bool', 1, '',
-                'if the stiffness array already exists, this options enables '\
+            ['OnlyUpdateElasticity', 'updateelasticity', 'bool', 1, '',
+                'if the elasticity array already exists, this options enables '\
                 'only to update it'],
 
             ['AbnormalHemodynamicsRegions', 'abnormalregions', 'bool', 1, '',
-                'enable update on stiffness based on WallType array created '\
+                'enable update on elasticity based on WallType array created '\
                 'based on hemodynamics variables (must be used with '\
-                'OnlyUpdateStiffness on)'],
+                'OnlyUpdateElasticity on)'],
 
             ['AtheroscleroticFactor', 'atheroscleroticfactor', 'float', 1, '',
-                'scale fator to update stiffness of atherosclerotic regions '\
+                'scale fator to update elasticity of atherosclerotic regions '\
                 'if AbnormalHemodynamicsRegions is true'],
 
             ['RedRegionsFactor', 'redregionsfactor', 'float', 1, '',
-                'scale fator to update stiffness of red regions '\
+                'scale fator to update elasticity of red regions '\
                 'if AbnormalHemodynamicsRegions is true'],
 
             ['WallTypeArrayName', 'walltypearray', 'str', 1, '',
@@ -92,7 +92,7 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
         self.SetOutputMembers([
             ['Surface', 'o', 'vtkPolyData', 1, '',
-                'the input surface with stiffness array', 'vmtksurfacewriter'],
+                'the input surface with elasticity array', 'vmtksurfacewriter'],
         ])
 
     def _delete_contour(self, obj):
@@ -107,7 +107,7 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
     def _display(self):
         self.vmtkRenderer.Render()
 
-    def _smooth_array(self, surface, array, niterations=5, relax_factor=1.0):
+    def _smooth_array(self, surface, array, niterations=10, relax_factor=1.0):
         """Surface array smoother."""
 
         # arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
@@ -182,8 +182,8 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
         return surface
 
-    def _set_patch_stiffness(self, obj):
-        """Set stiffness on selected region."""
+    def _set_patch_elasticity(self, obj):
+        """Set elasticity on selected region."""
 
         rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
             self.ContourWidget.GetRepresentation()
@@ -214,8 +214,8 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         selectionScalars = selectionFilter.GetOutput().GetPointData().GetScalars()
 
         # Update both fields with selection
-        stiffnessArray = self.Surface.GetPointData().GetArray(
-                            self.StiffnessArrayName
+        elasticityArray = self.Surface.GetPointData().GetArray(
+                            self.ElasticityArrayName
                         )
 
         # TODO: how to select local scale factor on the fly?
@@ -223,22 +223,22 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         # self.LocalScaleFactor = int(self.InputText(queryString))
         # print(self.LocalScaleFactor)
 
-        # multiply stiffness by scale factor in inside regions
+        # multiply elasticity by scale factor in inside regions
         # where selection value is < 0.0, for this case
-        for i in range(stiffnessArray.GetNumberOfTuples()):
+        for i in range(elasticityArray.GetNumberOfTuples()):
             selectionValue = selectionScalars.GetTuple1(i)
-            stiffnessValue = stiffnessArray.GetTuple1(i)
+            elasticityValue = elasticityArray.GetTuple1(i)
 
             if selectionValue < 0.0:
-                newStiffness = self.LocalScaleFactor*stiffnessValue
-                stiffnessArray.SetTuple1(i, newStiffness)
+                newElasticity = self.LocalScaleFactor*elasticityValue
+                elasticityArray.SetTuple1(i, newElasticity)
 
-        self.Actor.GetMapper().SetScalarRange(stiffnessArray.GetRange(0))
+        self.Actor.GetMapper().SetScalarRange(elasticityArray.GetRange(0))
         self.Surface.Modified()
         self.ContourWidget.Initialize()
 
-    def SelectPatchStiffness(self):
-        """Interactvely select patches of different stiffness."""
+    def SelectPatchElasticity(self):
+        """Interactvely select patches of different elasticity."""
 
         # Initialize renderer
         if not self.OwnRenderer:
@@ -246,7 +246,7 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
             self.vmtkRenderer.Initialize()
             self.OwnRenderer = 1
 
-        self.Surface.GetPointData().SetActiveScalars(self.StiffnessArrayName)
+        self.Surface.GetPointData().SetActiveScalars(self.ElasticityArrayName)
 
         # Create mapper and actor to scene
         mapper = vtk.vtkPolyDataMapper()
@@ -287,8 +287,8 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
         self.vmtkRenderer.AddKeyBinding(
             'space',
-            'Update stiffness',
-            self._set_patch_stiffness
+            'Update elasticity',
+            self._set_patch_elasticity
         )
 
         self.vmtkRenderer.AddKeyBinding(
@@ -298,17 +298,17 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         )
 
         self.vmtkRenderer.InputInfo(
-            'Select regions to update stiffness\n'  \
+            'Select regions to update elasticity\n'  \
             'Current local scale factor: '+         \
             str(self.LocalScaleFactor)+'\n'
         )
 
         # Update range for lengend
-        stiffnessArray = self.Surface.GetPointData().GetArray(
-                            self.StiffnessArrayName
+        elasticityArray = self.Surface.GetPointData().GetArray(
+                            self.ElasticityArrayName
                         )
 
-        self.Actor.GetMapper().SetScalarRange(stiffnessArray.GetRange(0))
+        self.Actor.GetMapper().SetScalarRange(elasticityArray.GetRange(0))
         self.Surface.Modified()
 
         self.Legend = 1
@@ -322,7 +322,7 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
             self.ScalarBarActor.GetLabelTextProperty().ShadowOff()
             # self.ScalarBarActor.GetLabelTextProperty().SetColor(0.0,0.0,0.0)
             self.ScalarBarActor.SetLabelFormat('%.2f')
-            self.ScalarBarActor.SetTitle(self.StiffnessArrayName)
+            self.ScalarBarActor.SetTitle(self.ElasticityArrayName)
             self.vmtkRenderer.Renderer.AddActor(self.ScalarBarActor)
 
         self._display()
@@ -332,10 +332,10 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
             self.OwnRenderer = 0
 
     def UpdateAbnormalHemodynamicsRegions(self):
-        """Based on wall type array, increase or deacrease stiffness.
+        """Based on wall type array, increase or deacrease elasticity.
 
-        With a global stiffness array already defined on the surface, update
-        the stiffness based on the wall type array created based on the
+        With a global elasticity array already defined on the surface, update
+        the elasticity based on the wall type array created based on the
         hemodynamics variables, by multiplying it by a factor defined below. As
         explained in the function WallTypeCharacterization of wallmotion.py,
         the three types of wall and the operation performed here for each are:
@@ -343,17 +343,17 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
             Label   Wall Type       Operation
             -----   ---------       ---------
                 0   Normal wall     Nothing (default = 1)
-                1   Atherosclerotic Increase stiffness (default factor = 1.15)
-                2   "Red" wall      Decrease stiffness (default factor = 0.95)
+                1   Atherosclerotic Increase elasticity (default factor = 1.15)
+                2   "Red" wall      Decrease elasticity (default factor = 0.95)
 
         The multiplying factors for the atherosclerotic and red wall must be
         provided at object instantiation, with default values given above.
         The function will look for the array named "WallType" for defining
-        its operation. 
+        its operation.
 
         Note also that, although our indication with this description does
         indicate that atherosclerotic regions are stiffer, this may not be true
-        hence the user is free to input an atherosclerotic scale factor 
+        hence the user is free to input an atherosclerotic scale factor
         smaller than 1 to this case. The same comment is valid for the red
         wall cases.
         """
@@ -363,8 +363,8 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         lessStiffWall = 2
 
         # Update both fields with selection
-        stiffnessArray = self.Surface.GetPointData().GetArray(
-                             self.StiffnessArrayName
+        elasticityArray = self.Surface.GetPointData().GetArray(
+                             self.ElasticityArrayName
                          )
 
         # factor array: name WallType
@@ -374,7 +374,7 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
         # Update WallType array with scale factor
         # this is important to have a smooth field to multiply with the
-        # stiffness array (scale factor can be viewed as a continous
+        # Elasticity array (scale factor can be viewed as a continous
         # distribution in contrast to the WallType array that is discrete)
         for i in range(wallTypeArray.GetNumberOfTuples()):
             wallTypeValue  = wallTypeArray.GetTuple1(i)
@@ -402,12 +402,12 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
                             self.WallTypeArrayName
                         )
 
-        # multiply stiffness by scale factor
-        for i in range(stiffnessArray.GetNumberOfTuples()):
+        # multiply elasticity by scale factor
+        for i in range(elasticityArray.GetNumberOfTuples()):
             wallTypeValue  = wallTypeArray.GetTuple1(i)
-            stiffnessValue = stiffnessArray.GetTuple1(i)
+            elasticityValue = elasticityArray.GetTuple1(i)
 
-            stiffnessArray.SetTuple1(i, wallTypeValue*stiffnessValue)
+            elasticityArray.SetTuple1(i, wallTypeValue*elasticityValue)
 
         # Update name of abnormal regions factor final array
         wallTypeArray.SetName("AbnormalFactorArray")
@@ -418,9 +418,9 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
-        # Fundus and neck stiffness
-        fundusStiffness = self.AneurysmStiffness
-        neckStiffness = self.ArteriesStiffness
+        # Fundus and neck elasticity
+        fundusElasticity = self.AneurysmElasticity
+        neckElasticity = self.ArteriesElasticity
 
         # I had a bug with the 'select thinner regions' with
         # polygonal meshes. So, operate on a triangulated surface
@@ -442,32 +442,32 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
         self.Surface = triangulate.GetOutput()
 
-        if self.OnlyUpdateStiffness and not self.AbnormalHemodynamicsRegions:
-            self.SelectPatchStiffness()
+        if self.OnlyUpdateElasticity and not self.AbnormalHemodynamicsRegions:
+            self.SelectPatchElasticity()
 
             self.Surface = self._smooth_array(self.Surface,
-                                              self.StiffnessArrayName)
+                                              self.ElasticityArrayName)
 
-        elif self.OnlyUpdateStiffness and self.AbnormalHemodynamicsRegions:
+        elif self.OnlyUpdateElasticity and self.AbnormalHemodynamicsRegions:
             self.UpdateAbnormalHemodynamicsRegions()
 
             self.Surface = self._smooth_array(self.Surface,
-                                              self.StiffnessArrayName)
+                                              self.ElasticityArrayName)
 
         else:
 
             selectAneurysm = vmtkscripts.vmtkSurfaceRegionDrawing()
             selectAneurysm.Surface = self.Surface
 
-            if self.UniformStiffness:
-                selectAneurysm.OutsideValue = self.ArteriesStiffness
-                selectAneurysm.InsideValue = self.AneurysmStiffness
+            if self.UniformElasticity:
+                selectAneurysm.OutsideValue = self.ArteriesElasticity
+                selectAneurysm.InsideValue = self.AneurysmElasticity
                 selectAneurysm.Binary = True
-                selectAneurysm.ContourScalarsArrayName = self.StiffnessArrayName
+                selectAneurysm.ContourScalarsArrayName = self.ElasticityArrayName
                 selectAneurysm.Execute()
 
                 self.Surface = self._smooth_array(selectAneurysm.Surface,
-                                                  self.StiffnessArrayName)
+                                                  self.ElasticityArrayName)
 
 
             else:
@@ -486,14 +486,14 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
                                     self.DistanceArrayName
                                 )
 
-                angCoeff = (neckStiffness - fundusStiffness)/max(distanceArray)
+                angCoeff = (neckElasticity - fundusElasticity)/max(distanceArray)
 
-                # Compute stiffness array by linear relationship with distance
-                stiffnessArray = neckStiffness - angCoeff*distanceArray
+                # Compute elasticity array by linear relationship with distance
+                elasticityArray = neckElasticity - angCoeff*distanceArray
 
                 npDistanceSurface.PointData.append(
-                    stiffnessArray,
-                    self.StiffnessArrayName
+                    elasticityArray,
+                    self.ElasticityArrayName
                 )
 
                 npDistanceSurface.PointData.append(
@@ -505,12 +505,12 @@ class vmtkSurfaceAneurysmStiffness(pypes.pypeScript):
 
                 # Update with stiffer regions
                 if self.SelectAneurysmRegions:
-                    self.SelectPatchStiffness()
+                    self.SelectPatchElasticity()
 
                 self.Surface = self._smooth_array(self.Surface,
-                                                  self.StiffnessArrayName)
+                                                  self.ElasticityArrayName)
 
-        # Map final stiffness field to original surface
+        # Map final elasticity field to original surface
         surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
         surfaceProjection.SetInputData(polygonalSurface)
         surfaceProjection.SetReferenceSurface(self.Surface)
