@@ -18,13 +18,14 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         pypes.pypeScript.__init__(self)
 
         self.Surface = None
+        self.Centerlines = None
         self.Remesh = False
         self.Clip = True
         self.SpheresDistance = 1
         self.ElementAreaSize = 0.001
 
         self.Centerlines = None
-        self.RadiusArrayName = "MaximumIncribedSpheresRadiusArray"
+        self.RadiusArrayName = "MaximumInscribedSphereRadius"
 
         self.SetScriptName('vmtksurfacevasculaturesections')
         self.SetScriptDoc("Build vasculature sections separated by a given "
@@ -33,6 +34,10 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         self.SetInputMembers([
             ['Surface', 'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
+
+            ['Centerlines', 'icenterline', 'vtkPolyData', 1, '',
+                'the centerlines of the input surface (optional; if not '\
+                'passed, it is calculated automatically', 'vmtksurfacereader'],
 
             ['Remesh' , 'remesh', 'bool', 1, '',
                 'apply remeshing procedure to the sections'],
@@ -204,8 +209,8 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
 
         self.Surface = triangulate.GetOutput()
 
-        # Compute centerlines of model
-        self._generate_centerlines()
+        if not self.Centerlines:
+            self._generate_centerlines()
 
         # Computing centerlines Frenet system
         cntGeometry = vmtkscripts.vmtkCenterlineGeometry()
@@ -258,6 +263,10 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         triangulater.Execute()
 
         self.Surface = triangulater.Surface
+
+        # Include a final clip to remove eventual "slices" that can 
+        # renders the remeshing wrong
+        self.ClipModel()
 
         if self.Remesh:
             # Remeshing the surface with quality triangles
