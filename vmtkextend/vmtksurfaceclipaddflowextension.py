@@ -18,27 +18,32 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         self.ClipMode = 'interactive'
         self.Remesh = False
         self.Cap = False
+        self.Interactive = False
 
         self.SetScriptName('vmtksurfaceclipaddflowextension')
         self.SetScriptDoc('Interactively clip a surface and add small flow '
                           'extension.')
 
         self.SetInputMembers([
-            ['Surface',	'i', 'vtkPolyData', 1, '', 
+            ['Surface', 'i', 'vtkPolyData', 1, '',
                  'the input surface', 'vmtksurfacereader'],
 
-            ['Remesh' , 'remesh', 'bool', 1, '', 
+            ['Remesh' , 'remesh', 'bool', 1, '',
                 'to apply remeshing procedure after fixing it'],
 
             ['Cap'   , 'cap'  ,'bool',1,'',
                 'to cap surface after clipping'],
 
-            ['ClipMode','clipmode', 'str' , 1, '["interactive","centerlinebased"]', 
-                 'the clip mode: manual enables widget'],
+            ['ClipMode','clipmode', 'str' , 1, '["interactive","centerlinebased"]',
+                 'clip mode'],
+
+            ['Interactive' , 'interactive', 'bool', 1, '',
+                'interactively choose the boundaries to add extension'],
+
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 
+            ['Surface', 'o', 'vtkPolyData', 1, '',
                 'the output surface', 'vmtksurfacewriter']
         ])
 
@@ -54,7 +59,7 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
 
     def centerlineClip(self):
         pass
-        
+
     def Execute(self):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
@@ -75,14 +80,14 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         # Setup
         surfaceFlowExtensions.InterpolationMode = 'thinplatespline' # or linear
         surfaceFlowExtensions.ExtensionMode = 'boundarynormal'      # or centerlinedirection
-        # boolean flag which enables computing the length of each 
+        # boolean flag which enables computing the length of each
         # flowextension proportional to the mean profile radius
         surfaceFlowExtensions.AdaptiveExtensionLength = 1 # (bool)
 
         # The proportionality factor is set through 'extensionratio'
         surfaceFlowExtensions.ExtensionRatio = 1
 
-        surfaceFlowExtensions.Interactive = 0
+        surfaceFlowExtensions.Interactive = self.Interactive
         surfaceFlowExtensions.TransitionRatio = 0.5
         surfaceFlowExtensions.AdaptiveExtensionRadius = 1
         surfaceFlowExtensions.AdaptiveNumberOfBoundaryPoints = 1
@@ -94,14 +99,14 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
 
         if self.Remesh:
             remesher = vmtkscripts.vmtkSurfaceRemeshing()
-            remesher.Surface = self.Surface 
+            remesher.Surface = self.Surface
             remesher.ElementSizeMode = "edgelength"
             remesher.TargetEdgeLength = 0.20
             remesher.OutputText("Remeshing procedure ...")
             remesher.Execute()
 
             self.Surface = remesher.Surface
-     
+
         # Capping surface
         if self.Cap:
             capper = vmtkscripts.vmtkSurfaceCapper()
