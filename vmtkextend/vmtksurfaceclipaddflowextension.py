@@ -17,6 +17,7 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         self.Surface = None
         self.ClipMode = 'interactive'
         self.Remesh = False
+        self.EdgeLength = 0.1
         self.Cap = False
         self.Interactive = False
 
@@ -30,6 +31,9 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
 
             ['Remesh' , 'remesh', 'bool', 1, '',
                 'to apply remeshing procedure after fixing it'],
+
+            ['EdgeLength' , 'edgelength', 'float', 1, '',
+                'to edgelength for the remesh procedure'],
 
             ['Cap'   , 'cap'  ,'bool',1,'',
                 'to cap surface after clipping'],
@@ -101,7 +105,7 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
             remesher = vmtkscripts.vmtkSurfaceRemeshing()
             remesher.Surface = self.Surface
             remesher.ElementSizeMode = "edgelength"
-            remesher.TargetEdgeLength = 0.20
+            remesher.TargetEdgeLength = self.EdgeLength
             remesher.OutputText("Remeshing procedure ...")
             remesher.Execute()
 
