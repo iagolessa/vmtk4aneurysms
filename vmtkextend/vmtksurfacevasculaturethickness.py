@@ -33,7 +33,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Aneurysm = True
         self.NumberOfAneurysms = 1
 
-        self.DistanceToNeckArrayName = 'DistanceToNeckArray'
+        self.DistanceToNeckArrayName = 'DistanceToNeck'
         self.AneurysmInfluencedRegionDistance = 0.5
         self.GlobalScaleFactor = 0.75
         self.UniformWallToLumenRatio = False
