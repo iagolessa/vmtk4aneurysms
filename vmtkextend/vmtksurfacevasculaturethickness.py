@@ -33,6 +33,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Aneurysm = True
         self.NumberOfAneurysms = 1
 
+        self.DistanceToNeckArrayName = 'DistanceToNeckArray'
+        self.AneurysmInfluencedRegionDistance = 0.5
         self.GlobalScaleFactor = 0.75
         self.UniformWallToLumenRatio = False
         self.WallLumenRatio = self._wlrMedium
@@ -78,14 +80,19 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             ['NumberOfAneurysms', 'naneurysms', 'int', 1, '',
                 'integer with number of aneurysms on vasculature'],
 
+            ['AneurysmInfluencedRegionDistance', 'influencedistance',
+                'float', 1, '',
+                'distance (in mm) that controls how far the '\
+                'aneurysm-influenced region goes from the aneurysm neck line'],
+
             ['GlobalScaleFactor', 'globalfactor', 'float', 1, '',
                 'scale fator to control global aneurysm thickness'],
 
-            ['WallLumenRatio', 'wlr', 'float', 1, '',
-                'wall to lumen ratio'],
-
             ['UniformWallToLumenRatio', 'uniformwlr', 'bool', 1, '',
                 'forces a uniform WLR informed by the user'],
+
+            ['WallLumenRatio', 'wlr', 'float', 1, '',
+                'wall to lumen ratio if uniformwlr is active'],
 
             ['ThicknessArrayName', 'thicknessarray', 'str', 1, '',
                 'name of the resulting thickness array'],
@@ -527,83 +534,129 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         """Calculate and set aneurysm thickness.
 
         Based on the vasculature thickness distribution, defined as the outside
-        portion of the complete geometry from a neck drawn by the user,
+        portion of the complete geometry from the neck selected by the user,
         estimates an aneurysm thickness by averaging the vasculature thickness
-        using as weight function the distance to the neck line. The estimated
-        aneurysm thickness is, then, set on the aneurysm surface in the
-        thickness array.
+        using as weight function the distance to the "aneurysm-influenced"
+        region line. The estimated aneurysm thickness is, then, set on the
+        aneurysm surface in the thickness array.
+
+        The aneurysm-influenced neck line is defined as the region between the
+        neck line (provided by the user) and the path that is at a distance of
+        'AneurysmInfluencedRegionDistance' value (in mm; default 0.5 mm) from
+        the neck line.  This strip around the aneurysm is imagined as a region
+        of the original vasculature that had its thickness changed by the
+        aneurysm growth.
+
+        If the surface does not already have the 'DistanceToNeckArray' scalar,
+        then it will prompt the user to select the neck line, which will be
+        stored on the surface.
         """
 
-        # self.Surface.GetPointData().SetActiveScalars(self.ThicknessArrayName)
+        # Get point array names
+        nPointArrays = self.Surface.GetPointData().GetNumberOfArrays()
 
-        # Create mapper for the surface
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputData(self.Surface)
-        mapper.ScalarVisibilityOn()
+        pointArrays = [self.Surface.GetPointData().GetArray(id_).GetName()
+                       for id_ in range(nPointArrays)]
 
-        # Add surface as an actor to the scene
-        Actor = vtk.vtkActor()
-        Actor.SetMapper(mapper)
-        Actor.GetMapper().SetScalarRange(-1.0, 0.0)
+        # New procedure: instead of selecting the 'aneurysm-influenced region'
+        # by hand (which is subjective), we define this region based on the
+        # DistanceToNeckArrayName created by the operator or input with the
+        # surface alredy (although this is still subjective, it is possible to
+        # automatize it too. In any case, it is 'less subjective' than the
+        # other procedure, because the aneurysm neck line is somewhat possible
+        # to define precisely).
 
-        # Add the surface actor to the renderer
-        self.vmtkRenderer.Renderer.AddActor(Actor)
+        # Get scalars defining the neck contour (isovalue == 0.0)
+        neckScalars = None
 
-        # Create contour widget
-        self.ContourWidget = vtk.vtkContourWidget()
-        self.ContourWidget.SetInteractor(
-            self.vmtkRenderer.RenderWindowInteractor)
+        if self.DistanceToNeckArrayName not in pointArrays:
+            # Create mapper for the surface
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputData(self.Surface)
+            mapper.ScalarVisibilityOn()
 
-        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
-            self.ContourWidget.GetRepresentation()
-        )
+            # Add surface as an actor to the scene
+            Actor = vtk.vtkActor()
+            Actor.SetMapper(mapper)
+            Actor.GetMapper().SetScalarRange(-1.0, 0.0)
 
-        rep.GetLinesProperty().SetColor(1, 0.2, 0)
-        rep.GetLinesProperty().SetLineWidth(3.0)
+            # Add the surface actor to the renderer
+            self.vmtkRenderer.Renderer.AddActor(Actor)
 
-        pointPlacer = vtk.vtkPolygonalSurfacePointPlacer()
-        pointPlacer.AddProp(Actor)
-        pointPlacer.GetPolys().AddItem(self.Surface)
+            # Create contour widget
+            self.ContourWidget = vtk.vtkContourWidget()
+            self.ContourWidget.SetInteractor(
+                self.vmtkRenderer.RenderWindowInteractor)
 
-        rep.SetPointPlacer(pointPlacer)
+            rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+                self.ContourWidget.GetRepresentation()
+            )
 
-        Interpolator = vtk.vtkPolygonalSurfaceContourLineInterpolator()
-        Interpolator.GetPolys().AddItem(self.Surface)
-        rep.SetLineInterpolator(Interpolator)
+            rep.GetLinesProperty().SetColor(1, 0.2, 0)
+            rep.GetLinesProperty().SetLineWidth(3.0)
 
-        self.vmtkRenderer.AddKeyBinding('i', 'Start interaction',
-                                        self._interact)
+            pointPlacer = vtk.vtkPolygonalSurfacePointPlacer()
+            pointPlacer.AddProp(Actor)
+            pointPlacer.GetPolys().AddItem(self.Surface)
 
-        self.vmtkRenderer.AddKeyBinding('d', 'Delete contour',
-                                        self._delete_contour)
+            rep.SetPointPlacer(pointPlacer)
 
-        self.vmtkRenderer.InputInfo('Select contour around the region aneurysm influence\n')
+            Interpolator = vtk.vtkPolygonalSurfaceContourLineInterpolator()
+            Interpolator.GetPolys().AddItem(self.Surface)
+            rep.SetLineInterpolator(Interpolator)
 
-        self._display()
+            self.vmtkRenderer.AddKeyBinding(
+                'i',
+                'Start interaction',
+                self._interact
+            )
 
-        # Get loop points from representation to vtkPoints
-        pointIds = vtk.vtkIdList()
-        Interpolator.GetContourPointIds(rep, pointIds)
+            self.vmtkRenderer.AddKeyBinding(
+                'd',
+                'Delete contour',
+                self._delete_contour
+            )
 
-        points = vtk.vtkPoints()
-        points.SetNumberOfPoints(pointIds.GetNumberOfIds())
+            self.vmtkRenderer.InputInfo(
+                'Select aneurysm neck contour\n'
+            )
 
-        # Get points in surface
-        for i in range(pointIds.GetNumberOfIds()):
-            pointId = pointIds.GetId(i)
-            point = self.Surface.GetPoint(pointId)
-            points.SetPoint(i, point)
+            self._display()
 
-        # Get array of surface selection based on loop points
-        selectionFilter = vtk.vtkSelectPolyData()
-        selectionFilter.SetInputData(self.Surface)
-        selectionFilter.SetLoop(points)
-        selectionFilter.GenerateSelectionScalarsOn()
-        selectionFilter.SetSelectionModeToSmallestRegion()
-        selectionFilter.Update()
+            # Get loop points from representation to vtkPoints
+            pointIds = vtk.vtkIdList()
+            Interpolator.GetContourPointIds(rep, pointIds)
 
-        # Get selection scalars
-        selectionScalars = selectionFilter.GetOutput().GetPointData().GetScalars()
+            points = vtk.vtkPoints()
+            points.SetNumberOfPoints(pointIds.GetNumberOfIds())
+
+            # Get points in surface
+            for i in range(pointIds.GetNumberOfIds()):
+                pointId = pointIds.GetId(i)
+                point = self.Surface.GetPoint(pointId)
+                points.SetPoint(i, point)
+
+            neckSelectionFilter = vtk.vtkSelectPolyData()
+            neckSelectionFilter.SetInputData(self.Surface)
+            neckSelectionFilter.SetLoop(points)
+            neckSelectionFilter.GenerateSelectionScalarsOn()
+            neckSelectionFilter.SetSelectionModeToSmallestRegion()
+            neckSelectionFilter.Update()
+
+            neckScalars = neckSelectionFilter.GetOutput().GetPointData().GetScalars()
+
+            neckScalars.SetName(self.DistanceToNeckArrayName)
+
+            self.Surface = neckSelectionFilter.GetOutput()
+
+            # Add a little bit of smoothing
+            self.Surface = self._smooth_array(self.Surface,
+                                              self.DistanceToNeckArrayName)
+
+        else:
+            neckScalars = self.Surface.GetPointData().GetArray(
+                              self.DistanceToNeckArrayName
+                          )
 
         # Update both fields with selection
         thicknessArray = self.Surface.GetPointData().GetArray(
@@ -618,10 +671,14 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # First compute aneurysm thickness based on vasculature thickness
         # the vasculature is selection value > 0
         for i in range(thicknessArray.GetNumberOfTuples()):
-            selectionValue = selectionScalars.GetTuple1(i)
+            selectionValue = neckScalars.GetTuple1(i)
             thicknessValue = thicknessArray.GetTuple1(i)
 
-            if selectionValue > 0.0:
+            # New selection: instead of 0.0 (which marks the aneurysm neck,
+            # we define the threshold of 0.5mm beyond the aneurysm neck
+            # that will be influenced by the aneurysm growth)
+            if selectionValue > self.AneurysmInfluencedRegionDistance:
+
                 # Selection value in this case is the distance to the neck
                 # contour: so a distance based average
                 weight = 1.0/(selectionValue + _SMALL)
@@ -631,13 +688,24 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         aneurysmThickness = self.GlobalScaleFactor*aneurysmThickness/normFactor
 
+        print(
+            "Aneurysm thickness computed: {}".format(aneurysmThickness),
+            end="\n"
+        )
+
         # Then, substitute thickness array by aneurysmThickness
         for i in range(thicknessArray.GetNumberOfTuples()):
-            selectionValue = selectionScalars.GetTuple1(i)
 
-            if selectionValue < 0.0:
-                # Set new aneurysm thickness
-                thicknessArray.SetTuple1(i, aneurysmThickness)
+            selectionValue = neckScalars.GetTuple1(i)
+            thicknessValue = thicknessArray.GetTuple1(i)
+
+            # Update aneurysm thickness
+            thicknessArray.SetTuple1(
+                i,
+                aneurysmThickness
+                if selectionValue < self.AneurysmInfluencedRegionDistance
+                else thicknessValue
+            )
 
 
     def SelectThinnerRegions(self):
@@ -907,7 +975,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
                 if self.SelectAneurysmRegions:
                     self.SelectThinnerRegions()
-
 
 
         # After array create, smooth it hard
