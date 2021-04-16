@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # Creating Python Class to handle aneurysms operations
 # My idea is to expand this class in the future:

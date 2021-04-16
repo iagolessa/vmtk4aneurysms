@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 import sys
 import vtk
@@ -516,7 +516,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 diameter = 2.0*distanceArray.GetTuple1(index)
 
                 # Get local WLR based on diameter
-                # localWRL = self._wlrLarge if diameter > 3.0 else self._wlrMedium
                 localWRL = self._compute_local_wlr(diameter)
 
                 # Update radius arrays to hold the local WLR for debugging
@@ -750,20 +749,29 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Interpolator.GetPolys().AddItem(self.Surface)
         rep.SetLineInterpolator(self.Interpolator)
 
-        self.vmtkRenderer.AddKeyBinding('i', 'Start interaction: select region',
-                                        self._interact)
+        self.vmtkRenderer.AddKeyBinding(
+            'i',
+            'Start interaction: select region',
+            self._interact
+        )
 
-        self.vmtkRenderer.AddKeyBinding('space',
-                                        'Update thickness',
-                                        self._set_thinner_thickness)
+        self.vmtkRenderer.AddKeyBinding(
+            'space',
+           'Update thickness',
+           self._set_thinner_thickness
+        )
 
-        self.vmtkRenderer.AddKeyBinding('d',
-                                        'Delete contour',
-                                        self._delete_contour)
+        self.vmtkRenderer.AddKeyBinding(
+            'd',
+            'Delete contour',
+            self._delete_contour
+        )
 
-        self.vmtkRenderer.InputInfo('Select regions to update thickness\n'  \
-                                    'Current local scale factor: '+         \
-                                    str(self.LocalScaleFactor)+'\n')
+        self.vmtkRenderer.InputInfo(
+            'Select regions to update thickness\n'  \
+            'Current local scale factor: '+         \
+            str(self.LocalScaleFactor)+'\n'
+        )
 
         # Update range for lengend
         thicknessArray = self.Surface.GetPointData().GetArray(
@@ -777,11 +785,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         if self.Legend and self.Actor:
             self.ScalarBarActor = vtk.vtkScalarBarActor()
             self.ScalarBarActor.SetLookupTable(
-                self.Actor.GetMapper().GetLookupTable())
+                self.Actor.GetMapper().GetLookupTable()
+            )
             self.ScalarBarActor.GetLabelTextProperty().ItalicOff()
             self.ScalarBarActor.GetLabelTextProperty().BoldOff()
             self.ScalarBarActor.GetLabelTextProperty().ShadowOff()
-            # self.ScalarBarActor.GetLabelTextProperty().SetColor(0.0,0.0,0.0)
             self.ScalarBarActor.SetLabelFormat('%.2f')
             self.ScalarBarActor.SetTitle(self.ThicknessArrayName)
             self.vmtkRenderer.Renderer.AddActor(self.ScalarBarActor)
@@ -888,10 +896,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         wallMesh.ThicknessArrayName = self.ThicknessArrayName
         wallMesh.ThicknessRatio = 1
         wallMesh.NumberOfSubLayers = self.WallMeshLayers
-
-        # wallMesh.UseWarpVectorMagnitudeAsThickness = 1
-        # wallMesh.Thickness = 0.2
-        # wallMesh.ConstantThickness = 1
 
         # Setup
         wallMesh.NumberOfSubsteps = 7000
