@@ -564,7 +564,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # automatize it too. In any case, it is 'less subjective' than the
         # other procedure, because the aneurysm neck line is somewhat possible
         # to define precisely).
-        distanceToNeckArrays = []
+        distanceToNeckArrays = {}
 
         # To also account for the possibility of multiple aneurysms,
         # neck distance array of each aneurysm will be stored in a list
@@ -657,8 +657,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 neckSelectionFilter.GenerateSelectionScalarsOn()
                 neckSelectionFilter.SetSelectionModeToSmallestRegion()
                 neckSelectionFilter.Update()
-                
-                # Change name of scalars 
+
+                # Change name of scalars
                 neckSelectionFilter.GetOutput().GetPointData().GetScalars().SetName(
                     arrayName
                 )
@@ -668,49 +668,51 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                                              arrayName)
 
                 # Append only arrays
-                distanceToNeckArrays.append(
-                    surface.GetPointData().GetArray(arrayName)
-                )
+                distanceToNeckArrays[arrayName] = \
+                    dsa.VTKArray(surface.GetPointData().GetArray(arrayName))
 
                 del neckSelectionFilter
 
         else:
-            distanceToNeckArrays = [self.Surface.GetPointData().GetArray(
-                                        arrayName
-                                   ) for arrayName in distanceToNeckArrayNames]     
+            distanceToNeckArrays = {arrayName:
+                                    dsa.VTKArray(
+                                        self.Surface.GetPointData().GetArray(
+                                            arrayName
+                                        )
+                                   ) for arrayName in distanceToNeckArrayNames}
 
         npDistanceSurface = dsa.WrapDataObject(self.Surface)
 
         # Update both fields with selection
-        thicknessArray = self.Surface.GetPointData().GetArray(
-            self.ThicknessArrayName
-        )
+        thicknessArray = npDistanceSurface.GetPointData().GetArray(
+                            self.ThicknessArrayName
+                        )
 
         _SMALL = 1e-12
-        for id_, neckScalars in enumerate(distanceToNeckArrays):
-            # Compute aneurysm thickness
-            aneurysmThickness = 0.0
-            normFactor = 0.0
+        for id_, (name, neckScalars) in enumerate(distanceToNeckArrays.items()):
+
+            # Add array to surface before we change it
+            npDistanceSurface.PointData.append(
+                neckScalars,
+                name
+            )
 
             # First compute aneurysm thickness based on vasculature thickness
             # the vasculature is selection value > 0
-            for i in range(thicknessArray.GetNumberOfTuples()):
-                selectionValue = neckScalars.GetTuple1(i)
-                thicknessValue = thicknessArray.GetTuple1(i)
+            onVasculature = neckScalars > self.AneurysmInfluencedRegionDistance
 
-                # New selection: instead of 0.0 (which marks the aneurysm neck,
-                # we define the threshold of 0.5mm beyond the aneurysm neck
-                # that will be influenced by the aneurysm growth)
-                if selectionValue > self.AneurysmInfluencedRegionDistance:
+            # Filter thickness and neckScalars
+            thicknesses = onVasculature*thicknessArray
+            vasculatureDistances = onVasculature*neckScalars
 
-                    # Selection value in this case is the distance to the neck
-                    # contour: so a distance based average
-                    weight = 1.0/(selectionValue + _SMALL)
-
-                    aneurysmThickness += weight*thicknessValue
-                    normFactor += weight
-
-            aneurysmThickness = self.GlobalScaleFactor*aneurysmThickness/normFactor
+            # Aneurysm thickness as weighted average
+            aneurysmThickness = self.GlobalScaleFactor*np.average(
+                                    thicknesses,
+                                    weights=np.array([
+                                        1.0/x if x != 0.0 else 0.0
+                                        for x in vasculatureDistances
+                                    ])
+                                )
 
             print(
                 "Aneurysm "+str(id_ + 1)+" thickness computed: {}".format(
@@ -720,24 +722,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             )
 
             # Then, substitute thickness array by aneurysmThickness
-            for i in range(thicknessArray.GetNumberOfTuples()):
-
-                selectionValue = neckScalars.GetTuple1(i)
-                thicknessValue = thicknessArray.GetTuple1(i)
-
-                # Update aneurysm thickness
-                thicknessArray.SetTuple1(
-                    i,
-                    aneurysmThickness
-                    if selectionValue < self.AneurysmInfluencedRegionDistance
-                    else thicknessValue
-                )
-
-            # Add array to surface
-            npDistanceSurface.PointData.append(
-                dsa.VTKArray(neckScalars),
-                neckScalars.GetName()
-            )
+            thicknessArray[thicknesses == 0.0] = aneurysmThickness
 
         self.Surface = npDistanceSurface.VTKObject
 
