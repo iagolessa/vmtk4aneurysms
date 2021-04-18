@@ -3,9 +3,11 @@
 # Creating Python Class to handle aneurysms operations
 # My idea is to expand this class in the future:
 # extract the aneyurysm and calculate other geometric parameters
+import re
 import sys
 import vtk
 import math
+import numpy as np
 import vtk.numpy_interface.dataset_adapter as dsa
 
 from vmtk import vtkvmtk
@@ -24,6 +26,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
         self.UniformElasticity = False
         self.ElasticityArrayName = "E"
         self.DistanceToNeckArrayName = 'DistanceToNeck'
+        self.NumberOfAneurysms = 1
 
         self.ArteriesElasticity = 5e6
         self.AneurysmElasticity = 2e6
@@ -49,6 +52,9 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
         self.SetInputMembers([
             ['Surface', 'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
+
+            ['NumberOfAneurysms', 'naneurysms', 'int', 1, '',
+                'integer with number of aneurysms on vasculature'],
 
             ['UniformElasticity', 'uniformelasticity', 'bool', 1, '',
                 'indicates uniform aneurysm elasticity'],
@@ -442,7 +448,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
         self.Surface = triangulate.GetOutput()
 
-        # Two first branches assume the E field to exist already
+        # Two first branches assume the E field already exists
         if self.OnlyUpdateElasticity and not self.AbnormalHemodynamicsRegions:
             self.SelectPatchElasticity()
 
@@ -451,56 +457,107 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
         # The E field does not exist
         else:
-            # Check whether the DistanceToNeck array already exists
+
+            # Check whether any DistanceToNeck array already exists
             nPointArrays = self.Surface.GetPointData().GetNumberOfArrays()
+            pointArrays  = [self.Surface.GetPointData().GetArray(id_).GetName()
+                            for id_ in range(nPointArrays)]
 
-            pointArrays = [self.Surface.GetPointData().GetArray(id_).GetName()
-                           for id_ in range(nPointArrays)]
+            r = re.compile(self.DistanceToNeckArrayName + ".*")
 
+            distanceToNeckArrayNames = list(filter(r.match, pointArrays))
+            distanceToNeckArrays = {}
 
-            if self.DistanceToNeckArrayName not in pointArrays:
-                selectAneurysm = vmtkscripts.vmtkSurfaceRegionDrawing()
-                selectAneurysm.Surface = self.Surface
-                selectAneurysm.OutsideValue = 1.0 # positive to identify artery
-                selectAneurysm.Binary = False
-                selectAneurysm.ContourScalarsArrayName = self.DistanceToNeckArrayName
-                selectAneurysm.Execute()
-
-                self.Surface = self._smooth_array(selectAneurysm.Surface,
-                                                  self.DistanceToNeckArrayName)
-
-            # Build elasticity on aneurysm based on DistanceToNeck array
             npDistanceSurface = dsa.WrapDataObject(self.Surface)
 
-            # Note that the distances computed 'inside' the aneurysm
-            # are negative originally, so we invert the sign to get
-            # positive values inside the aneurysm
-            distanceArray = -npDistanceSurface.GetPointData().GetArray(
-                                self.DistanceToNeckArrayName
+            if not distanceToNeckArrayNames:
+                for id_ in range(self.NumberOfAneurysms):
+
+                    # Update neck array name if more than one aneurysm
+                    arrayName = self.DistanceToNeckArrayName + str(id_ + 1) \
+                                if self.NumberOfAneurysms > 1 \
+                                else self.DistanceToNeckArrayName
+
+                    selectAneurysm = vmtkscripts.vmtkSurfaceRegionDrawing()
+                    selectAneurysm.Surface = self.Surface
+                    selectAneurysm.OutsideValue = 1.0 # identify the vasculature
+                    selectAneurysm.Binary = False
+                    selectAneurysm.ContourScalarsArrayName = arrayName
+                    selectAneurysm.Execute()
+
+                    # Smooth a little bit
+                    surface = self._smooth_array(
+                                 selectAneurysm.Surface,
+                                 arrayName
+                              )
+
+                    array = dsa.VTKArray(
+                                surface.GetPointData().GetArray(
+                                    arrayName
+                                )
                             )
 
-            elasticities = []
+                    npDistanceSurface.PointData.append(
+                        array,
+                        arrayName
+                    )
+
+                    # Append only arrays
+                    distanceToNeckArrays[arrayName] = array
+
+            else:
+                for arrayName in distanceToNeckArrayNames:
+
+                    # Use copy to avoid changing the original array
+                    array = np.copy(
+                                dsa.VTKArray(
+                                    self.Surface.GetPointData().GetArray(
+                                        arrayName
+                                    )
+                                )
+                            )
+
+                    # Identify the vasculature (as above, == 1.0)
+                    array[array > 0.0] = 1.0
+
+                    distanceToNeckArrays[arrayName] = array
+
+            # Array to hold the actual elasticity array
+            elasticities = dsa.VTKArray(
+                                np.zeros(
+                                    shape=self.Surface.GetNumberOfPoints()
+                                )
+                            )
 
             if self.UniformElasticity:
-                elasticities = [self.AneurysmElasticity
-                                if distance >= 0.0
-                                else self.ArteriesElasticity
-                                for distance in distanceArray]
+
+                for distArray in distanceToNeckArrays.values():
+                    onAneurysm = distArray <= 0.0
+                    elasticities[onAneurysm] = self.AneurysmElasticity
+
+                elasticities[elasticities == 0.0] = self.ArteriesElasticity
 
             else: # linear varying aneurysm elasticity
+                for distArray in distanceToNeckArrays.values():
+                    onAneurysm = distArray <= 0.0
 
-                # Angular coeff. for linear elasticity on the aneurysm sac
-                angCoeff = (neckElasticity - fundusElasticity)/max(distanceArray)
+                    # Angular coeff. for linear elasticity on the aneurysm sac
+                    angCoeff = \
+                        (neckElasticity - fundusElasticity)/max(distArray)
 
-                elasticities = [neckElasticity - angCoeff*distance
-                                if distance >= 0.0
-                                else neckElasticity
-                                for distance in distanceArray]
+                    elasticities[onAneurysm] = \
+                        dsa.VTKArray([
+                            neckElasticity - angCoeff*distance
+                            for distance in distArray[onAneurysm]
+                        ])
+
+                elasticities[elasticities == 0.0] = self.ArteriesElasticity
 
             npDistanceSurface.PointData.append(
-                dsa.VTKArray(elasticities),
+                elasticities,
                 self.ElasticityArrayName
             )
+
 
             self.Surface = npDistanceSurface.VTKObject
 
