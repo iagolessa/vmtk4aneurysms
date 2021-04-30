@@ -29,7 +29,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
         self.NumberOfAneurysms = 1
 
         self.ArteriesElasticity = 5e6
-        self.AneurysmElasticity = 2e6
+        self.AneurysmElasticity = (2e6,)
 
         self.SelectAneurysmRegions = False
         self.LocalScaleFactor = 0.75
@@ -65,8 +65,13 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
             ['ArteriesElasticity', 'arterieselasticity', 'float', 1, '',
                 'elasticity of the arteries (and aneurysm neck)'],
 
-            ['AneurysmElasticity', 'aneurysmelasticity', 'float', 1, '',
-                'aneurysm elasticity (also aneurysm fundus elasticity)'],
+            ['AneurysmElasticity', 'aneurysmelasticity', 'tuple', 1, '',
+                'tuple holding the aneurysms elasticities, if more than '     \
+                'one (also, it is the aneurysm fundus elasticity, if the '    \
+                'linear varying option is enabled). If more than one '        \
+                'aneurysm exists, then the order of the aneurysm elasticity ' \
+                'must be the same as the numbering of the DistanceToNeck<i> ' \
+                'arrays, where <i> indicates the ith aneurysm'],
 
             ['SelectAneurysmRegions', 'aneurysmregions', 'bool', 1, '',
                 'enable selection of aneurysm less stiff or stiffer regions'],
@@ -75,12 +80,12 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
                 'scale fator to control local aneurysm elasticity'],
 
             ['OnlyUpdateElasticity', 'updateelasticity', 'bool', 1, '',
-                'if the elasticity array already exists, this options enables '\
-                'only to update it'],
+                'if the elasticity array already exists, this options'        \
+                'enables only to update it'],
 
             ['AbnormalHemodynamicsRegions', 'abnormalregions', 'bool', 1, '',
                 'enable update on elasticity based on WallType array created '\
-                'based on hemodynamics variables (must be used with '\
+                'based on hemodynamics variables (must be used with '         \
                 'OnlyUpdateElasticity on)'],
 
             ['AtheroscleroticFactor', 'atheroscleroticfactor', 'float', 1, '',
@@ -88,7 +93,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
                 'if AbnormalHemodynamicsRegions is true'],
 
             ['RedRegionsFactor', 'redregionsfactor', 'float', 1, '',
-                'scale fator to update elasticity of red regions '\
+                'scale fator to update elasticity of red regions '            \
                 'if AbnormalHemodynamicsRegions is true'],
 
             ['WallTypeArrayName', 'walltypearray', 'str', 1, '',
@@ -424,10 +429,6 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
-        # Fundus and neck elasticity
-        fundusElasticity = self.AneurysmElasticity
-        neckElasticity = self.ArteriesElasticity
-
         # I had a bug with the 'select thinner regions' with
         # polygonal meshes. So, operate on a triangulated surface
         # and map final result to orignal surface
@@ -531,15 +532,20 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
             if self.UniformElasticity:
 
-                for distArray in distanceToNeckArrays.values():
+                for id_, distArray in enumerate(distanceToNeckArrays.values()):
                     onAneurysm = distArray <= 0.0
-                    elasticities[onAneurysm] = self.AneurysmElasticity
+                    elasticities[onAneurysm] = self.AneurysmElasticity[id_]
 
                 elasticities[elasticities == 0.0] = self.ArteriesElasticity
 
             else: # linear varying aneurysm elasticity
-                for distArray in distanceToNeckArrays.values():
+
+                # Fundus and neck elasticity
+                neckElasticity   = self.ArteriesElasticity
+
+                for id_, distArray in enumerate(distanceToNeckArrays.values()):
                     onAneurysm = distArray <= 0.0
+                    fundusElasticity = self.AneurysmElasticity[id_]
 
                     # Angular coeff. for linear elasticity on the aneurysm sac
                     angCoeff = \
