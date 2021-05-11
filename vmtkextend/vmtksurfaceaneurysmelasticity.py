@@ -504,7 +504,8 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
                     )
 
                     # Append only arrays
-                    distanceToNeckArrays[arrayName] = array
+                    # distanceToNeckArrays[arrayName] = array
+                    distanceToNeckArrays[id_ + 1] = array
 
             else:
                 for arrayName in distanceToNeckArrayNames:
@@ -518,10 +519,23 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
                                 )
                             )
 
+                    # Get aneurysm id from the DistanceToNeck array name
+                    try:
+                        aneurysmId = int(
+                                        arrayName.replace(
+                                            self.DistanceToNeckArrayName,
+                                            ""
+                                        )
+                                     )
+
+                    except(ValueError):
+                        aneurysmId = 1
+
                     # Identify the vasculature (as above, == 1.0)
                     array[array > 0.0] = 1.0
 
-                    distanceToNeckArrays[arrayName] = array
+                    # distanceToNeckArrays[arrayName] = array
+                    distanceToNeckArrays[aneurysmId] = array
 
             # Array to hold the actual elasticity array
             elasticities = dsa.VTKArray(
@@ -532,9 +546,9 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
             if self.UniformElasticity:
 
-                for id_, distArray in enumerate(distanceToNeckArrays.values()):
+                for aneurysmId, distArray in distanceToNeckArrays.items():
                     onAneurysm = distArray <= 0.0
-                    elasticities[onAneurysm] = self.AneurysmElasticity[id_]
+                    elasticities[onAneurysm] = self.AneurysmElasticity[aneurysmId - 1]
 
                 elasticities[elasticities == 0.0] = self.ArteriesElasticity
 
@@ -543,9 +557,9 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
                 # Fundus and neck elasticity
                 neckElasticity   = self.ArteriesElasticity
 
-                for id_, distArray in enumerate(distanceToNeckArrays.values()):
+                for aneurysmId, distArray in distanceToNeckArrays.items():
                     onAneurysm = distArray <= 0.0
-                    fundusElasticity = self.AneurysmElasticity[id_]
+                    fundusElasticity = self.AneurysmElasticity[aneurysmId - 1]
 
                     # Angular coeff. for linear elasticity on the aneurysm sac
                     angCoeff = \
