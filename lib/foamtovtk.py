@@ -12,7 +12,9 @@ from . import polydatamath as pmath
 
 def GetPatchFieldOverTime(foam_case: str,
                           field_name: str,
-                          active_patch_name: str) -> (names.polyDataType, dict):
+                          active_patch_name: str,
+                          multi_region: bool = False,
+                          region_name: str = '') -> (names.polyDataType, dict):
     """Gets a time-varying patch field from an OpenFOAM case.
 
     Given an OpenFOAM case, the field name and the patch name, return a tuple
@@ -41,13 +43,14 @@ def GetPatchFieldOverTime(foam_case: str,
     patches = list((ofReader.GetPatchArrayName(index)
                     for index in range(ofReader.GetNumberOfPatchArrays())))
 
+    if multi_region:
+        active_patch_name = '/'.join([region_name, active_patch_name])
+
     if active_patch_name not in patches:
         message = "Patch {} not in geometry surface.".format(active_patch_name)
         sys.exit(message)
     else:
         pass
-
-    patches.remove('internalMesh')
 
     # Set active patch
     for patchName in patches:
@@ -62,11 +65,43 @@ def GetPatchFieldOverTime(foam_case: str,
     blocks  = ofReader.GetOutput()
     nBlocks = blocks.GetNumberOfBlocks()
 
-    # Surface is the last one (0: internalMesh, 1:surface)
-    surface = blocks.GetBlock(nBlocks - 1)
+    # With the selection of the patch above, here I have to find the
+    # non-empty block. If there is only one block left (THE patch)
+    # the loop will work regardless
+    idNonEmptyBlock = nBlocks - 1 # default non empty block to last one
+    nNonEmptyBlocks = 0
+
+    for iBlock in range(nBlocks):
+        block = blocks.GetBlock(iBlock)
+
+        if block.GetNumberOfBlocks() != 0:
+            idNonEmptyBlock = iBlock
+            nNonEmptyBlocks += 1
+
+        else:
+            continue
+
+    if nNonEmptyBlocks != 1:
+        message = "There is more than one non-empty block when extracting {}.".format(
+                    active_patch_name
+                )
+        sys.exit(message)
+    else:
+        pass
+
+    # Get block
+    block = blocks.GetBlock(idNonEmptyBlock)
 
     # The active patch is the only one left
-    activePatch = surface.GetBlock(0)
+    if multi_region:
+    # (?) maybe this is a less error-prone alternative
+    #if type(activePatch) == multiBlockType:
+
+        # Multi region requires a multilevel block extraction
+        activePatch = block.GetBlock(0).GetBlock(0)
+
+    else:
+        activePatch = block.GetBlock(0)
 
     # Check if array in surface
     cellArraysInPatch  = tools.GetCellArrays(activePatch)
@@ -198,7 +233,7 @@ def FieldTimeStats(surface: names.polyDataType,
 
         storeArray(
             (pmath.TimeAverage(fieldMagOverTime, timeStep, period),
-             names.TAWSS if field_name == names.WSS 
+             names.TAWSS if field_name == names.WSS
                          else field_name + names.mag + names.avg)
         )
 
@@ -223,7 +258,9 @@ def FieldTimeStats(surface: names.polyDataType,
 
 def FieldSurfaceAverage(foam_case: str,
                         field_name: str,
-                        patch_name: str) -> dict:
+                        patch_name: str,
+                        multi_region: bool = False,
+                        region_name: str = '') -> dict:
     """Compute the surface-averaged field over time.
 
     Function to compute surface integrals of a field over an aneurysm or
@@ -232,7 +269,9 @@ def FieldSurfaceAverage(foam_case: str,
     """
     surface, fieldOverTime = GetPatchFieldOverTime(foam_case,
                                                    field_name,
-                                                   patch_name)
+                                                   patch_name,
+                                                   multi_region=multi_region,
+                                                   region_name=region_name)
 
 
     # Check type of field: scalar, vector, tensor
