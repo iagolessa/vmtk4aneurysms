@@ -354,7 +354,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
             Label   Wall Type       Operation
             -----   ---------       ---------
                 0   Normal wall     Nothing (default = 1)
-                1   Atherosclerotic Increase elasticity (default factor = 1.15)
+                1   Atherosclerotic Increase elasticity (default factor = 1.20)
                 2   "Red" wall      Decrease elasticity (default factor = 0.95)
 
         The multiplying factors for the atherosclerotic and red wall must be
