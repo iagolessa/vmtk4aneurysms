@@ -301,9 +301,20 @@ class Surface():
         gaussianCurvature.SetCurvatureTypeToGaussian()
         gaussianCurvature.Update()
 
+        # Compute Min and Max curvature
+        minCurvature = vtk.vtkCurvatures()
+        minCurvature.SetInputData(gaussianCurvature.GetOutput())
+        minCurvature.SetCurvatureTypeToMinimum()
+        minCurvature.Update()
+
+        maxCurvature = vtk.vtkCurvatures()
+        maxCurvature.SetInputData(minCurvature.GetOutput())
+        maxCurvature.SetCurvatureTypeToMaximum()
+        maxCurvature.Update()
+
         cellCurvatures = vtk.vtkPointDataToCellData()
-        cellCurvatures.SetInputData(gaussianCurvature.GetOutput())
-        cellCurvatures.PassPointDataOff()
+        cellCurvatures.SetInputData(maxCurvature.GetOutput())
+        cellCurvatures.PassPointDataOn()
         cellCurvatures.Update()
 
         npCurvatures   = dsa.WrapDataObject(cellCurvatures.GetOutput())
