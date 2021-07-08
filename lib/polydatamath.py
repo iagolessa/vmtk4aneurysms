@@ -1,7 +1,11 @@
+import sys
 import numpy as np
 from scipy.integrate import simps
 
 import vtk
+
+from vtk.numpy_interface import dataset_adapter as dsa
+from . import polydatatools as tools
 from .polydatageometry import Surface
 
 def NormL2(array, axis):
@@ -24,6 +28,29 @@ def SurfaceAverage(surface, array_name):
     triangulate.Update()
 
     surface = triangulate.GetOutput()
+
+    # Check if array is in surface
+    if array_name not in tools.GetCellArrays(surface):
+        sys.exit(array_name + " not found in the surface.")
+    else:
+        pass
+
+    # Use Numpy interface to compute field norm
+    npSurface = dsa.WrapDataObject(surface)
+    arrayOnSurface = npSurface.GetCellData().GetArray(array_name)
+
+    # Check type of field: vector or scalar
+    nComponents = arrayOnSurface.shape[-1]
+
+    if nComponents == 3 or nComponents == 6:
+        arrayOnSurface = NormL2(arrayOnSurface, 1)
+
+        npSurface.CellData.append(arrayOnSurface, array_name)
+
+        # back to VTK interface
+        surface = npSurface.VTKObject
+    else:
+        pass
 
     # Helper functions
     cellData = surface.GetCellData()

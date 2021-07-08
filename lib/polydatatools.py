@@ -221,7 +221,7 @@ def ClipWithScalar(surface: names.polyDataType,
 
     Provided a surface (vtkPolyData), a point scalar array and a 'value' of
     this array, clip the surface portion that have the condition 'scalar_array
-    < value'. If inside out is 'True', than the oposite will be output.
+    > value'. If inside out is 'False', than the oposite will be output.
     """
     # Get point data and cell data
     pointArrays = GetPointArrays(surface)
