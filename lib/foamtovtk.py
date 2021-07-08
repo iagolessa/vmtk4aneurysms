@@ -2,6 +2,8 @@
 
 import sys
 import warnings
+from typing import Union
+from itertools import compress, repeat
 
 import vtk
 from vtk.numpy_interface import dataset_adapter as dsa
@@ -11,7 +13,7 @@ from . import polydatatools as tools
 from . import polydatamath as pmath
 
 def GetPatchFieldOverTime(foam_case: str,
-                          field_name: str,
+                          field_names: Union[str,list],
                           active_patch_name: str,
                           multi_region: bool = False,
                           region_name: str = '') -> (names.polyDataType, dict):
@@ -107,21 +109,46 @@ def GetPatchFieldOverTime(foam_case: str,
     cellArraysInPatch  = tools.GetCellArrays(activePatch)
     pointArraysInPatch = tools.GetPointArrays(activePatch)
 
-    if field_name not in cellArraysInPatch:
-        message = "Field {} not in surface patch {}.".format(field_name,
-                                                             active_patch_name)
+    # Assuming that the user passes a list of fields to collect
+    # get only the ones that are on the passed patch
+    boolFieldsOnPatch = [field in cellArraysInPatch
+                         for field in field_names]
+
+    if all(boolFieldsOnPatch):
+        print("Found all fields on the selected patch.")
+
+        fieldsOnThePatch = field_names
+
+    elif any(boolFieldsOnPatch):
+
+        fieldsOnThePatch = list(compress(field_names, boolFieldsOnPatch))
+
+        print(
+            "Found only the following fields on the surface: {}". format(
+                fieldsOnThePatch
+            )
+        )
+
+    else:
+        message = "None of the fields {} found on surface patch {}.".format(
+                      field_names,
+                      active_patch_name
+                  )
 
         sys.exit(message)
-    else:
-        pass
 
     npActivePatch = dsa.WrapDataObject(activePatch)
 
-    def _get_field(time):
+    selectedFields = {}
+
+    def _get_field(time, field_name):
         ofReader.UpdateTimeStep(time)
         return npActivePatch.GetCellData().GetArray(field_name)
 
-    fieldOverTime = {time: _get_field(time) for time in timeSteps}
+    # get only the fields passed by the user
+    selectedFields = {field_name: {time: _get_field(time, field_name)
+                                   for time in timeSteps}
+                      for field_name in fieldsOnThePatch}
 
     # Clean surface from any point or cell field
     activePatch = npActivePatch.VTKObject
@@ -132,7 +159,7 @@ def GetPatchFieldOverTime(foam_case: str,
     for arrayName in pointArraysInPatch:
         activePatch.GetPointData().RemoveArray(arrayName)
 
-    return npActivePatch.VTKObject, fieldOverTime
+    return activePatch, selectedFields
 
 def FieldTimeStats(surface: names.polyDataType,
                    field_name: str,
