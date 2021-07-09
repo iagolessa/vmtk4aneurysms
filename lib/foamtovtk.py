@@ -111,17 +111,21 @@ def GetPatchFieldOverTime(foam_case: str,
 
     # Assuming that the user passes a list of fields to collect
     # get only the ones that are on the passed patch
+    # Check whether field_names is a string (a single field), 
+    # if yes convert to list
+    passed_fields = [field_names] if type(field_names) is str else field_names
+
     boolFieldsOnPatch = [field in cellArraysInPatch
-                         for field in field_names]
+                         for field in passed_fields]
 
     if all(boolFieldsOnPatch):
         print("Found all fields on the selected patch.")
 
-        fieldsOnThePatch = field_names
+        fieldsOnThePatch = passed_fields
 
     elif any(boolFieldsOnPatch):
 
-        fieldsOnThePatch = list(compress(field_names, boolFieldsOnPatch))
+        fieldsOnThePatch = list(compress(passed_fields, boolFieldsOnPatch))
 
         print(
             "Found only the following fields on the surface: {}". format(
@@ -131,7 +135,7 @@ def GetPatchFieldOverTime(foam_case: str,
 
     else:
         message = "None of the fields {} found on surface patch {}.".format(
-                      field_names,
+                      passed_fields,
                       active_patch_name
                   )
 
@@ -159,7 +163,10 @@ def GetPatchFieldOverTime(foam_case: str,
     for arrayName in pointArraysInPatch:
         activePatch.GetPointData().RemoveArray(arrayName)
 
-    return activePatch, selectedFields
+    if type(field_names) is str:
+        return activePatch, selectedFields[field_names]
+    else:
+        return activePatch, selectedFields
 
 def FieldTimeStats(surface: names.polyDataType,
                    field_name: str,
