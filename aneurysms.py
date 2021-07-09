@@ -368,7 +368,7 @@ class Aneurysm:
         """
         # Get neck contour
         vec = self._max_height_vector()
-        return np.linalg.norm(vec)
+        return float(np.linalg.norm(vec))
 
     def GetMaximumNormalHeight(self):
         """Return maximum normal height.
