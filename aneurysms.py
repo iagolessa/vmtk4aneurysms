@@ -515,7 +515,7 @@ class Aneurysm:
             Three-dimensional geometrical characterization
             of cerebral aneurysms.
 
-        Return a tuple with the metrics in the order (MAA, GAA, MLN, GLN).
+        Return a dict with the metrics in the order (MAA, GAA, MLN, GLN).
         Assumes that both curvature arrays are defined on the aneurysm surface
         for a more accurate calculation avoiding border effects.
         """
@@ -589,4 +589,4 @@ class Aneurysm:
         MLN = np.sqrt(integralMeanCurvature)/(4.0*const.pi)
         GLN = np.sqrt(integralGaussCurvature*self._surface_area)/(4.0*const.pi)
 
-        return (MAA, GAA, MLN, GLN)
+        return {"MAA": MAA, "GAA": GAA, "MLN": MLN, "GLN": GLN}
