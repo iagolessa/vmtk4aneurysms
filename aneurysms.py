@@ -502,7 +502,7 @@ class Aneurysm:
 
         where Va is the aneurysm volume and Vch the volume of its convex hull.
         """
-        aneurysmVolume = self._volume
+        return 1.0 - self._volume/self._hull_volume
 
     def GetCurvatureMetrics(self):
         """Compute curvature metrics.
