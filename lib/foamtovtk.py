@@ -7,6 +7,7 @@ from itertools import compress, repeat
 
 import vtk
 from vtk.numpy_interface import dataset_adapter as dsa
+from vmtk import vtkvmtk
 
 from . import names
 from . import polydatatools as tools
@@ -290,11 +291,13 @@ def FieldTimeStats(surface: names.polyDataType,
 
     return npSurface.VTKObject
 
-def FieldSurfaceAverage(foam_case: str,
-                        field_name: str,
-                        patch_name: str,
-                        multi_region: bool = False,
-                        region_name: str = '') -> dict:
+def FieldSurfaceAverage(
+        foam_case: str,
+        field_name: str,
+        patch_name: str,
+        multi_region: bool = False,
+        region_name: str = ''
+    )   -> dict:
     """Compute the surface-averaged field over time.
 
     Function to compute surface integrals of a field over an aneurysm or
@@ -329,6 +332,88 @@ def FieldSurfaceAverage(foam_case: str,
         return pmath.SurfaceAverage(npSurface.VTKObject, field_name)
 
     return {time: field_average_on_surface(time)
+            for time in fieldOverTime.keys()}
+
+def FieldSurfaceAverageOnPatch(
+        foam_case: str,
+        field_name: str,
+        boundary_patch: str,
+        patch_surface_id: names.polyDataType = None,
+        patch_array_name: str = '',
+        patch_boundary_value: float = 0.0,
+        multi_region: bool = False,
+        region_name: str = ''
+    ):
+    """Compute the surface-averaged of a field over time over a patch only.
+
+    Given an OpenFOAM simulation result, a field and the boundary patch where
+    the field is defined, compute the surface-average of the field over that
+    surface along time. 
+
+    If a surface, equal to the boundary is passed with an array specifying a
+    patch of the surface with the values 0 in it, compute the surface-average
+    over this patch, instead of the whole surface.
+
+    Function to compute surface integrals of sigma field over an aneurysm or vessels
+    surface. It takes the OpenFOAM case file and an optional surface where it
+    is stored a field with the aneurysm neck line loaded as a ParaView PolyData
+    surface. If the surface is None, it computes the integral over the entire
+    sur- face. It is essential that the surface with the ne- ck array be the
+    same as the wall surface of the OpenFOAM case, i.e. they are the same mesh.
+    """
+    # Define condition to compute on aneurysm portion
+    computeOnPatch = patch_surface_id is not None
+
+    surface, fieldOverTime = GetPatchFieldOverTime(foam_case,
+                                                   field_name,
+                                                   boundary_patch,
+                                                   multi_region=multi_region,
+                                                   region_name=region_name)
+
+    # Map neck array into surface
+    if computeOnPatch:
+        # Map  array field into current surface
+        # (aneurysmExtract triangulas the surface)
+        # Important: both surface must match the scaling
+
+        surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
+        surfaceProjection.SetInputData(surface)
+        surfaceProjection.SetReferenceSurface(patch_surface_id)
+        surfaceProjection.Update()
+
+        surface = surfaceProjection.GetOutput()
+    else:
+        pass
+
+    npSurface = dsa.WrapDataObject(surface)
+
+    # Function to compute average of field over surface/patch
+    def average_on_patch(t):
+        # Add instant field array on surface
+        field_t = fieldOverTime.get(t)
+
+        npSurface.CellData.append(
+            field_t,
+            field_name + "_t"
+        )
+
+        if computeOnPatch:
+            # Clip patch portion
+            patch = tools.ClipWithScalar(
+                        npSurface.VTKObject,
+                        patch_array_name,
+                        patch_boundary_value
+                    )
+
+            npPatch = dsa.WrapDataObject(patch)
+            surfaceToComputeAvg = npPatch
+
+        else:
+            surfaceToComputeAvg = npSurface
+
+        return pmath.SurfaceAverage(surfaceToComputeAvg.VTKObject, field_name+'_t')
+
+    return {time: average_on_patch(time)
             for time in fieldOverTime.keys()}
 
 
