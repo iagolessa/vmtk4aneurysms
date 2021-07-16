@@ -301,9 +301,21 @@ class Aneurysm:
 
 
     def _neck_plane_normal_vector(self):
-        """Calculate the normal vector to the aneurysm neck plane."""
+        """Calculate the normal vector to the aneurysm neck surface/plane.
 
-        # Get neck plane surface
+        The outwards normal unit vector to the neck surface is computed by
+        summing the normal vectors to each cell of the neck surface.
+        Rigorously, the neck plane vector should be computed with the actual
+        neck *plane*, however, there are other ways to compute the aneurysm
+        neck which is not based on a plane surface. In this scenario, it is
+        robust enough to employ the approach used here because it provides a
+        'sense of normal direction' to the neck line, be it a 3D curved path
+        in space.
+
+        In any case, if an actual plane is passed, the function will work.
+        """
+
+        # Get neck plane/surface
         neckPlaneSurface = self._neck_surface()
 
         # Compute neck plane normal
@@ -313,11 +325,19 @@ class Aneurysm:
         normals.ComputePointNormalsOff()
         normals.Update()
 
-        xNormal = normals.GetOutput().GetCellData().GetNormals().GetRange(0)[0]
-        yNormal = normals.GetOutput().GetCellData().GetNormals().GetRange(1)[0]
-        zNormal = normals.GetOutput().GetCellData().GetNormals().GetRange(2)[0]
+        # Convert to points
+        cellCenter = vtk.vtkCellCenters()
+        cellCenter.SetInputData(normals.GetOutput())
+        cellCenter.Update()
 
-        return (xNormal, yNormal, zNormal)
+        # Use Numpy
+        npSurface = dsa.WrapDataObject(cellCenter.GetOutput())
+
+        neckNormalsVector = npSurface.GetPointData().GetArray("Normals").sum(axis=0)
+        neckNormalsVector /= np.linalg.norm(neckNormalsVector)
+
+        return tuple(neckNormalsVector)
+
 
     # Public interface
     def GetSurface(self):
