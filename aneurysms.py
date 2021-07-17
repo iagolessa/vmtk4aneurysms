@@ -154,7 +154,7 @@ class Aneurysm:
         # 1D size definitions
         self._neck_diameter = self._compute_neck_diameter()
         self._max_normal_height = self._compute_max_normal_height()
-        self._max_diameter = self._compute_max_diameter()
+        self._max_diameter, self._bulge_height = self._compute_max_diameter()
 
     def _cap_aneurysm(self):
         """Cap aneurysm neck with triangles.
@@ -288,7 +288,7 @@ class Aneurysm:
         ostiumRemesher = vmtkscripts.vmtkSurfaceRemeshing()
         ostiumRemesher.Surface = tools.Cleaner(gridToSurfaceFilter.GetOutput())
         ostiumRemesher.ElementSizeMode = 'edgelength'
-        ostiumRemesher.TargetEdgeLength = 0.1
+        ostiumRemesher.TargetEdgeLength = 0.15
         ostiumRemesher.TargetEdgeLengthFactor = 1.0
         ostiumRemesher.PreserveBoundaryEdges = 1
         ostiumRemesher.Execute()
@@ -416,11 +416,15 @@ class Aneurysm:
         return abs(vtk.vtkMath.Dot(vecMaxHeight, vecNormal))
 
     def _compute_max_diameter(self):
-        """Finds the maximum diameter of parallel neck sections.
+        """Finds the maximum diameter of parallel neck sections and its
+        location.
 
         Computation of the maximum section diameter of the aneurysm, defined as
         the maximum diameter of the aneurysm cross sections that are parallel
-        to the neck plane/surface, i.e. along the neck normal vector.
+        to the neck plane/surface, i.e. along the neck normal vector. Also
+        returns the bulge height, i.e. the distance between the neck center
+        and the location of the largest section, along a normal line to the
+        ostium surface.
         """
 
         # Compute neck contour barycenter and normal vector
@@ -431,35 +435,54 @@ class Aneurysm:
         Hnmax = self._max_normal_height
 
         # Form points of perpendicular line to neck plane
-        nPoints = int(const.three)*int(const.ten)
+        nPoints = int(const.oneHundred)*int(const.ten)
         dimensions = int(const.three)
 
         t = np.linspace(const.zero, Hnmax, nPoints)
+
         parameters = np.array([t]*dimensions).T
 
         # Point along line (negative because normal vector is outwards)
-        points = barycenter + parameters*normal
+        points = [tuple(point)
+                  for point in barycenter + parameters*normal]
 
         # Collect contour of sections to avoid using if inside for
-        planeContours = []
+        # Also use the points along the search line to identify the
+        # bulge position
+        planeContours = dict(zip(
+                            points,
+                            map(
+                                lambda point: tools.ContourCutWithPlane(
+                                                  self._aneurysm_surface,
+                                                  point,
+                                                  normal
+                                              ),
+                                points
+                            )
+                        ))
 
-        for center in points:
-            plane = vtk.vtkPlane()
-            plane.SetOrigin(center)
-            plane.SetNormal(normal)
-
-            # Cut initial aneurysm surface with create plane
-            cutWithPlane = vtk.vtkCutter()
-            cutWithPlane.SetInputData(self._aneurysm_surface)
-            cutWithPlane.SetCutFunction(plane)
-            cutWithPlane.Update()
-
-            planeContours.append(cutWithPlane.GetOutput())
+        # Get contours that actually have cells
+        planeContours = dict(
+                            filter(
+                                lambda pair: pair[1].GetNumberOfCells() > 0,
+                                planeContours.items()
+                            )
+                        )
 
         # Compute diameters and get the maximum
-        return max([geo.ContourHydraulicDiameter(contour)
-                    for contour in planeContours
-                    if contour.GetNumberOfCells() > 0])
+        diameters = {point: geo.ContourHydraulicDiameter(contour)
+                     for point, contour in planeContours.items()}
+
+        # Get the max. diameter location (bulge location)
+        bulgeLocation = np.array(max(diameters, key=diameters.get))
+
+        # Compute bulge height
+        bulgeHeight = geo.Distance(bulgeLocation, barycenter)
+
+        # Find maximum
+        maxDiameter = max(diameters.values())
+
+        return maxDiameter, bulgeHeight
 
     # Public interface
     def GetSurface(self):
@@ -535,6 +558,20 @@ class Aneurysm:
         """
 
         return self._max_diameter/self._neck_diameter
+
+    def GetConicityParameter(self):
+        """Return the conicity parameter.
+
+        The conicity parameter was defined by Raghavan et al. (2005) as a shape
+        metric for saccular IAs and it measures how far is the 'bulge' of the
+        aneurysm, i.e. the section of largest section, from the aneurysm ostium
+        surface or neck surface. In the way it was defined, it can vary from
+        -0.5 (the bulge is at the dome) to 0.5 (bulge closer to neck).  CP =
+        0.0 occurs when the bulge is at the midway from neck to the maximum
+        normal height.
+        """
+
+        return 0.5 - self._bulge_height/self._max_normal_height
 
     # 3D Shape indices
     def GetNonSphericityIndex(self):

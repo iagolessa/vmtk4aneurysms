@@ -266,7 +266,12 @@ def ClipWithScalar(surface: names.polyDataType,
 
     return clipper.GetOutput()
 
-def ClipWithPlane(surface, plane_center, plane_normal, inside_out=False):
+def ClipWithPlane(
+        surface: names.polyDataType,
+        plane_center: tuple,
+        plane_normal: tuple,
+        inside_out: bool = False
+    ) -> names.polyDataType:
     """ Clip a surface with a plane defined with a point and its normal."""
 
     cutPlane = vtk.vtkPlane()
@@ -285,6 +290,25 @@ def ClipWithPlane(surface, plane_center, plane_normal, inside_out=False):
     clipSurface.Update()
 
     return clipSurface.GetOutput()
+
+def ContourCutWithPlane(
+        surface: names.polyDataType,
+        plane_center: tuple,
+        plane_normal: tuple
+    ) -> names.polyDataType:
+    """Cuts a surface with a plane, returning the cut contour."""
+
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(plane_center)
+    plane.SetNormal(plane_normal)
+
+    # Cut initial aneurysm surface with create plane
+    cutWithPlane = vtk.vtkCutter()
+    cutWithPlane.SetInputData(surface)
+    cutWithPlane.SetCutFunction(plane)
+    cutWithPlane.Update()
+
+    return cutWithPlane.GetOutput()
 
 def ComputeSurfacesDistance(isurface,
                             rsurface,
@@ -351,18 +375,18 @@ def vtkPolyDataToDataFrame(polydata: names.polyDataType) -> pd.core.frame.DataFr
     cellCenterArrayName = "CellCenter"
 
     # Fields components suffixes
-    threeDimvectorCompSuffixes = [names.xAxisSufx, 
-                                  names.yAxisSufx, 
+    threeDimvectorCompSuffixes = [names.xAxisSufx,
+                                  names.yAxisSufx,
                                   names.zAxisSufx]
 
-    symmTensorCompSuffix = [2*names.xAxisSufx, 
-                            2*names.yAxisSufx, 
-                            2*names.zAxisSufx, 
+    symmTensorCompSuffix = [2*names.xAxisSufx,
+                            2*names.yAxisSufx,
+                            2*names.zAxisSufx,
                             names.xAxisSufx + names.yAxisSufx,
                             names.yAxisSufx + names.zAxisSufx,
                             names.xAxisSufx + names.zAxisSufx]
 
-    twoDimVectorCompSuffixes = [names.xAxisSufx, 
+    twoDimVectorCompSuffixes = [names.xAxisSufx,
                                 names.yAxisSufx]
 
     pointsToDataFrame = pd.DataFrame(npPolyData.GetPoints(),
