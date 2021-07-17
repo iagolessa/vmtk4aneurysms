@@ -3,16 +3,19 @@
 import sys
 import vtk
 import numpy as np
+from vtk.numpy_interface import dataset_adapter as dsa
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from scipy.spatial import ConvexHull
 
 # Local modules
-from .lib import names 
+from .lib import names
 from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
+
+_cellEntityIdsArrayName = "CellEntityIds"
 
 # Field names
 AneurysmNeckArrayName = 'AneurysmNeckContourArray'
@@ -109,8 +112,9 @@ class Aneurysm:
     aneurysm surface must be open for correct computations. Note that the
     calculations of aneurysm parameters performed here are intended for a plane
     aneurysm neck. However, the computations will still occur for a generic
-    neck contour.
+    neck contour and be relatively correct.
     """
+
 
     def __init__(self, surface, aneurysm_type='', status='', label=''):
         """Initiates aneurysm model.
@@ -128,22 +132,16 @@ class Aneurysm:
         self.type = aneurysm_type
         self.label = label
         self.status = status
+        self._neck_index = int(const.zero)
 
-        # Triangulate vtkPolyData surface
-        # (input is cleaned surface)
-        # cleanedSurface = tools.Cleaner(surface)
         self._aneurysm_surface = tools.Cleaner(surface)
-
-        # triangulate = vtk.vtkTriangleFilter()
-        # triangulate.SetInputData(cleanedSurface)
-        # triangulate.Update()
-
-        # self._aneurysm_surface = triangulate.GetOutput()
+        self._ostium_surface = self._gen_ostium_surface()
+        self._ostium_normal_vector = self._gen_ostium_normal_vector()
 
         # Compute neck surface area
         # Compute areas...
         self._surface_area = geo.Surface.Area(self._aneurysm_surface)
-        self._neck_plane_area = geo.Surface.Area(self._neck_surface())
+        self._ostium_area = geo.Surface.Area(self._ostium_surface)
 
         # ... and volume
         self._volume = geo.Surface.Volume(self._cap_aneurysm())
@@ -153,23 +151,38 @@ class Aneurysm:
         self._hull_volume = 0.0
         self._hull_surface = self._aneurysm_convex_hull()
 
+        # 1D size definitions
+        self._neck_diameter = self._compute_neck_diameter()
+        self._max_normal_height = self._compute_max_normal_height()
+        self._max_diameter = self._compute_max_diameter()
+
     def _cap_aneurysm(self):
         """Cap aneurysm neck with triangles.
 
-        Returns aneurysm surface capped with a plane of triangles. Uses VMTK's
-        script 'vmtksurfacecapper'.
+        Returns the aneurysm surface 'capped' with a surface covering the
+        neck region. The surface is created with the vtkvmtkCapPolyData()
+        filter and build this 'neck surface' by joining the neck vertices
+        with the contour barycenter sing triangles. The original aneurysm
+        surface and the neck one are defined by a CellEntityIds array defined
+        on them, with zero values on the neck surface.
         """
 
-        # TODO: I noticed that sometimes (yes, this is subjective) the cap
+        # TODO: I noticed that sometimes the cap
         # algorithm does not generate correct array values for each cap
         # Investigate that
-        cellEntityIdsArrayName = "CellEntityIds"
 
+        # The centerpoint approach seems to be the best
         capper = vtkvmtk.vtkvmtkCapPolyData()
         capper.SetInputData(self._aneurysm_surface)
         capper.SetDisplacement(const.zero)
         capper.SetInPlaneDisplacement(const.zero)
-        capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
+
+        # Alternative strategy: using the simple approach
+        # capper = vtkvmtk.vtkvmtkSimpleCapPolyData()
+        # capper.SetInputData(self._aneurysm_surface)
+
+        # Common attributes
+        capper.SetCellEntityIdsArrayName(_cellEntityIdsArrayName)
         capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
         capper.Update()
 
@@ -207,7 +220,7 @@ class Aneurysm:
 
         # Need to subtract neck area to
         # compute correct hull surface area
-        self._hull_surface_area = aneurysmHull.area - self._neck_plane_area
+        self._hull_surface_area = aneurysmHull.area - self._ostium_area
 
         # Intantiate poly data
         polyData = vtk.vtkPolyData()
@@ -251,56 +264,46 @@ class Aneurysm:
         return geo.ContourBarycenter(neckContour)
 
 
-    def _neck_surface(self):
-        """Generate aneurysm neck plane."""
+    def _gen_ostium_surface(self):
+        """Generate aneurysm neck plane/surface.
 
-        neckIndex = int(const.zero)
-        CellEntityIdsArrayName = "CellEntityIds"
+        Fill the ostium region with a surface, defined as the aneurysm neck
+        surface, or plane, if an algoithm to actually 'cut' the neck plane
+        was used.
+        """
 
         # Use thrshold filter to get neck plane
         # Return a vtkUnstructuredGrid -> needs conversion to vtkPolyData
-        getNeckPlane = vtk.vtkThreshold()
-        getNeckPlane.SetInputData(self._cap_aneurysm())
-        getNeckPlane.SetInputArrayToProcess(0, 0, 0, 1, CellEntityIdsArrayName)
-        getNeckPlane.ThresholdBetween(neckIndex, neckIndex)
-        getNeckPlane.Update()
+        getNeckSurface = vtk.vtkThreshold()
+        getNeckSurface.SetInputData(self._cap_aneurysm())
+        getNeckSurface.SetInputArrayToProcess(0,0,0,1,_cellEntityIdsArrayName)
+        getNeckSurface.ThresholdBetween(self._neck_index, self._neck_index)
+        getNeckSurface.Update()
 
         # Converts vtkUnstructuredGrid -> vtkPolyData
         gridToSurfaceFilter = vtk.vtkGeometryFilter()
-        gridToSurfaceFilter.SetInputData(getNeckPlane.GetOutput())
+        gridToSurfaceFilter.SetInputData(getNeckSurface.GetOutput())
         gridToSurfaceFilter.Update()
 
-        return gridToSurfaceFilter.GetOutput()
+        ostiumRemesher = vmtkscripts.vmtkSurfaceRemeshing()
+        ostiumRemesher.Surface = tools.Cleaner(gridToSurfaceFilter.GetOutput())
+        ostiumRemesher.ElementSizeMode = 'edgelength'
+        ostiumRemesher.TargetEdgeLength = 0.1
+        ostiumRemesher.TargetEdgeLengthFactor = 1.0
+        ostiumRemesher.PreserveBoundaryEdges = 1
+        ostiumRemesher.Execute()
 
-    def _max_height_vector(self):
-        """Compute maximum height vector.
+        ostiumSmoother = vmtkscripts.vmtkSurfaceSmoothing()
+        ostiumSmoother.Surface = tools.CleanupArrays(ostiumRemesher.Surface)
+        ostiumSmoother.Method = 'taubin'
+        ostiumSmoother.NumberOfIterations = 30
+        ostiumSmoother.PassBand = 0.1
+        ostiumSmoother.BoundarySmoothing = 0
+        ostiumSmoother.Execute()
 
-        Function to compute the vector from the neck contour barycenter and the
-        fartest point on the aneurysm surface.
-        """
+        return ostiumSmoother.Surface
 
-        neckContour = self._neck_contour()
-        barycenter = self._neck_barycenter()
-
-        # Get point in which distance to neck line baricenter is maximum
-        maxDistance = const.zero
-        maxVertex = None
-
-        nVertices = self._aneurysm_surface.GetPoints().GetNumberOfPoints()
-
-        for index in range(nVertices):
-            vertex = self._aneurysm_surface.GetPoint(index)
-
-            distance = geo.Distance(barycenter, vertex)
-
-            if distance > maxDistance:
-                maxDistance = distance
-                maxVertex = vertex
-
-        return tuple(np.subtract(maxVertex, barycenter))
-
-
-    def _neck_plane_normal_vector(self):
+    def _gen_ostium_normal_vector(self):
         """Calculate the normal vector to the aneurysm neck surface/plane.
 
         The outwards normal unit vector to the neck surface is computed by
@@ -314,20 +317,30 @@ class Aneurysm:
 
         In any case, if an actual plane is passed, the function will work.
         """
-
-        # Get neck plane/surface
-        neckPlaneSurface = self._neck_surface()
-
-        # Compute neck plane normal
+        # Compute outwards normals
         normals = vtk.vtkPolyDataNormals()
-        normals.SetInputData(neckPlaneSurface)
+        normals.SetInputData(self._cap_aneurysm())
         normals.ComputeCellNormalsOn()
         normals.ComputePointNormalsOff()
         normals.Update()
 
+        # Get only ostium surface (id = 0)
+        getNeckSurface = vtk.vtkThreshold()
+        getNeckSurface.SetInputData(normals.GetOutput())
+        getNeckSurface.SetInputArrayToProcess(0,0,0,1,_cellEntityIdsArrayName)
+        getNeckSurface.ThresholdBetween(self._neck_index, self._neck_index)
+        getNeckSurface.Update()
+
+        # Converts vtkUnstructuredGrid -> vtkPolyData
+        gridToSurfaceFilter = vtk.vtkGeometryFilter()
+        gridToSurfaceFilter.SetInputData(getNeckSurface.GetOutput())
+        gridToSurfaceFilter.Update()
+
+        ostiumSurface = gridToSurfaceFilter.GetOutput()
+
         # Convert to points
         cellCenter = vtk.vtkCellCenters()
-        cellCenter.SetInputData(normals.GetOutput())
+        cellCenter.SetInputData(ostiumSurface)
         cellCenter.Update()
 
         # Use Numpy
@@ -338,32 +351,48 @@ class Aneurysm:
 
         return tuple(neckNormalsVector)
 
+    def _max_normal_height_vector(self):
+        """Compute verctor with maximum normal height.
 
-    # Public interface
-    def GetSurface(self):
-        return self._aneurysm_surface
+        Function to compute the vector from the neck contour barycenter and the
+        fartest point on the aneurysm surface that have the maximum normal
+        distance from the neck plane.
+        """
 
-    def GetHullSurface(self):
-        return self._hull_surface
+        vecNormal = -1*np.array(self._ostium_normal_vector)
+        barycenter = np.array(self._neck_barycenter())
 
-    def GetAneurysmSurfaceArea(self):
-        return self._surface_area
+        # Get point in which distance to neck line baricenter is maximum
+        maxDistance = const.zero
+        maxVertex = None
 
-    def GetNeckPlaneArea(self):
-        return self._neck_plane_area
+        nVertices = self._aneurysm_surface.GetPoints().GetNumberOfPoints()
 
-    def GetAneurysmVolume(self):
-        return self._volume
+        # Get distance between every point and store it as dict to get maximum
+        # distance later
+        pointDistances = {}
 
-    def GetHullSurfaceArea(self):
-        return self._hull_surface_area
+        for index in range(nVertices):
+            # Get surface vertex
+            vertex = np.array(self._aneurysm_surface.GetPoint(index))
 
-    def GetHullVolume(self):
-        return self._hull_volume
+            # Compute vector joinign barycenter to vertex
+            distVector = np.subtract(vertex, barycenter)
 
-    # 1D Size Indices
-    def GetNeckDiameter(self):
-        """Return aneurysm neck diameter.
+            # Compute the normal height
+            normalHeight = abs(vtk.vtkMath.Dot(distVector, vecNormal))
+
+            # Convert Np array to tuple (np array is unhashable)
+            pointDistances[tuple(distVector)] = normalHeight
+
+        # Get the key with the max item
+        maxNHeightVector = max(pointDistances, key=pointDistances.get)
+
+        return maxNHeightVector
+
+    # Compute 1D Size Indices
+    def _compute_neck_diameter(self):
+        """Computes neck diameter.
 
         Compute neck diameter, defined as the hydraulic diameter of the neck
         plane section:
@@ -372,58 +401,44 @@ class Aneurysm:
 
         where An is the aneurysm neck section area and pn is its perimeter.
         """
+        ostiumPerimeter = geo.ContourPerimeter(self._neck_contour())
 
-        neckContour = self._neck_contour()
+        if ostiumPerimeter == 0.0:
+            sys.exit("Ostium perimeter is zero")
 
-        # Compute perimeter
-        neckPerimeter = geo.ContourPerimeter(neckContour)
+        return const.four*self._ostium_area/ostiumPerimeter
 
-        return const.four*self._neck_plane_area/neckPerimeter
+    def _compute_max_normal_height(self):
 
-    def GetMaximumHeight(self):
-        """Return maximum height.
-
-        Aneurysm maximum aneurysm height is defined as the maximum distance
-        between the neck barycenter and the aneurysm surface.
-        """
-        # Get neck contour
-        vec = self._max_height_vector()
-        return float(np.linalg.norm(vec))
-
-    def GetMaximumNormalHeight(self):
-        """Return maximum normal height.
-
-        Computation of the maximum NORMAL aneurysm height, defined as the
-        maximum distance between the neck barycenter and the aneurysm surface.
-        """
-        # Get max height vector and neck plane normal vector
-        vecMaxHeight = self._max_height_vector()
-        vecNormal = self._neck_plane_normal_vector()
+        vecMaxHeight = self._max_normal_height_vector()
+        vecNormal = self._ostium_normal_vector
 
         return abs(vtk.vtkMath.Dot(vecMaxHeight, vecNormal))
 
-    def GetMaximumDiameter(self):
-        """Return maximum aneurysm diameter.
+    def _compute_max_diameter(self):
+        """Finds the maximum diameter of parallel neck sections.
 
         Computation of the maximum section diameter of the aneurysm, defined as
         the maximum diameter of the aneurysm cross sections that are parallel
-        to the neck plane.
+        to the neck plane/surface, i.e. along the neck normal vector.
         """
+
         # Compute neck contour barycenter and normal vector
-        normal = self._neck_plane_normal_vector()
-        barycenter = self._neck_barycenter()
+        normal = -1.0*np.array(self._ostium_normal_vector)
+        barycenter = np.array(self._neck_barycenter())
 
         # Get maximum normal height
-        Hnmax = self.GetMaximumNormalHeight()
+        Hnmax = self._max_normal_height
 
         # Form points of perpendicular line to neck plane
-        nPoints = int(const.three) * int(const.ten)
-        dimensions = 3
+        nPoints = int(const.three)*int(const.ten)
+        dimensions = int(const.three)
 
         t = np.linspace(0, Hnmax, nPoints)
         parameters = np.array([t]*dimensions).T
 
-        points = np.array(barycenter) + parameters * np.array(normal)
+        # Point along line (negative because normal vector is outwards)
+        points = barycenter + parameters*normal
 
         # Computes minimum hydraulic diameter
         maxDiameter = 0.0
@@ -439,23 +454,77 @@ class Aneurysm:
             cutWithPlane.SetCutFunction(plane)
             cutWithPlane.Update()
 
-            nVertices = cutWithPlane.GetOutput().GetNumberOfPoints()
+            nLines = cutWithPlane.GetOutput().GetNumberOfCells()
 
-            # Compute diamenetr if contour is not empty
-            if nVertices > 0:
+            # Compute diameter if contour is not empty
+            if nLines > 0:
 
                 # Compute hydraulic diameter of cut line
                 # TODO: will the error to compute the cut surface area due
-                # to open contour work here
+                # to open contour work here?
                 hydraulicDiameter = geo.ContourHydraulicDiameter(
-                    cutWithPlane.GetOutput()
-                )
+                                        cutWithPlane.GetOutput()
+                                    )
 
                 # Update minmum area
                 if hydraulicDiameter > maxDiameter:
                     maxDiameter = hydraulicDiameter
 
         return maxDiameter
+
+    # Public interface
+    def GetSurface(self):
+        return self._aneurysm_surface
+
+    def GetHullSurface(self):
+        return self._hull_surface
+
+    def GetOstiumSurface(self):
+        return self._ostium_surface
+
+    def GetAneurysmSurfaceArea(self):
+        return self._surface_area
+
+    def GetOstiumArea(self):
+        return self._ostium_area
+
+    def GetAneurysmVolume(self):
+        return self._volume
+
+    def GetHullSurfaceArea(self):
+        return self._hull_surface_area
+
+    def GetHullVolume(self):
+        return self._hull_volume
+
+    def GetNeckDiameter(self):
+        """Return aneurysm neck diameter.
+
+        The neck diameter is defined as the the hydraulic diameter of the
+        ostium surface:
+
+            Dn = 4*An/pn
+
+        where An is the aneurysm ostium surface area and pn is its perimeter.
+        The ideal computation would be based on a plane ostium section, but
+        it will compute even for a curved ostium path.
+        """
+
+        return self._neck_diameter
+
+    def GetMaximumNormalHeight(self):
+        """Return maximum normal height.
+
+        The maximum normal aneurysm height is defined as the
+        maximum distance between the neck barycenter and the aneurysm surface.
+        """
+
+        return self._max_normal_height
+
+    def GetMaximumDiameter(self):
+        """Return the maximum aneurysm diameter."""
+
+        return self._max_diameter
 
     # 2D Shape indices
     def GetAspectRatio(self):
@@ -465,7 +534,7 @@ class Aneurysm:
         maximum perpendicular height and the neck diameter.
         """
 
-        return self.GetMaximumNormalHeight()/self.GetNeckDiameter()
+        return self._max_normal_height/self._neck_diameter
 
     def GetBottleneckFactor(self):
         """Return the non-sphericity index.
@@ -476,7 +545,7 @@ class Aneurysm:
         physiological function and to coils during endovascular procedures.
         """
 
-        return self.GetMaximumDiameter()/self.GetNeckDiameter()
+        return self._max_diameter/self._neck_diameter
 
     # 3D Shape indices
     def GetNonSphericityIndex(self):
