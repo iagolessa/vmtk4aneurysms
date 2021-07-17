@@ -2,12 +2,13 @@
 
 import vtk
 import math
+import numpy as np
 
 from vmtk import vtkvmtk
 from numpy import multiply, zeros, where
 from vtk.numpy_interface import dataset_adapter as dsa
 
-from . import names 
+from . import names
 from . import constants as const
 from . import polydatatools as tools
 
@@ -82,27 +83,45 @@ def SurfaceGradient(surface: names.polyDataType,
 
     return npSurface.VTKObject
 
-def ContourPerimeter(contour):
+def ContourPerimeter(
+        contour: names.polyDataType
+    ) -> float:
     """Compute the perimeter of a contour defined in 3D space."""
 
-    nContourVertices = contour.GetNumberOfPoints()
+    perimeter = 0.0
 
-    # Compute neck perimeter
-    perimeter = const.zero
-    previous = contour.GetPoint(int(const.zero))
+    # The approach employed here was chosen to keep a consistency
+    # for the periemeter calculation of contours
+    # obtained with both vtkvmtkBoundaryExtractor (single cell)
+    # and vtkCutter.
+    # TODO: The ideal alternative for this function is to use the
+    # vtkIntegrateAttributes filter with VTK > 8.2
+    #
+    # Indicates that it was obtained with vtkvmtkBoundaryExtractor
+    if contour.GetNumberOfCells() == 1:
+        # Then use vtk-numpy interface
+        npContour = dsa.WrapDataObject(contour)
 
-    for index in range(nContourVertices):
-        if index > int(const.zero):
-            previous = contour.GetPoint(index - 1)
+        points = npContour.GetPoints()
 
-        vertex = contour.GetPoint(index)
+        rotatedPoints = np.concatenate(
+                            (np.array(points[1:]),
+                             np.array([points[0]]))
+                        )
 
-        perimeter += Distance(previous, vertex)
+        perimeter = sum([Distance(point1, point2)
+                         for point1, point2 in zip(points, rotatedPoints)])
+
+    else:
+        # This one for some reason, does not work with the numpy interface
+        perimeter = sum([math.sqrt(contour.GetCell(cell_id).GetLength2())
+                         for cell_id in range(contour.GetNumberOfCells())])
 
     return perimeter
 
-
-def ContourBarycenter(contour):
+def ContourBarycenter(
+        contour: names.polyDataType
+    ) -> tuple:
     """Return contour barycenter."""
 
     # For the barycenter, the contour can be open
