@@ -434,14 +434,14 @@ class Aneurysm:
         nPoints = int(const.three)*int(const.ten)
         dimensions = int(const.three)
 
-        t = np.linspace(0, Hnmax, nPoints)
+        t = np.linspace(const.zero, Hnmax, nPoints)
         parameters = np.array([t]*dimensions).T
 
         # Point along line (negative because normal vector is outwards)
         points = barycenter + parameters*normal
 
-        # Computes minimum hydraulic diameter
-        maxDiameter = 0.0
+        # Collect contour of sections to avoid using if inside for
+        planeContours = []
 
         for center in points:
             plane = vtk.vtkPlane()
@@ -454,23 +454,12 @@ class Aneurysm:
             cutWithPlane.SetCutFunction(plane)
             cutWithPlane.Update()
 
-            nLines = cutWithPlane.GetOutput().GetNumberOfCells()
+            planeContours.append(cutWithPlane.GetOutput())
 
-            # Compute diameter if contour is not empty
-            if nLines > 0:
-
-                # Compute hydraulic diameter of cut line
-                # TODO: will the error to compute the cut surface area due
-                # to open contour work here?
-                hydraulicDiameter = geo.ContourHydraulicDiameter(
-                                        cutWithPlane.GetOutput()
-                                    )
-
-                # Update minmum area
-                if hydraulicDiameter > maxDiameter:
-                    maxDiameter = hydraulicDiameter
-
-        return maxDiameter
+        # Compute diameters and get the maximum
+        return max([geo.ContourHydraulicDiameter(contour)
+                    for contour in planeContours
+                    if contour.GetNumberOfCells() > 0])
 
     # Public interface
     def GetSurface(self):
