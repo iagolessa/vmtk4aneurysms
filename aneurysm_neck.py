@@ -6,8 +6,8 @@ by Piccinelli et al. (2009).
 
 import sys
 import vtk
-import morphman as mp
 import numpy as np
+import morphman as mp
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -16,7 +16,8 @@ from scipy import interpolate
 from vtk.numpy_interface import dataset_adapter as dsa
 
 # Local modules
-from .lib import centerlines as cnt 
+from .lib import names
+from .lib import centerlines as cnt
 from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
@@ -67,7 +68,7 @@ def _tube_surface(centerline, smooth=True):
     """Reconstruct tube surface of a given vascular surface.
 
     The tube surface is the maximum tubular structure ins- cribed in the
-    vasculature. 
+    vasculature.
 
     Arguments:
         centerline -- the centerline to compute the tube surface with the radius
@@ -113,6 +114,166 @@ def _tube_surface(centerline, smooth=True):
     else:
         return tube
 
+# This function was adapted from the Morphman library,
+# available at https://github.com/KVSlab/morphMan
+def _get_diverging_point(
+        centerline: names.polyDataType,
+        tol: float
+    )   -> tuple:
+    """Get diverging point on centerline bifurcation.
+
+    Args:
+        centerline1 (vtkPolyData): Centerline with two segments.
+        tol (float): Tolerance.
+    Returns:
+        point (tuple): ID at diverging point.
+    """
+    line0 = mp.extract_single_line(centerline, 0)
+    line1 = mp.extract_single_line(centerline, 1)
+
+    # Find clipping points
+    nPoints = min(line0.GetNumberOfPoints(), line1.GetNumberOfPoints())
+
+    bifPointIndex = None
+    getPoint0 = line0.GetPoints().GetPoint
+    getPoint1 = line1.GetPoints().GetPoint
+
+    for index in range(0, nPoints):
+        distance = geo.Distance(getPoint0(index), getPoint1(index))
+
+        if distance > tol:
+            bifPointIndex = index
+            break
+
+    return getPoint0(bifPointIndex)
+
+def _bifurcation_aneurysm_influence_region(
+        vascular_surface: names.polyDataType,
+        aneurysm_point: tuple
+    )   -> names.polyDataType:
+    """Extract vessel portion where a bifurcation aneurysm grew.
+
+    Given the vascular model surface with open inlet and outlet profiles,
+    extract the portion of the tube surface where the aneurysm grew by
+    calculating the divegence points of the centerlines. The user must select a
+    point on the aneurysm's dome surface.
+
+    Note that the algorithm will use the two first outlets to compute the
+    centerlines, so avoid any outlet profile between the inlet and the
+    aneurysm.
+    """
+    inlets, outlets = cnt.ComputeOpenCenters(vascular_surface)
+
+    # Tolerance distance to identify the bifurcation
+    divTolerance = 0.01
+
+    # One inlet and two outlets, bifurcation with the aneurysm
+    # 1 -> centerline of the branches only
+    # 2 -> centerline of the first outlet to the aneurysm and inlet
+    # 3 -> centerline of the second outlet to the aneurysm and inlet
+    relevantOutlets = outlets[0:2]
+
+    clWithoutAneurysm = cnt.GenerateCenterlines(
+                            vascular_surface,
+                            inlets,
+                            relevantOutlets
+                        )
+
+    bifClippingPoint = _get_diverging_point(clWithoutAneurysm, divTolerance)
+
+    lines = []
+    for cl_id, outlet in enumerate(relevantOutlets):
+        daughterCenterline = cnt.GenerateCenterlines(
+                                 vascular_surface,
+                                 [outlet],
+                                 inlets + [aneurysm_point]
+                             )
+        # Get clipping point on this branch
+        dauClippingPoint = _get_diverging_point(daughterCenterline, divTolerance)
+
+        # Then clip the parent centerline
+        line = mp.extract_single_line(clWithoutAneurysm, cl_id)
+
+        loc = mp.get_vtk_point_locator(line)
+
+        #Find closest points to clipping on parent centerline
+        dauId = loc.FindClosestPoint(dauClippingPoint)
+        bifId = loc.FindClosestPoint(bifClippingPoint)
+
+        lines.append(
+            mp.extract_single_line(
+                line,
+                0,
+                start_id=bifId,
+                end_id=dauId
+            )
+        )
+
+    aneurysmInceptionClPortion = mp.vtk_merge_polydata(lines)
+
+    return _tube_surface(aneurysmInceptionClPortion)
+
+def _lateral_aneurysm_influence_region(
+        vascular_surface: names.polyDataType,
+        aneurysm_point: tuple
+    )   -> names.polyDataType:
+    """Extract vessel portion where a lateral aneurysm grew.
+
+    Given the vascular model surface with open inlet and outlet
+    profiles, extract the portion of the tube surface where the
+    aneurysm grew by calculating the divegence points of the
+    centerlines. The user must select a point on the aneurysm's
+    dome surface.
+
+    Note that the algorithm will use the first outlet to
+    compute the centerlines, so avoid any outlet profile
+    between the inlet and the aneurysm region.
+    """
+    inlets, outlets = cnt.ComputeOpenCenters(vascular_surface)
+
+    # Tolerance distance to identify the bifurcation
+    divTolerance = 0.01
+
+    # One inlet and one outlet (although the model can have more than one outlet),
+    # lateral aneurysm
+    # 1 -> "forward" centerline, inlet -> outlet, and aneurysm
+    # 2 -> "backward" centerline, outlet -> inlet, with aneurysm
+    # Note: the aneurysm is like a bifurcation, in this case
+
+    relevantOutlets = outlets[0:1]
+
+    forwardCenterline = cnt.GenerateCenterlines(
+                            vascular_surface,
+                            inlets,
+                            relevantOutlets + [aneurysm_point]
+                        )
+
+    backwardCenterline = cnt.GenerateCenterlines(
+                            vascular_surface,
+                            relevantOutlets,
+                            inlets + [aneurysm_point]
+                        )
+
+    upstreamClipPoint   = _get_diverging_point(forwardCenterline, divTolerance)
+    downstreamClipPoint = _get_diverging_point(backwardCenterline, divTolerance)
+
+    # Clip centerline portion of the forward centerline
+    line = mp.extract_single_line(forwardCenterline, 0)
+    loc  = mp.get_vtk_point_locator(line)
+
+    #Find closest points to clipping on parent centerline
+    upstreamId   = loc.FindClosestPoint(upstreamClipPoint)
+    downstreamId = loc.FindClosestPoint(downstreamClipPoint)
+
+    aneurysmInceptionClPortion =  mp.extract_single_line(
+                                        line,
+                                        0,
+                                        start_id=upstreamId,
+                                        end_id=downstreamId
+                                    )
+
+    return _tube_surface(aneurysmInceptionClPortion)
+
 
 def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     """Extract the Voronoi diagram of the aneurysmal portion."""
@@ -142,7 +303,7 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
                     )
 
     aneurysmVoronoi = tools.ExtractConnectedRegion(
-                        aneurysmVoronoi, 
+                        aneurysmVoronoi,
                         'largest'
                     )
 
@@ -182,7 +343,7 @@ def _Voronoi_envelope(Voronoi):
     envelopeSurface.Execute()
 
     envelope = tools.ExtractConnectedRegion(
-                    envelopeSurface.Surface, 
+                    envelopeSurface.Surface,
                     'largest'
                 )
 
@@ -266,7 +427,7 @@ def _sac_centerline(aneurysm_sac, distance_array):
     maxTubeDist = float(distanceArray.max())
 
     # Build spline along with to perform the neck search
-    nPoints = int(const.one)*int(const.oneHundred) 
+    nPoints = int(const.one)*int(const.oneHundred)
     barycenters = []
 
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
@@ -284,7 +445,7 @@ def _sac_centerline(aneurysm_sac, distance_array):
 
         # Get largest connected contour
         contour = tools.ExtractConnectedRegion(
-                        isoContour.GetOutput(), 
+                        isoContour.GetOutput(),
                         'largest'
                     )
 
@@ -332,7 +493,7 @@ def _sac_centerline(aneurysm_sac, distance_array):
     # Note that we decrease by two units the start of the spline
     # because I noticed that for some cases the initial point of the spline
     # might be pretty inside the aneurysm, skipping the "neck region"
-    minSplineDomain = min(u) - const.two #intFive/const.ten
+    minSplineDomain = min(u) - const.one #intFive/const.ten
     maxSplineDomain = limitFraction*max(u)
 
     domain = np.linspace(minSplineDomain, maxSplineDomain, 2*nPoints)
@@ -358,7 +519,7 @@ def _local_minimum(array):
     return int(np.where(minimum == True)[0][0])
 
 
-# TODO: this function is the bottleneck of the algorithm. I think there is 
+# TODO: this function is the bottleneck of the algorithm. I think there is
 # a lot of space to optimize it (to many explicit loops and checks inside
 # the loops).
 def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
@@ -366,7 +527,7 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
 
     This function effectively searches for the aneurysm neck plane: it
     interactively cuts the aneurysm surface with planes defined by the vertices
-    and normals to a spline travelling through the aneurysm sac. 
+    and normals to a spline travelling through the aneurysm sac.
 
     The cut plane is further precessed by a tilt and azimuth angle and the
     minimum search between them, as originally proposed by Piccinelli et al.
@@ -469,10 +630,13 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
     return sectionInfo[minimumId, 1]
 
 
-def AneurysmNeckPlane(surface_model,
-                      parent_centerlines=None,
-                      clipping_points=None,
-                      min_variable='area'):
+def AneurysmNeckPlane(
+        vascular_surface: names.polyDataType,
+        parent_vascular_surface: names.polyDataType = None,
+        min_variable: str = "area",
+        aneurysm_type: str = "",
+        aneurysm_point: tuple = None
+    )   -> names.polyDataType:
     """Search the aneurysm neck plane and clip the aneurysm.
 
     Procedure based on Piccinelli's pipeline, which is based on the surface
@@ -498,51 +662,69 @@ def AneurysmNeckPlane(surface_model,
     # Variables
     tubeToAneurysmDistance = 'ClippedTubeToAneurysmDistanceArray'
 
+    # Compute vasculature Voronoi
+    vascularVoronoi = _compute_Voronoi(vascular_surface)
+
     # Compute vasculature centerline
     # TODO: update this to use the parent centerlines with the radius array
-    if parent_centerlines == None:
-        parent_centerlines = cnt.GenerateCenterlines(surface_model)
+    if parent_vascular_surface is None:
+        # Use the centerline to build the parent tube
+        parentCenterlines = cnt.GenerateCenterlines(vascular_surface)
 
-    # Get clipping and diverging data
-    divergingData = cnt.GetDivergingPoints(surface_model)
+    else:
+        parentCenterlines = cnt.GenerateCenterlines(parent_vascular_surface)
 
-    # Reconstruct tube functions
-    parentTube = _tube_surface(parent_centerlines)
-
-    clippedCenterline = mp.get_centerline_between_clipping_points(
-                            parent_centerlines, 
-                            divergingData
+    # Reconstruct tube functions and build aneurysm Voronoi
+    parentTubeSurface = _tube_surface(parentCenterlines)
+    aneurysmVoronoi   = _clip_aneurysm_Voronoi(
+                            vascularVoronoi,
+                            parentTubeSurface
                         )
 
-    clippedTube = _tube_surface(clippedCenterline)
+    aneurysmEnvelope  = _Voronoi_envelope(aneurysmVoronoi)
 
-    # Clip aneurysm Voronoi
-    VoronoiDiagram = _compute_Voronoi(surface_model)
-    aneurysmVoronoi = _clip_aneurysm_Voronoi(VoronoiDiagram, parentTube)
-    aneurysmEnvelope = _Voronoi_envelope(aneurysmVoronoi)
+    # Extract region of aneurysm influence on the parent artery
+    aneurysmPoint = tools.SelectSurfacePoint(vascular_surface) \
+                    if aneurysm_point is None \
+                    else aneurysm_point
 
-    initialAneurysm = _clip_initial_aneurysm(
-                            surface_model,
+    if aneurysm_type == "bifurcation":
+        aneurysmInceptionPortion = _bifurcation_aneurysm_influence_region(
+                                       vascular_surface,
+                                       aneurysmPoint
+                                   )
+
+    elif aneurysm_type == "lateral":
+        aneurysmInceptionPortion = _lateral_aneurysm_influence_region(
+                                       vascular_surface,
+                                       aneurysmPoint
+                                   )
+
+    else:
+        sys.exit("I do not know the aneurysm type {}".format(aneurysm_type))
+
+    aneurysmalSurface = _clip_initial_aneurysm(
+                            vascular_surface,
                             aneurysmEnvelope,
-                            parentTube
+                            parentTubeSurface
                         )
 
     # Compute distance to aneurysm and tube clipped at diverging points
-    initialAneurysm = tools.ComputeSurfacesDistance(
-                            initialAneurysm,
-                            clippedTube,
+    aneurysmalSurface = tools.ComputeSurfacesDistance(
+                            aneurysmalSurface,
+                            aneurysmInceptionPortion,
                             array_name=tubeToAneurysmDistance,
                             signed_array=False
                         )
 
     # Create sac centerline and search plane along it
     barycenters, normals = _sac_centerline(
-                                initialAneurysm,
+                                aneurysmalSurface,
                                 tubeToAneurysmDistance
                             )
 
     neckPlane = _search_neck_plane(
-                    initialAneurysm,
+                    aneurysmalSurface,
                     barycenters,
                     normals,
                     min_variable=min_variable
@@ -552,26 +734,26 @@ def AneurysmNeckPlane(surface_model,
     neckNormal = neckPlane.GetNormal()
 
     # Remove distance array
-    initialAneurysm.GetPointData().RemoveArray(tubeToAneurysmDistance)
+    aneurysmalSurface.GetPointData().RemoveArray(tubeToAneurysmDistance)
 
     # Clip final aneurysm surface: when clipped, two surfaces the aneurysm
     # (desired) and the rest (not desired) which is closest to the clipped tube
     surf1 = tools.ClipWithPlane(
-                initialAneurysm, 
-                neckCenter, 
+                aneurysmalSurface,
+                neckCenter,
                 neckNormal
             )
 
     surf2 = tools.ClipWithPlane(
-                initialAneurysm, 
-                neckCenter, 
-                neckNormal, 
+                aneurysmalSurface,
+                neckCenter,
+                neckNormal,
                 inside_out=True
             )
 
-    # Check which output is farthest from clipped tube (the actual aneurysm 
+    # Check which output is farthest from clipped tube (the actual aneurysm
     # surface should be farther)
-    tubePoints = _vtk_vertices_to_numpy(clippedTube)
+    tubePoints = _vtk_vertices_to_numpy(aneurysmInceptionPortion)
     surf1Points = _vtk_vertices_to_numpy(surf1)
     surf2Points = _vtk_vertices_to_numpy(surf2)
 
