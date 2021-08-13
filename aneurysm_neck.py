@@ -416,6 +416,7 @@ def _clip_initial_aneurysm(
     # Remove fields
     aneurysm.GetPointData().RemoveArray(tubeToModelArray)
     aneurysm.GetPointData().RemoveArray(envelopeToModelArray)
+    aneurysm.GetPointData().RemoveArray(result_clip_array)
 
     return tools.Cleaner(aneurysm)
 
@@ -649,12 +650,14 @@ def AneurysmNeckPlane(
     """
 
     # Clean up any arrays on the surface
+    vascular_surface = tools.Cleaner(vascular_surface)
+    vascular_surface = tools.CleanupArrays(vascular_surface)
+
     # The authors of the study used the distance to the clipped tube
     # surface to compute the sac centerline. I am currently using
     # the same array used to clip the aneurysmal region
     tubeToAneurysmDistance = "ClippedTubeToAneurysmDistanceArray"
 
-    arrayNameToClipInitialAneurysm = tubeToAneurysmDistance
 
     # 1) Compute vasculature's Voronoi
     vascularVoronoi = _compute_Voronoi(vascular_surface)
@@ -709,24 +712,23 @@ def AneurysmNeckPlane(
                             parentTubeSurface
                         )
 
-    if arrayNameToClipInitialAneurysm == tubeToAneurysmDistance:
-        aneurysmalSurface = tools.ComputeSurfacesDistance(
-                                aneurysmalSurface,
-                                aneurysmInceptionPortion,
-                                array_name=tubeToAneurysmDistance,
-                                signed_array=False
-                            )
+    aneurysmalSurface = tools.ComputeSurfacesDistance(
+                            aneurysmalSurface,
+                            aneurysmInceptionPortion,
+                            array_name=tubeToAneurysmDistance,
+                            signed_array=False
+                        )
 
 
     # 6) Create sac centerline
     barycenters, normals = _sac_centerline(
                                 aneurysmalSurface,
-                                arrayNameToClipInitialAneurysm
+                                tubeToAneurysmDistance
                             )
 
-    # aneurysmalSurface.GetPointData().RemoveArray(
-    #     arrayNameToClipInitialAneurysm
-    # )
+    aneurysmalSurface.GetPointData().RemoveArray(
+        tubeToAneurysmDistance
+    )
 
 
     # 7) Search neck plane
