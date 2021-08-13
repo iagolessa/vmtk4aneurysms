@@ -386,7 +386,6 @@ def _clip_initial_aneurysm(
     """
 
     # Array names
-    clipAneurysmArray = 'ClipInitialAneurysmArray'
     tubeToModelArray = 'ParentTubeModelDistanceArray'
     envelopeToModelArray = 'AneurysmEnvelopeModelDistanceArray'
 
@@ -410,7 +409,7 @@ def _clip_initial_aneurysm(
     clippingArray.Operation = 'subtract'
     clippingArray.InputArrayName = envelopeToModelArray
     clippingArray.Input2ArrayName = tubeToModelArray
-    clippingArray.ResultArrayName = clipAneurysmArray
+    clippingArray.ResultArrayName = result_clip_array
     clippingArray.Execute()
 
     clippedAneurysm = tools.ClipWithScalar(
@@ -640,13 +639,17 @@ def AneurysmNeckPlane(
             'perimeter'; options 'perimeter' 'area')
     """
     # Variables
-    tubeToAneurysmDistance = 'ClippedTubeToAneurysmDistanceArray'
+    # The authors of the study used the distance to the clipped tube
+    # surface to compute the sac centerline. I am currently using
+    # the same array used to clip the aneurysmal region
+    tubeToAneurysmDistance = "ClippedTubeToAneurysmDistanceArray"
+    clipAneurysmArrayName  = "ClipInitialAneurysmArray"
 
-    # Compute vasculature Voronoi
+    arrayNameToClipInitialAneurysm = clipAneurysmArrayName
+
     vascularVoronoi = _compute_Voronoi(vascular_surface)
 
     # Compute vasculature centerline
-    # TODO: update this to use the parent centerlines with the radius array
     if parent_vascular_surface is None:
         # Use the centerline to build the parent tube
         parentCenterlines = cnt.GenerateCenterlines(vascular_surface)
@@ -690,21 +693,23 @@ def AneurysmNeckPlane(
     aneurysmalSurface = _clip_initial_aneurysm(
                             vascular_surface,
                             aneurysmEnvelope,
-                            parentTubeSurface
+                            parentTubeSurface,
+                            arrayNameToClipInitialAneurysm
                         )
 
     # Compute distance to aneurysm and tube clipped at diverging points
-    aneurysmalSurface = tools.ComputeSurfacesDistance(
-                            aneurysmalSurface,
-                            aneurysmInceptionPortion,
-                            array_name=tubeToAneurysmDistance,
-                            signed_array=False
-                        )
+    if arrayNameToClipInitialAneurysm == tubeToAneurysmDistance:
+        aneurysmalSurface = tools.ComputeSurfacesDistance(
+                                aneurysmalSurface,
+                                aneurysmInceptionPortion,
+                                array_name=tubeToAneurysmDistance,
+                                signed_array=False
+                            )
 
     # Create sac centerline and search plane along it
     barycenters, normals = _sac_centerline(
                                 aneurysmalSurface,
-                                tubeToAneurysmDistance
+                                arrayNameToClipInitialAneurysm
                             )
 
     neckPlane = _search_neck_plane(
@@ -718,7 +723,8 @@ def AneurysmNeckPlane(
     neckNormal = neckPlane.GetNormal()
 
     # Remove distance array
-    aneurysmalSurface.GetPointData().RemoveArray(tubeToAneurysmDistance)
+    # aneurysmalSurface.GetPointData().RemoveArray(tubeToAneurysmDistance)
+    # aneurysmalSurface.GetPointData().RemoveArray(clipAneurysmArrayName)
 
     # Clip final aneurysm surface: when clipped, two surfaces the aneurysm
     # (desired) and the rest (not desired) which is closest to the clipped tube
