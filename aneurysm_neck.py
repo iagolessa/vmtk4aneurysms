@@ -15,7 +15,6 @@ from scipy import interpolate
 
 from vtk.numpy_interface import dataset_adapter as dsa
 
-# Local modules
 from .lib import names
 from .lib import centerlines as cnt
 from .lib import constants as const
@@ -23,13 +22,6 @@ from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
 _dimensions = int(const.three)
-
-def _rotate3d_matrix(tilt, azim):
-    """Rotation matrix traformation for a vector in 3D space."""
-    return np.array([[np.cos(azim),             -np.sin(azim),      const.zero],
-                     [np.sin(azim)*np.cos(tilt), np.cos(azim)
-                      * np.cos(tilt), -np.sin(tilt)],
-                     [np.sin(azim)*np.sin(tilt), np.cos(azim)*np.sin(tilt),  np.cos(tilt)]])
 
 def _transf_normal(
         normal: tuple,
@@ -51,8 +43,11 @@ def _transf_normal(
     return tuple(np.dot(matrix, normal))
 
 
-def _compute_Voronoi(surface_model):
+def _compute_Voronoi(
+        surface_model: names.polyDataType
+    )   -> names.polyDataType:
     """Compute Voronoi diagram of a vascular surface."""
+
     voronoiDiagram = vmtkscripts.vmtkDelaunayVoronoi()
     voronoiDiagram.Surface = surface_model
     voronoiDiagram.CheckNonManifold = True
@@ -61,10 +56,13 @@ def _compute_Voronoi(surface_model):
     return voronoiDiagram.Surface
 
 
-def _tube_surface(centerline, smooth=True):
+def _tube_surface(
+        centerline: names.polyDataType,
+        smooth: bool = True
+    )   -> names.polyDataType:
     """Reconstruct tube surface of a given vascular surface.
 
-    The tube surface is the maximum tubular structure ins- cribed in the
+    The tube surface is the maximum tubular structure inscribed in the
     vasculature.
 
     Arguments:
@@ -74,13 +72,14 @@ def _tube_surface(centerline, smooth=True):
     Keyword arguments:
         smooth -- to smooth tube surface (default True)
     """
+
     radiusArray = 'MaximumInscribedSphereRadius'
 
     # Get bounds of model
-    centerlineBounds = centerline.GetBounds()
+    centerlineBounds  = centerline.GetBounds()
     radiusArrayBounds = centerline.GetPointData().GetArray(radiusArray).GetValueRange()
-    maxSphereRadius = radiusArrayBounds[1]
-    enlargeBoxBounds = (const.ten/const.ten)*maxSphereRadius
+    maxSphereRadius   = radiusArrayBounds[1]
+    enlargeBoxBounds  = (const.ten/const.ten)*maxSphereRadius
 
     modelBounds = np.array(centerlineBounds) + \
                   np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
@@ -272,7 +271,10 @@ def _lateral_aneurysm_influence_region(
     return _tube_surface(aneurysmInceptionClPortion)
 
 
-def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
+def _clip_aneurysm_Voronoi(
+        VoronoiSurface: names.polyDataType,
+        tubeSurface: names.polyDataType
+    )   -> names.polyDataType:
     """Extract the Voronoi diagram of the aneurysmal portion."""
 
     # Compute distance between complete Voronoi
@@ -307,7 +309,9 @@ def _clip_aneurysm_Voronoi(VoronoiSurface, tubeSurface):
     return tools.Cleaner(aneurysmVoronoi)
 
 
-def _Voronoi_envelope(Voronoi):
+def _Voronoi_envelope(
+        Voronoi: names.polyDataType
+    )   -> names.polyDataType:
     """Compute the envelope surface of a Voronoi diagram."""
 
     radiusArray = 'MaximumInscribedSphereRadius'
@@ -506,10 +510,12 @@ def _sac_centerline(
         sys.exit("No barycenters found for sac centerline construction.")
 
 
-# TODO: this function is the bottleneck of the algorithm. I think there is
-# a lot of space to optimize it (to many explicit loops and checks inside
-# the loops).
-def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
+def _search_neck_plane(
+        aneurysm_sac: names.polyDataType,
+        centers: np.ndarray,
+        normals: np.ndarray,
+        min_variable="area"
+    )   -> names.planeType:
     """Search neck plane of aneurysm by minimizing a contour variable.
 
     This function effectively searches for the aneurysm neck plane: it
