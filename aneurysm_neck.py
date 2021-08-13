@@ -51,6 +51,25 @@ def _rotate3d_matrix(tilt, azim):
                       * np.cos(tilt), -np.sin(tilt)],
                      [np.sin(azim)*np.sin(tilt), np.cos(azim)*np.sin(tilt),  np.cos(tilt)]])
 
+def _transf_normal(
+        normal: tuple,
+        tilt: float,
+        azim: float
+    )   -> tuple:
+    """Rotates a normal vector to plane by a tilt and azimuth angles."""
+
+    matrix = np.array([[ np.cos(azim),
+                        -np.sin(azim),
+                        const.zero],
+                       [np.sin(azim)*np.cos(tilt),
+                        np.cos(azim)*np.cos(tilt),
+                        -np.sin(tilt)],
+                       [np.sin(azim)*np.sin(tilt),
+                        np.cos(azim)*np.sin(tilt),
+                        np.cos(tilt)]])
+
+    return tuple(np.dot(matrix, normal))
+
 
 def _compute_Voronoi(surface_model):
     """Compute Voronoi diagram of a vascular surface."""
@@ -404,14 +423,16 @@ def _clip_initial_aneurysm(
     aneurysm = tools.ExtractConnectedRegion(clippedAneurysm, 'largest')
 
     # Remove fields
-    aneurysm.GetPointData().RemoveArray(clipAneurysmArray)
     aneurysm.GetPointData().RemoveArray(tubeToModelArray)
     aneurysm.GetPointData().RemoveArray(envelopeToModelArray)
 
     return tools.Cleaner(aneurysm)
 
 
-def _sac_centerline(aneurysm_sac, distance_array):
+def _sac_centerline(
+        aneurysm_sac: names.polyDataType,
+        distance_array: str
+    )   -> tuple:
     """Compute aneurysm sac centerline.
 
     Compute spline that travels alongs the aneurysm sac from the intersection
@@ -430,7 +451,7 @@ def _sac_centerline(aneurysm_sac, distance_array):
     maxTubeDist = float(distanceArray.max())
 
     # Build spline along with to perform the neck search
-    nPoints = int(const.one)*int(const.oneHundred)
+    nPoints = int(const.oneHundred)
     barycenters = []
 
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
@@ -446,80 +467,64 @@ def _sac_centerline(aneurysm_sac, distance_array):
         isoContour.SetValue(0, isovalue)
         isoContour.Update()
 
-        # Get largest connected contour
-        contour = tools.ExtractConnectedRegion(
-                        isoContour.GetOutput(),
-                        'largest'
-                    )
+        contour = isoContour.GetOutput()
 
-        try:
-            contourPoints = contour.GetPoints()
-            nContourPoints = contour.GetNumberOfPoints()
+        contourPoints  = contour.GetPoints()
+        nContourPoints = contour.GetNumberOfPoints()
+        nContourCells  = contour.GetNumberOfCells()
 
-            if geo.ContourIsClosed(contour) and nContourPoints != 0:
-                barycenter = _dimensions*[0]
-                vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
-                    contourPoints,
-                    barycenter
-                )
+        if nContourPoints > 0 and nContourCells > 0:
+            barycenter = _dimensions*[0]
 
-                barycenters.append(barycenter)
+            vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
+                contourPoints,
+                barycenter
+            )
 
-        except:
-            continue
+            barycenters.append(barycenter)
 
-    barycenters = np.array(barycenters)
+    if barycenters:
+        # Shift centers to compute interpoint distance
+        shiftedBarycenters = [barycenters[0]] + barycenters[0:-1]
 
-    # Compute list with distance coordinate along spline
-    distance = const.zero
-    previous = barycenters[0]
-    distanceCoord = list()                    # path distance coordinate
+        barycenters = np.array(barycenters)
+        shiftedBarycenters = np.array(shiftedBarycenters)
 
-    for index, center in enumerate(barycenters):
+        # Compute distance coordinates
+        incrDistances = np.linalg.norm(
+                            shiftedBarycenters - barycenters,
+                            axis=1
+                        )
 
-        if index > 0:
-            previous = barycenters[index - 1]
+        distanceCoord = np.cumsum(incrDistances)
 
-        # Interpoint distance
-        increment = center - previous
-        distance += np.linalg.norm(increment, 2)
-        distanceCoord.append(distance)
+        # Find spline of barycenters and get derivative == normals
+        limitFraction = const.seven/const.ten
 
-    distanceCoord = np.array(distanceCoord)
+        tck, u = interpolate.splprep(barycenters.T, u=distanceCoord)
 
-    # Find spline of barycenters and get derivative == normals
-    limitFraction = const.seven/const.ten
+        # Max and min t of spline
+        # Note that we decrease by two units the start of the spline because I
+        # noticed that for some cases the initial point of the spline might be
+        # pretty inside the aneurysm, skipping the "neck region"
+        minSplineDomain = min(u)
+        maxSplineDomain = limitFraction*max(u)
 
-    tck, u = interpolate.splprep(barycenters.T, u=distanceCoord)
+        domain = np.linspace(minSplineDomain, maxSplineDomain, 2*nPoints)
 
-    # Max and min t of spline
-    # Note that we decrease by two units the start of the spline
-    # because I noticed that for some cases the initial point of the spline
-    # might be pretty inside the aneurysm, skipping the "neck region"
-    minSplineDomain = min(u) - const.one #intFive/const.ten
-    maxSplineDomain = limitFraction*max(u)
+        deriv0 = interpolate.splev(domain, tck, der=0)
+        deriv1 = interpolate.splev(domain, tck, der=1)
 
-    domain = np.linspace(minSplineDomain, maxSplineDomain, 2*nPoints)
+        # Spline points
+        points = np.array(deriv0).T
 
-    deriv0 = interpolate.splev(domain, tck, der=0)
-    deriv1 = interpolate.splev(domain, tck, der=1)
+        # Spline tangents
+        tangents = np.array(deriv1).T
 
-    points = np.array(deriv0).T            # spline points
-    tangents = np.array(deriv1).T            # spline tangents
+        return points, tangents
 
-    return points, tangents
-
-def _local_minimum(array):
-    """Find local minimum closest to beginning of array.
-
-    Given an array of real numbers, return the id of the smallest value closest
-    to the beginning of the array.
-    """
-    minimum = np.r_[True, array[1:] < array[:-1]] & \
-              np.r_[array[:-1] < array[1:], True]
-
-    # Local minima index
-    return int(np.where(minimum == True)[0][0])
+    else:
+        sys.exit("No barycenters found for sac centerline construction.")
 
 
 # TODO: this function is the bottleneck of the algorithm. I think there is
