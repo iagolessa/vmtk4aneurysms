@@ -22,8 +22,6 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
-INCR = 0.01
-HUGE = 1e30
 _dimensions = int(const.three)
 
 def _vtk_vertices_to_numpy(polydata):
@@ -350,7 +348,12 @@ def _Voronoi_envelope(Voronoi):
     return tools.SmoothSurface(envelope)
 
 
-def _clip_initial_aneurysm(surface_model, aneurysm_envelope, parent_tube):
+def _clip_initial_aneurysm(
+        surface_model: names.polyDataType,
+        aneurysm_envelope: names.polyDataType,
+        parent_tube: names.polyDataType,
+        result_clip_array: str
+    )   -> names.polyDataType:
     """Clip initial aneurysm surface from the original vascular model.
 
     Compute distance between the aneurysm envelope and parent vasculature tube
@@ -535,99 +538,71 @@ def _search_neck_plane(anerysm_sac, centers, normals, min_variable='area'):
 
     It returns the local minimum solution: the neck plane as a vtkPlane object.
     """
+
+    # For each center on the sac centerline (list), create the rotated and
+    # tilted plane normals (list) and compute its area (or min_variable)
+
     # Rotation angles
-    tiltIncr = const.one
+    tiltIncr = const.two
     azimIncr = const.ten
     tiltMax = 32
     azimMax = 360
 
-    tilts = np.arange(const.zero, tiltMax, tiltIncr) * const.degToRad
-    azims = np.arange(const.zero, azimMax, azimIncr) * const.degToRad
+    tilts = np.arange(const.zero, tiltMax, tiltIncr)*const.degToRad
+    azims = np.arange(const.zero, azimMax, azimIncr)*const.degToRad
 
-    # Minimum area seacrh
-    sectionInfo = []
-    previousVariable = HUGE
+    globalMinimumAreas = {} # can be used for debug
+    previousArea = 0.0
 
-    # Function to calculate the value of minimizing function per plane
-    def minimizingVariable(contour):
-        if min_variable == 'area':
-            return geo.ContourPlaneArea(contour)
+    for center, normal in zip(map(tuple, centers), map(tuple, normals)):
 
-        elif min_variable == 'perimeter':
-            return geo.ContourPerimeter(contour)
+        # More readable option
+        planeContours = {(tilt, azim): tools.ContourCutWithPlane(
+                                          aneurysm_sac,
+                                          center,
+                                          _transf_normal(normal, tilt, azim)
+                                      )
+                         for tilt in tilts for azim in azims}
 
-        else:
-            print('Minimizing variable not recognized!'
-                  'Choose area, perimeter.')
+        # Compute area of the closed contours for each normal direction
+        planeSectionAreas = {key: geo.ContourPerimeter(contour) \
+                                 if min_variable == "perimeter" \
+                                 else geo.ContourPlaneArea(contour)
+                             for key, contour in planeContours.items()
+                             if contour.GetNumberOfCells() > 0 and \
+                                geo.ContourIsClosed(contour)}
 
-    # Iterate over barycenters and clip surface with closed surface
-    for index, (center, normal) in enumerate(zip(centers, normals)):
+        if planeSectionAreas:
+            # Get the normal direction of max. area
+            minCenter    = center
+            minDirection = min(planeSectionAreas, key=planeSectionAreas.get)
+            minPlaneArea = min(planeSectionAreas.values())
+            minPlaneNormal = _transf_normal(normal, *minDirection)
 
-        # Store previous area to compare and find local minimum
-        if index > 0:
-            previousVariable = minVariable
+            # Associate this with each center
+            # globalMinimumAreas.update({
+            #     center: {
+            #         "normal": minPlaneNormal,
+            #         "area"  : minPlaneArea
+            #     }
+            # })
 
-        # Iterate over rotated planes
-        # identifies the minimum area
-        minArea = HUGE
-        minPlane = None
-
-        minHDiameter = HUGE
-        minPerimeter = HUGE
-        minVariable = HUGE
-
-        for tilt, azim in zip(tilts, azims):
-            # Set plane with barycenters and
-            # normals as tangent to spline
-            plane = vtk.vtkPlane()
-            plane.SetOrigin(tuple(center))
-
-            # Rotate normal
-            matrix = _rotate3d_matrix(tilt, azim)
-            rNormal = np.dot(matrix, normal)
-
-            # Set rotate plane normal
-            plane.SetNormal(tuple(rNormal))
-
-            # Cut initial aneurysm surface with create plane
-            cutWithPlane = vtk.vtkCutter()
-            cutWithPlane.SetInputData(anerysm_sac)
-            cutWithPlane.SetCutFunction(plane)
-            cutWithPlane.Update()
-
-            contour = tools.ExtractConnectedRegion(
-                cutWithPlane.GetOutput(), 'largest')
-
-            try:
-                contourPoints = contour.GetPoints()
-                nContourPoints = contour.GetNumberOfPoints()
-
-                if geo.ContourIsClosed(contour) and nContourPoints != 0:
-
-                    # Update minmum area
-                    variable = minimizingVariable(contour)
-
-                    if variable < minVariable:
-                        minVariable = variable
-                        minPlane = plane
-            except:
+            if minPlaneArea <= previousArea:
+                previousArea = minPlaneArea
                 continue
 
-        # Write to array min area and its surface plane
-        if minVariable != HUGE:
-            if minVariable > previousVariable:
+            else:
                 break
 
-            sectionInfo.append([minVariable, minPlane])
+        else:
+            continue
 
-    sectionInfo = np.array(sectionInfo)
+    # Create plane
+    neckPlane = vtk.vtkPlane()
+    neckPlane.SetOrigin(minCenter)
+    neckPlane.SetNormal(minPlaneNormal)
 
-    # Get local minimum area
-    areas = sectionInfo[:, 0]
-
-    minimumId = _local_minimum(areas)
-
-    return sectionInfo[minimumId, 1]
+    return neckPlane
 
 
 def AneurysmNeckPlane(
@@ -674,8 +649,9 @@ def AneurysmNeckPlane(
     else:
         parentCenterlines = cnt.GenerateCenterlines(parent_vascular_surface)
 
-    # Reconstruct tube functions and build aneurysm Voronoi
+    # Reconstruct tube functions
     parentTubeSurface = _tube_surface(parentCenterlines)
+
     aneurysmVoronoi   = _clip_aneurysm_Voronoi(
                             vascularVoronoi,
                             parentTubeSurface
@@ -683,7 +659,8 @@ def AneurysmNeckPlane(
 
     aneurysmEnvelope  = _Voronoi_envelope(aneurysmVoronoi)
 
-    # Extract region of aneurysm influence on the parent artery
+    # New procedure: different between bifurcation and lateral aneurysms to get
+    # the clipped tube
     aneurysmPoint = tools.SelectSurfacePoint(vascular_surface) \
                     if aneurysm_point is None \
                     else aneurysm_point
@@ -701,7 +678,9 @@ def AneurysmNeckPlane(
                                    )
 
     else:
-        sys.exit("I do not know the aneurysm type {}".format(aneurysm_type))
+        sys.exit(
+            "I do not know the aneurysm type {}".format(aneurysm_type)
+        )
 
     aneurysmalSurface = _clip_initial_aneurysm(
                             vascular_surface,

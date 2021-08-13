@@ -6,6 +6,8 @@ unstructuredGridType = vtk.vtkCommonDataModelPython.vtkUnstructuredGrid
 multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 foamReaderType = vtk.vtkIOParallelPython.vtkPOpenFOAMReader
 
+planeType = vtk.vtkCommonDataModelPython.vtkPlane
+
 # Field suffixes
 xAxisSufx = "X"
 yAxisSufx = "Y"
