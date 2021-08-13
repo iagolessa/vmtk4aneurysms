@@ -22,6 +22,7 @@ from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
 _dimensions = int(const.three)
+_clipInitialAneurysmArrayName = "ClipInitialAneurysmArray"
 
 def _transf_normal(
         normal: tuple,
@@ -79,7 +80,10 @@ def _tube_surface(
     centerlineBounds  = centerline.GetBounds()
     radiusArrayBounds = centerline.GetPointData().GetArray(radiusArray).GetValueRange()
     maxSphereRadius   = radiusArrayBounds[1]
-    enlargeBoxBounds  = (const.ten/const.ten)*maxSphereRadius
+
+    # To enlarge the box: could be a fraction of maxSphereRadius
+    # tests show that the whole radius is appropriate
+    enlargeBoxBounds  = maxSphereRadius
 
     modelBounds = np.array(centerlineBounds) + \
                   np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
@@ -185,7 +189,10 @@ def _bifurcation_aneurysm_influence_region(
                                  inlets + [aneurysm_point]
                              )
         # Get clipping point on this branch
-        dauClippingPoint = _get_diverging_point(daughterCenterline, divTolerance)
+        dauClippingPoint = _get_diverging_point(
+                               daughterCenterline,
+                               divTolerance
+                           )
 
         # Then clip the parent centerline
         line = mp.extract_single_line(clWithoutAneurysm, cl_id)
@@ -250,8 +257,15 @@ def _lateral_aneurysm_influence_region(
                             inlets + [aneurysm_point]
                         )
 
-    upstreamClipPoint   = _get_diverging_point(forwardCenterline, divTolerance)
-    downstreamClipPoint = _get_diverging_point(backwardCenterline, divTolerance)
+    upstreamClipPoint   = _get_diverging_point(
+                              forwardCenterline,
+                              divTolerance
+                          )
+
+    downstreamClipPoint = _get_diverging_point(
+                              backwardCenterline,
+                              divTolerance
+                          )
 
     # Clip centerline portion of the forward centerline
     line = mp.extract_single_line(forwardCenterline, 0)
@@ -277,37 +291,28 @@ def _clip_aneurysm_Voronoi(
     )   -> names.polyDataType:
     """Extract the Voronoi diagram of the aneurysmal portion."""
 
-    # Compute distance between complete Voronoi
-    # and the parent vessel tube surface
+    # Compute distance between complete Voronoi and the parent vessel tube
+    # surface
     DistanceArrayName = 'DistanceToTubeArray'
-    VoronoiDistance = tools.ComputeSurfacesDistance(
-        VoronoiSurface,
-        tubeSurface,
-        array_name=DistanceArrayName
-    )
 
-    # Clip the original voronoi diagram at the zero distance (intersection)
-    # VoronoiClipper = vmtkscripts.vmtkSurfaceClipper()
-    # VoronoiClipper.Surface = VoronoiDistance
-    # VoronoiClipper.Interactive = False
-    # VoronoiClipper.ClipArrayName = DistanceArrayName
-    # VoronoiClipper.ClipValue = const.zero
-    # VoronoiClipper.InsideOut = True
-    # VoronoiClipper.Execute()
+    VoronoiSurface  = tools.ComputeSurfacesDistance(
+                          VoronoiSurface,
+                          tubeSurface,
+                          array_name=DistanceArrayName
+                      )
 
     aneurysmVoronoi = tools.ClipWithScalar(
-                        VoronoiDistance,
-                        DistanceArrayName,
-                        const.zero
-                    )
+                          VoronoiSurface,
+                          DistanceArrayName,
+                          const.zero
+                      )
 
     aneurysmVoronoi = tools.ExtractConnectedRegion(
-                        aneurysmVoronoi,
-                        'largest'
-                    )
+                          aneurysmVoronoi,
+                          'largest'
+                      )
 
     return tools.Cleaner(aneurysmVoronoi)
-
 
 def _Voronoi_envelope(
         Voronoi: names.polyDataType
@@ -316,10 +321,10 @@ def _Voronoi_envelope(
 
     radiusArray = 'MaximumInscribedSphereRadius'
 
-    VoronoiBounds = Voronoi.GetBounds()
+    VoronoiBounds     = Voronoi.GetBounds()
     radiusArrayBounds = Voronoi.GetPointData().GetArray(radiusArray).GetValueRange()
-    maxSphereRadius = radiusArrayBounds[1]
-    enlargeBoxBounds = (const.four/const.ten)*maxSphereRadius
+    maxSphereRadius   = radiusArrayBounds[1]
+    enlargeBoxBounds  = (const.four/const.ten)*maxSphereRadius
 
     modelBounds = np.array(VoronoiBounds) + \
                   np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
@@ -355,7 +360,7 @@ def _clip_initial_aneurysm(
         surface_model: names.polyDataType,
         aneurysm_envelope: names.polyDataType,
         parent_tube: names.polyDataType,
-        result_clip_array: str
+        result_clip_array: str = _clipInitialAneurysmArrayName
     )   -> names.polyDataType:
     """Clip initial aneurysm surface from the original vascular model.
 
@@ -370,40 +375,43 @@ def _clip_initial_aneurysm(
     """
 
     # Array names
-    tubeToModelArray = 'ParentTubeModelDistanceArray'
+    tubeToModelArray     = 'ParentTubeModelDistanceArray'
     envelopeToModelArray = 'AneurysmEnvelopeModelDistanceArray'
 
     # Computes distance between original surface model and the aneurysm
     # envelope, and from the parent tube surface
     aneurysmEnvelopeDistance = tools.ComputeSurfacesDistance(
-                                    surface_model,
-                                    aneurysm_envelope,
-                                    array_name=envelopeToModelArray
-                                )
+                                   surface_model,
+                                   aneurysm_envelope,
+                                   array_name=envelopeToModelArray
+                               )
 
     modelSurfaceWithDistance = tools.ComputeSurfacesDistance(
-                                    aneurysmEnvelopeDistance,
-                                    parent_tube,
-                                    array_name=tubeToModelArray
-                                )
+                                   aneurysmEnvelopeDistance,
+                                   parent_tube,
+                                   array_name=tubeToModelArray
+                               )
 
     # Compute difference between the arrays
     clippingArray = vmtkscripts.vmtkSurfaceArrayOperation()
-    clippingArray.Surface = modelSurfaceWithDistance
-    clippingArray.Operation = 'subtract'
-    clippingArray.InputArrayName = envelopeToModelArray
+    clippingArray.Surface         = modelSurfaceWithDistance
+    clippingArray.Operation       = 'subtract'
+    clippingArray.InputArrayName  = envelopeToModelArray
     clippingArray.Input2ArrayName = tubeToModelArray
     clippingArray.ResultArrayName = result_clip_array
     clippingArray.Execute()
 
     clippedAneurysm = tools.ClipWithScalar(
-                        clippingArray.Surface,
-                        clippingArray.ResultArrayName,
-                        const.zero,
-                        inside_out=False
-                    )
+                          clippingArray.Surface,
+                          clippingArray.ResultArrayName,
+                          const.zero,
+                          inside_out=False
+                      )
 
-    aneurysm = tools.ExtractConnectedRegion(clippedAneurysm, 'largest')
+    aneurysm = tools.ExtractConnectedRegion(
+                   clippedAneurysm,
+                   'largest'
+               )
 
     # Remove fields
     aneurysm.GetPointData().RemoveArray(tubeToModelArray)
@@ -428,13 +436,15 @@ def _sac_centerline(
 
     # Get wrapper object of vtk numpy interface
     surfaceWrapper = dsa.WrapDataObject(aneurysm_sac)
-    distanceArray = np.array(surfaceWrapper.PointData.GetArray(distance_array))
+    distanceArray  = np.array(
+                         surfaceWrapper.PointData.GetArray(distance_array)
+                     )
 
     minTubeDist = float(distanceArray.min())
     maxTubeDist = float(distanceArray.max())
 
     # Build spline along with to perform the neck search
-    nPoints = int(const.oneHundred)
+    nPoints     = int(const.oneHundred)
     barycenters = []
 
     aneurysm_sac.GetPointData().SetActiveScalars(distance_array)
@@ -467,10 +477,11 @@ def _sac_centerline(
             barycenters.append(barycenter)
 
     if barycenters:
+
         # Shift centers to compute interpoint distance
         shiftedBarycenters = [barycenters[0]] + barycenters[0:-1]
 
-        barycenters = np.array(barycenters)
+        barycenters        = np.array(barycenters)
         shiftedBarycenters = np.array(shiftedBarycenters)
 
         # Compute distance coordinates
@@ -532,7 +543,7 @@ def _search_neck_plane(
     # For each center on the sac centerline (list), create the rotated and
     # tilted plane normals (list) and compute its area (or min_variable)
 
-    # Rotation angles
+    # Rotation angles: from original work
     tiltIncr = const.two
     azimIncr = const.ten
     tiltMax = 32
@@ -597,9 +608,9 @@ def _search_neck_plane(
 
 def AneurysmNeckPlane(
         vascular_surface: names.polyDataType,
+        aneurysm_type: str,
         parent_vascular_surface: names.polyDataType = None,
         min_variable: str = "area",
-        aneurysm_type: str = "",
         aneurysm_point: tuple = None
     )   -> names.polyDataType:
     """Search the aneurysm neck plane and clip the aneurysm.
@@ -615,37 +626,51 @@ def AneurysmNeckPlane(
 
     Arguments
     ---------
-        surface_model -- the original vasculature surface with the aneurysm
-        parent_centerlines -- the centerlines of the reconstructed parent
-            vasculature
-        clipping_points -- points where the vasculature will be clipped.
+        vascular_surface (names.polyDataType)
+            the original vasculature surface with the aneurysm
 
-    Optional args
-        min_variable -- the varible by which the neck will be searched (default
-            'perimeter'; options 'perimeter' 'area')
+        aneurysm_type (str)
+            the aneurysm type, bifurcation or lateral
+
+    Optional
+        parent_vascular_surface (names.polyDataType, default: None)
+            reconstructed parent vasculature
+
+        min_variable (str, 'area' or 'perimeter', default: 'area')
+            the varible by which the neck will be searched
+
+        aneurysm_point (tuple)
+            point at the tip of the aneurysm dome, for aneurysm identification.
+            If none, the user is prompted to select it.
+
+    Return
+        aneurysm_surface (names.polyDataType)
+            returns the aneurysm clipped at the neck plane
     """
-    # Variables
+
+    # Clean up any arrays on the surface
     # The authors of the study used the distance to the clipped tube
     # surface to compute the sac centerline. I am currently using
     # the same array used to clip the aneurysmal region
     tubeToAneurysmDistance = "ClippedTubeToAneurysmDistanceArray"
-    clipAneurysmArrayName  = "ClipInitialAneurysmArray"
 
-    arrayNameToClipInitialAneurysm = clipAneurysmArrayName
+    arrayNameToClipInitialAneurysm = tubeToAneurysmDistance
 
+    # 1) Compute vasculature's Voronoi
     vascularVoronoi = _compute_Voronoi(vascular_surface)
 
-    # Compute vasculature centerline
+
+    # 2) Compute parent vasculature centerline tube
     if parent_vascular_surface is None:
-        # Use the centerline to build the parent tube
         parentCenterlines = cnt.GenerateCenterlines(vascular_surface)
 
     else:
         parentCenterlines = cnt.GenerateCenterlines(parent_vascular_surface)
 
-    # Reconstruct tube functions
     parentTubeSurface = _tube_surface(parentCenterlines)
 
+
+    # 3) Aneurysm Voronoi isolation
     aneurysmVoronoi   = _clip_aneurysm_Voronoi(
                             vascularVoronoi,
                             parentTubeSurface
@@ -653,8 +678,8 @@ def AneurysmNeckPlane(
 
     aneurysmEnvelope  = _Voronoi_envelope(aneurysmVoronoi)
 
-    # New procedure: different between bifurcation and lateral aneurysms to get
-    # the clipped tube
+
+    # 4) Extraction aneurysmal-inception region
     aneurysmPoint = tools.SelectSurfacePoint(vascular_surface) \
                     if aneurysm_point is None \
                     else aneurysm_point
@@ -676,14 +701,14 @@ def AneurysmNeckPlane(
             "I do not know the aneurysm type {}".format(aneurysm_type)
         )
 
+
+    # 5) Aneurysmal surface isolation
     aneurysmalSurface = _clip_initial_aneurysm(
                             vascular_surface,
                             aneurysmEnvelope,
-                            parentTubeSurface,
-                            arrayNameToClipInitialAneurysm
+                            parentTubeSurface
                         )
 
-    # Compute distance to aneurysm and tube clipped at diverging points
     if arrayNameToClipInitialAneurysm == tubeToAneurysmDistance:
         aneurysmalSurface = tools.ComputeSurfacesDistance(
                                 aneurysmalSurface,
@@ -692,12 +717,19 @@ def AneurysmNeckPlane(
                                 signed_array=False
                             )
 
-    # Create sac centerline and search plane along it
+
+    # 6) Create sac centerline
     barycenters, normals = _sac_centerline(
                                 aneurysmalSurface,
                                 arrayNameToClipInitialAneurysm
                             )
 
+    # aneurysmalSurface.GetPointData().RemoveArray(
+    #     arrayNameToClipInitialAneurysm
+    # )
+
+
+    # 7) Search neck plane
     neckPlane = _search_neck_plane(
                     aneurysmalSurface,
                     barycenters,
@@ -705,12 +737,9 @@ def AneurysmNeckPlane(
                     min_variable=min_variable
                 )
 
+    # 8) Detach aneurysm sac from parent vasculature
     neckCenter = neckPlane.GetOrigin()
     neckNormal = neckPlane.GetNormal()
-
-    # Remove distance array
-    # aneurysmalSurface.GetPointData().RemoveArray(tubeToAneurysmDistance)
-    # aneurysmalSurface.GetPointData().RemoveArray(clipAneurysmArrayName)
 
     # Clip final aneurysm surface: the side to where the normal point
     surf1 = tools.ClipWithPlane(
