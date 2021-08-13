@@ -24,26 +24,6 @@ from .lib import polydatageometry as geo
 
 _dimensions = int(const.three)
 
-def _vtk_vertices_to_numpy(polydata):
-    """Convert vtkPolyData object to Numpy nd-array.
-
-    Return the point coordinates of a vtkPolyData object as a n-dimensional
-    Numpy nd-array. It only extracts its points, ignoring any array or field in
-    the vtkPolyData.
-
-    Arguments:
-    polydata -- the vtkPolyData
-    """
-    vertices = []
-    nPoints = polydata.GetNumberOfPoints()
-
-    for index in range(nPoints):
-        vertex = polydata.GetPoint(index)
-        vertices.append(vertex)
-
-    return np.array(vertices)
-
-
 def _rotate3d_matrix(tilt, azim):
     """Rotation matrix traformation for a vector in 3D space."""
     return np.array([[np.cos(azim),             -np.sin(azim),      const.zero],
@@ -726,8 +706,7 @@ def AneurysmNeckPlane(
     # aneurysmalSurface.GetPointData().RemoveArray(tubeToAneurysmDistance)
     # aneurysmalSurface.GetPointData().RemoveArray(clipAneurysmArrayName)
 
-    # Clip final aneurysm surface: when clipped, two surfaces the aneurysm
-    # (desired) and the rest (not desired) which is closest to the clipped tube
+    # Clip final aneurysm surface: the side to where the normal point
     surf1 = tools.ClipWithPlane(
                 aneurysmalSurface,
                 neckCenter,
@@ -743,22 +722,22 @@ def AneurysmNeckPlane(
 
     # Check which output is farthest from clipped tube (the actual aneurysm
     # surface should be farther)
-    tubePoints = _vtk_vertices_to_numpy(aneurysmInceptionPortion)
-    surf1Points = _vtk_vertices_to_numpy(surf1)
-    surf2Points = _vtk_vertices_to_numpy(surf2)
+    tubePoints  = dsa.WrapDataObject(aneurysmInceptionPortion).GetPoints()
+    surf1Points = dsa.WrapDataObject(surf1).GetPoints()
+    surf2Points = dsa.WrapDataObject(surf2).GetPoints()
 
-    tubeCentroid = tubePoints.mean(axis=0)
+    tubeCentroid  = tubePoints.mean(axis=0)
     surf1Centroid = surf1Points.mean(axis=0)
     surf2Centroid = surf2Points.mean(axis=0)
 
     surf1Distance = vtk.vtkMath.Distance2BetweenPoints(
-        tubeCentroid, surf1Centroid)
+                        tubeCentroid,
+                        surf1Centroid
+                    )
+
     surf2Distance = vtk.vtkMath.Distance2BetweenPoints(
-        tubeCentroid, surf2Centroid)
+                        tubeCentroid,
+                        surf2Centroid
+                    )
 
-    if surf1Distance > surf2Distance:
-        aneurysmSurface = surf1
-    else:
-        aneurysmSurface = surf2
-
-    return aneurysmSurface
+    return surf1 if surf1Distance > surf2Distance else surf2
