@@ -16,7 +16,7 @@ from scipy import interpolate
 from vtk.numpy_interface import dataset_adapter as dsa
 
 from .lib import names
-from .lib import centerlines as cnt
+from .lib import centerlines as cl
 from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
@@ -162,7 +162,7 @@ def _bifurcation_aneurysm_influence_region(
     centerlines, so avoid any outlet profile between the inlet and the
     aneurysm.
     """
-    inlets, outlets = cnt.ComputeOpenCenters(vascular_surface)
+    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
 
     # Tolerance distance to identify the bifurcation
     divTolerance = 0.01
@@ -173,23 +173,23 @@ def _bifurcation_aneurysm_influence_region(
     # 3 -> centerline of the second outlet to the aneurysm and inlet
     relevantOutlets = outlets[0:2]
 
-    clWithoutAneurysm = cnt.GenerateCenterlines(
+    clWithoutAneurysm = cl.GenerateCenterlines(
                             vascular_surface,
                             inlets,
                             relevantOutlets
                         )
 
-    bifClippingPoint = _get_diverging_point(clWithoutAneurysm, divTolerance)
+    bifClippingPoint = cl.GetDivergingPoint(clWithoutAneurysm, divTolerance)
 
     lines = []
     for cl_id, outlet in enumerate(relevantOutlets):
-        daughterCenterline = cnt.GenerateCenterlines(
+        daughterCenterline = cl.GenerateCenterlines(
                                  vascular_surface,
                                  [outlet],
                                  inlets + [aneurysm_point]
                              )
         # Get clipping point on this branch
-        dauClippingPoint = _get_diverging_point(
+        dauClippingPoint = cl.GetDivergingPoint(
                                daughterCenterline,
                                divTolerance
                            )
@@ -214,7 +214,7 @@ def _bifurcation_aneurysm_influence_region(
 
     aneurysmInceptionClPortion = mp.vtk_merge_polydata(lines)
 
-    return _tube_surface(aneurysmInceptionClPortion)
+    return cl.ComputeTubeSurface(aneurysmInceptionClPortion)
 
 def _lateral_aneurysm_influence_region(
         vascular_surface: names.polyDataType,
@@ -232,7 +232,7 @@ def _lateral_aneurysm_influence_region(
     compute the centerlines, so avoid any outlet profile
     between the inlet and the aneurysm region.
     """
-    inlets, outlets = cnt.ComputeOpenCenters(vascular_surface)
+    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
 
     # Tolerance distance to identify the bifurcation
     divTolerance = 0.01
@@ -245,24 +245,24 @@ def _lateral_aneurysm_influence_region(
 
     relevantOutlets = outlets[0:1]
 
-    forwardCenterline = cnt.GenerateCenterlines(
+    forwardCenterline = cl.GenerateCenterlines(
                             vascular_surface,
                             inlets,
                             relevantOutlets + [aneurysm_point]
                         )
 
-    backwardCenterline = cnt.GenerateCenterlines(
+    backwardCenterline = cl.GenerateCenterlines(
                             vascular_surface,
                             relevantOutlets,
                             inlets + [aneurysm_point]
                         )
 
-    upstreamClipPoint   = _get_diverging_point(
+    upstreamClipPoint   = cl.GetDivergingPoint(
                               forwardCenterline,
                               divTolerance
                           )
 
-    downstreamClipPoint = _get_diverging_point(
+    downstreamClipPoint = cl.GetDivergingPoint(
                               backwardCenterline,
                               divTolerance
                           )
@@ -282,7 +282,7 @@ def _lateral_aneurysm_influence_region(
                                         end_id=downstreamId
                                     )
 
-    return _tube_surface(aneurysmInceptionClPortion)
+    return cl.ComputeTubeSurface(aneurysmInceptionClPortion)
 
 
 def _clip_aneurysm_Voronoi(
@@ -313,48 +313,6 @@ def _clip_aneurysm_Voronoi(
                       )
 
     return tools.Cleaner(aneurysmVoronoi)
-
-def _Voronoi_envelope(
-        Voronoi: names.polyDataType
-    )   -> names.polyDataType:
-    """Compute the envelope surface of a Voronoi diagram."""
-
-    radiusArray = 'MaximumInscribedSphereRadius'
-
-    VoronoiBounds     = Voronoi.GetBounds()
-    radiusArrayBounds = Voronoi.GetPointData().GetArray(radiusArray).GetValueRange()
-    maxSphereRadius   = radiusArrayBounds[1]
-    enlargeBoxBounds  = (const.four/const.ten)*maxSphereRadius
-
-    modelBounds = np.array(VoronoiBounds) + \
-                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
-
-    # Building the envelope image function
-    modeller = vtkvmtk.vtkvmtkPolyBallModeller()
-    modeller.SetInputData(Voronoi)
-    modeller.SetRadiusArrayName(radiusArray)
-
-    # This needs to be off for surfaces
-    modeller.UsePolyBallLineOff()
-
-    modeller.SetModelBounds(list(modelBounds))
-    modeller.SetNegateFunction(0)
-    modeller.Update()
-
-    envelopeImage = modeller.GetOutput()
-
-    # Get level zero surface
-    envelopeSurface = vmtkscripts.vmtkMarchingCubes()
-    envelopeSurface.Image = envelopeImage
-    envelopeSurface.Execute()
-
-    envelope = tools.ExtractConnectedRegion(
-                    envelopeSurface.Surface,
-                    'largest'
-                )
-
-    return tools.SmoothSurface(envelope)
-
 
 def _clip_initial_aneurysm(
         surface_model: names.polyDataType,
@@ -660,17 +618,17 @@ def AneurysmNeckPlane(
 
 
     # 1) Compute vasculature's Voronoi
-    vascularVoronoi = _compute_Voronoi(vascular_surface)
+    vascularVoronoi = cl.ComputeVoronoiDiagram(vascular_surface)
 
 
     # 2) Compute parent vasculature centerline tube
     if parent_vascular_surface is None:
-        parentCenterlines = cnt.GenerateCenterlines(vascular_surface)
+        parentCenterlines = cl.GenerateCenterlines(vascular_surface)
 
     else:
-        parentCenterlines = cnt.GenerateCenterlines(parent_vascular_surface)
+        parentCenterlines = cl.GenerateCenterlines(parent_vascular_surface)
 
-    parentTubeSurface = _tube_surface(parentCenterlines)
+    parentTubeSurface = cl.ComputeTubeSurface(parentCenterlines)
 
 
     # 3) Aneurysm Voronoi isolation
@@ -679,7 +637,7 @@ def AneurysmNeckPlane(
                             parentTubeSurface
                         )
 
-    aneurysmEnvelope  = _Voronoi_envelope(aneurysmVoronoi)
+    aneurysmEnvelope  = cl.ComputeVoronoiEnvelope(aneurysmVoronoi)
 
 
     # 4) Extraction aneurysmal-inception region

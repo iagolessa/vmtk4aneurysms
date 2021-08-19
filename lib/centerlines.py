@@ -1,14 +1,23 @@
 """Operations on centerlines"""
 
 import vtk
-import morphman
+import numpy as np
+from morphman import extract_single_line
+
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
+from . import names
 from . import constants as const
+from . import polydatageometry as geo
 from . import polydatatools as tools
 
-def ComputeOpenCenters(surface):
+_dimensions = int(const.three)
+_radiusArrayName = "MaximumInscribedSphereRadius"
+
+def ComputeOpenCenters(
+        surface: names.polyDataType
+    )   -> tuple:
     """Compute barycenters of inlets and outlets.
 
     Computes the geometric center of each open boundary of the model. Computes
@@ -25,15 +34,15 @@ def ComputeOpenCenters(surface):
     open boundary with largest radius.
     """
     # I noticed some weird behavior of the vtkvmtkBoundaryReferenceSystems
-    # when using it with a surface that has passed through the 
+    # when using it with a surface that has passed through the
     # vtkPolyDataNormals filter. i couldn't solve the problem, so I am putting
     # a clean-up and copy of the input surface to avoid any problems for safety
-    # but keep in mind that this did not solved the problem. 
+    # but keep in mind that this did not solved the problem.
 
     # Clean up any arrays in surface and make copy of surface
     newSurface = vtk.vtkPolyData()
     newSurface.DeepCopy(surface)
-    
+
     newSurface = tools.CleanupArrays(newSurface)
 
     inletCenters  = []
@@ -72,9 +81,11 @@ def ComputeOpenCenters(surface):
 
     return inletCenters, outletCenters
 
-def GenerateCenterlines(surface,
-                        source_points=None,
-                        target_points=None):
+def GenerateCenterlines(
+        surface: names.polyDataType,
+        source_points: list = None,
+        target_points: list = None
+    )   -> names.polyDataType:
     """Compute centerlines, given source and target points."""
 
     noEndPoints = source_points == None and target_points == None
@@ -94,7 +105,6 @@ def GenerateCenterlines(surface,
     Resampling = 1
     ResamplingStepLength = 0.1
     SimplifyVoronoi = 0
-    RadiusArrayName = "MaximumInscribedSphereRadius"
 
     # Clean and triangulate
     surface = tools.Cleaner(surface)
@@ -137,7 +147,7 @@ def GenerateCenterlines(surface,
     centerlineFilter.SetSourceSeedIds(sourceSeedIds)
     centerlineFilter.SetTargetSeedIds(targetSeedIds)
 
-    centerlineFilter.SetRadiusArrayName(RadiusArrayName)
+    centerlineFilter.SetRadiusArrayName(_radiusArrayName)
     centerlineFilter.SetCostFunction(CostFunction)
     centerlineFilter.SetFlipNormals(FlipNormals)
     centerlineFilter.SetAppendEndPointsToCenterlines(AppendEndPoints)
@@ -148,6 +158,41 @@ def GenerateCenterlines(surface,
     centerlineFilter.Update()
 
     return centerlineFilter.GetOutput()
+
+# This function was adapted from the Morphman library,
+# available at https://github.com/KVSlab/morphMan
+def GetDivergingPoint(
+        centerline: names.polyDataType,
+        tolerance: float
+    )   -> tuple:
+    """Get diverging point on centerline bifurcation.
+
+    Args:
+        centerline (vtkPolyData): centerline of a bifurcation.
+        tolerance (float): tolerance.
+    Returns:
+        point (tuple): diverging point.
+    """
+    line0 = extract_single_line(centerline, 0)
+    line1 = extract_single_line(centerline, 1)
+
+    nPoints = min(line0.GetNumberOfPoints(), line1.GetNumberOfPoints())
+
+    bifPointIndex = None
+    getPoint0 = line0.GetPoints().GetPoint
+    getPoint1 = line1.GetPoints().GetPoint
+
+    for index in range(0, nPoints):
+        distance = geo.Distance(getPoint0(index), getPoint1(index))
+
+        if distance > tolerance:
+            bifPointIndex = index
+            break
+
+    return getPoint0(bifPointIndex)
+
+
+
 
 def ComputeCenterlineGeometry(centerlines):
     """Compute centerline sections and geometry."""
@@ -163,94 +208,113 @@ def ComputeCenterlineGeometry(centerlines):
 
     return calcAttributes.Centerlines
 
-# This class was adapted from the 'patchandinterpolatecenterlines.py' script
-# distributed with VMTK in https://github.com/vmtk/vmtk
-def GetDivergingPoints(surface):
-    """Get diverging data from centerline morphology."""
-    inlets, outlets = ComputeOpenCenters(surface)
-    aneurysmPoint = tools.SelectSurfacePoint(surface)
+def ComputeVoronoiDiagram(
+        vascular_surface: names.polyDataType
+    )   -> names.polyDataType:
+    """Compute Voronoi diagram of a vascular surface."""
 
-    parentCenterlines = GenerateCenterlines(surface, inlets, outlets)
+    voronoiDiagram = vmtkscripts.vmtkDelaunayVoronoi()
+    voronoiDiagram.Surface = vascular_surface
+    voronoiDiagram.CheckNonManifold = True
+    voronoiDiagram.Execute()
 
-    # Compute daughter centerlines
-    # Build daughter centerlines
-    daughterCenterlines = list()
+    return voronoiDiagram.Surface
 
-    # First outlet centerline
-    daughterCenterlines.append(
-        GenerateCenterlines(
-            surface,
-            [outlets[0]], 
-            [outlets[1], aneurysmPoint]
-        )
-    )
+def ComputeTubeSurface(
+        centerline: names.polyDataType,
+        smooth: bool = True
+    )   -> names.polyDataType:
+    """Reconstruct tube surface of a given vascular surface.
 
-    # Compute clipping and diverging points
-#     centerlineSpacing = geo.Distance(
-#             parentCenterlines.GetPoint(10),
-#             parentCenterlines.GetPoint(11)
-#         )
+    The tube surface is the maximum tubular structure inscribed in the
+    vasculature.
 
-    # Origianlly got from the scripts by Picinelli
-    divRatioToSpacingTolerance = 2.0
-    divTolerance = 0.1/10# centerlineSpacing/divRatioToSpacingTolerance   
+    Arguments:
+        centerline -- the centerline to compute the tube surface with the radius
+            array.
 
-    # Compute clipping and divergence points
-    divergingData = morphman.get_bifurcating_and_diverging_point_data(
-            parentCenterlines, 
-            daughterCenterlines[0], 
-            divTolerance
-        )
+    Keyword arguments:
+        smooth -- to smooth tube surface (default True)
+    """
 
-    return divergingData
 
-    # Store points 
-#     """Compute parent artery centerlines.
-#
-#     Uses the Morphman library to extract the
-#     hypothetical parent artery centerlines.
-#     Uses the procedure originally proposed in
-#
-#         Ford et al. (2009). An objective approach
-#         to digital removal of saccular aneurysms:
-#         technique and applications.
-#         DOI: 10.1259/bjr/67593727
-#
-#     and improved in
-#
-#         Bergersen et al. (2019).
-#         Automated and Objective Removal of Bifurcation
-#         Aneurysms: Incremental Improvements, and Validation
-#         Against Healthy Controls.
-#         DOI: 10.1016/j.jbiomech.2019.109342
-#
-#     """
-#
-#     self._clipping_points = vtk.vtkPoints()
-#     self._diverging_points = vtk.vtkPoints()
-#
-#     for key in self._diverging_data.keys():
-#         self._clipping_points.InsertNextPoint(
-#                 self._diverging_data[key].get('end_point')
-#             )
-#
-#         self._diverging_points.InsertNextPoint(
-#                 self._diverging_data[key].get('div_point')
-#             )
-#
-#     # Compute parent centerline reconstruction
-#     patchCenterlines = morphman.create_parent_artery_patches(
-#             self._centerlines,
-#             self._clipping_points,
-#             siphon=True,
-#             bif=True
-#         )
-#
-#     tools.WriteSurface(patchCenterlines, '/home/iagolessa/tmp_patch.vtp')
-#     self._parent_centerlines = morphman.interpolate_patch_centerlines(
-#                                     patchCenterlines,
-#                                     self._centerlines,
-#                                     additionalPoint=None,
-#                                     lower='bif',
-#                                     version=True
-#                                 )
+    # Get bounds of model
+    centerlineBounds  = centerline.GetBounds()
+    radiusArrayBounds = centerline.GetPointData().GetArray(_radiusArrayName).GetValueRange()
+    maxSphereRadius   = radiusArrayBounds[1]
+
+    # To enlarge the box: could be a fraction of maxSphereRadius
+    # tests show that the whole radius is appropriate
+    enlargeBoxBounds  = maxSphereRadius
+
+    modelBounds = np.array(centerlineBounds) + \
+                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
+
+    # Extract image with tube function from model
+    modeller = vtkvmtk.vtkvmtkPolyBallModeller()
+    modeller.SetInputData(centerline)
+    modeller.SetRadiusArrayName(_radiusArrayName)
+
+    # This needs to be 'on' for centerline
+    modeller.UsePolyBallLineOn()
+
+    modeller.SetModelBounds(list(modelBounds))
+    modeller.SetNegateFunction(0)
+    modeller.Update()
+
+    tubeImage = modeller.GetOutput()
+
+    # Convert tube function to surface
+    tubeSurface = vmtkscripts.vmtkMarchingCubes()
+    tubeSurface.Image = tubeImage
+    tubeSurface.Execute()
+
+    tube = tools.ExtractConnectedRegion(tubeSurface.Surface, 'largest')
+
+    if smooth:
+        return tools.SmoothSurface(tube)
+    else:
+        return tube
+
+def ComputeVoronoiEnvelope(
+        voronoi_surface: names.polyDataType,
+        smooth: bool=True
+    )   -> names.polyDataType:
+    """Compute the envelope surface of a Voronoi diagram."""
+
+    VoronoiBounds     = voronoi_surface.GetBounds()
+    radiusArrayBounds = voronoi_surface.GetPointData().GetArray(_radiusArrayName).GetValueRange()
+    maxSphereRadius   = radiusArrayBounds[1]
+    enlargeBoxBounds  = maxSphereRadius
+
+    modelBounds = np.array(VoronoiBounds) + \
+                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
+
+    # Building the envelope image function
+    modeller = vtkvmtk.vtkvmtkPolyBallModeller()
+    modeller.SetInputData(voronoi_surface)
+    modeller.SetRadiusArrayName(_radiusArrayName)
+
+    # This needs to be off for surfaces
+    modeller.UsePolyBallLineOff()
+
+    modeller.SetModelBounds(list(modelBounds))
+    modeller.SetNegateFunction(0)
+    modeller.Update()
+
+    envelopeImage = modeller.GetOutput()
+
+    # Get level zero surface
+    envelopeSurface = vmtkscripts.vmtkMarchingCubes()
+    envelopeSurface.Image = envelopeImage
+    envelopeSurface.Execute()
+
+    envelope = tools.ExtractConnectedRegion(
+                    envelopeSurface.Surface,
+                    'largest'
+                )
+
+    if smooth:
+        return tools.SmoothSurface(envelope)
+    else:
+        return envelope
