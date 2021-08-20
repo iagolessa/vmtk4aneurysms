@@ -24,6 +24,332 @@ from .lib import polydatageometry as geo
 _dimensions = int(const.three)
 _clipInitialAneurysmArrayName = "ClipInitialAneurysmArray"
 
+def _bifurcation_aneurysm_clipping_points(
+        vascular_surface: names.polyDataType,
+        aneurysm_point: tuple
+    )   -> dict:
+    """Extract vessel portion where a bifurcation aneurysm grew.
+
+    Given the vascular model surface with open inlet and outlet profiles,
+    extract the portion of the tube surface where the aneurysm grew by
+    calculating the divegence points of the centerlines. The user must select a
+    point on the aneurysm's dome surface.
+
+    Note that the algorithm will use the two first outlets to compute the
+    centerlines, so avoid any outlet profile between the inlet and the
+    aneurysm.
+    """
+    clippingPoints  = {}
+    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
+
+    # Tolerance distance to identify the bifurcation
+    divTolerance = 0.01
+
+    # One inlet and two outlets, bifurcation with the aneurysm
+    # 1 -> centerline of the branches only
+    # 2 -> centerline of the first outlet to the aneurysm and inlet
+    # 3 -> centerline of the second outlet to the aneurysm and inlet
+    relevantOutlets = outlets[0:2]
+
+    clWithoutAneurysm = cl.GenerateCenterlines(
+                            vascular_surface,
+                            inlets,
+                            relevantOutlets
+                        )
+
+    clippingPoints["bif"] = cl.GetDivergingPoint(
+                                clWithoutAneurysm,
+                                divTolerance
+                            )
+
+    for cl_id, outlet in enumerate(relevantOutlets):
+        daughterCenterline = cl.GenerateCenterlines(
+                                 vascular_surface,
+                                 [outlet],
+                                 inlets + [aneurysm_point]
+                             )
+        # Get clipping point on this branch
+        clippingPoints["dau" + str(cl_id)] = cl.GetDivergingPoint(
+                                                 daughterCenterline,
+                                                 divTolerance
+                                             )
+
+
+    return clippingPoints
+
+def _lateral_aneurysm_clipping_points(
+        vascular_surface: names.polyDataType,
+        aneurysm_point: tuple
+    )   -> dict:
+    """Extract vessel portion where a lateral aneurysm grew.
+
+    Given the vascular model surface with open inlet and outlet
+    profiles, extract the portion of the tube surface where the
+    aneurysm grew by calculating the divegence points of the
+    centerlines. The user must select a point on the aneurysm's
+    dome surface.
+
+    Note that the algorithm will use the first outlet to
+    compute the centerlines, so avoid any outlet profile
+    between the inlet and the aneurysm region.
+    """
+    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
+
+    # Tolerance distance to identify the bifurcation
+    divTolerance = 0.01
+
+    # One inlet and one outlet (although the model can have more than one outlet),
+    # lateral aneurysm
+    # 1 -> "forward" centerline, inlet -> outlet, and aneurysm
+    # 2 -> "backward" centerline, outlet -> inlet, with aneurysm
+    # Note: the aneurysm is like a bifurcation, in this case
+
+    relevantOutlets = outlets[0:1]
+
+    forwardCenterline = cl.GenerateCenterlines(
+                            vascular_surface,
+                            inlets,
+                            relevantOutlets + [aneurysm_point]
+                        )
+
+    backwardCenterline = cl.GenerateCenterlines(
+                            vascular_surface,
+                            relevantOutlets,
+                            inlets + [aneurysm_point]
+                        )
+
+    upstreamClipPoint   = cl.GetDivergingPoint(
+                              forwardCenterline,
+                              divTolerance
+                          )
+
+    downstreamClipPoint = cl.GetDivergingPoint(
+                              backwardCenterline,
+                              divTolerance
+                          )
+
+    return {"upstream": upstreamClipPoint, "downstream": downstreamClipPoint}
+
+def _set_portion_in_cl_patch(
+        surface: names.polyDataType,
+        patch_centerline: names.polyDataType,
+        patch_id: int,
+        filter_array_name: str
+    ):
+    """Marks a surface's portions that are within a centerline patch.
+
+    Given a surface with an array of zeros defined on it, change its
+    values to one where the surface lies within the bound of the
+    polyball function defined on a centerlines patch of the same surface.
+    The radius array must also be defined on the surface.
+    """
+
+    # Convert surface and create array
+    nPoints   = surface.GetNumberOfPoints()
+    npSurface = dsa.WrapDataObject(surface)
+    pointData = npSurface.GetPointData()
+
+    if filter_array_name not in tools.GetPointArrays(surface):
+        pointData.append(
+            dsa.VTKArray(np.zeros(nPoints, dtype=int)),
+            filter_array_name
+        )
+
+    inPatchArray = pointData.GetArray(filter_array_name)
+
+    # Compute cylinder params of centerline patch
+    tangent, center, radius = cl.ComputeClPatchEndPointParameters(
+                                  patch_centerline,
+                                  patch_id
+                              )
+
+    # Extract patch
+    patch = mp.extract_single_line(patch_centerline, patch_id)
+
+    tubeFunction = vtkvmtk.vtkvmtkPolyBallLine()
+    tubeFunction.SetInput(patch)
+    tubeFunction.SetPolyBallRadiusArrayName(cl._radiusArrayName)
+
+    lastSphere = vtk.vtkSphere()
+    lastSphere.SetRadius(radius*1.5)
+    lastSphere.SetCenter(center)
+
+    for index, point in enumerate(npSurface.GetPoints()):
+        voronoiVector    = point - center
+        voronoiVectorDot = vtk.vtkMath.Dot(voronoiVector, tangent)
+
+        tubevalue   = tubeFunction.EvaluateFunction(point)
+        spherevalue = lastSphere.EvaluateFunction(point)
+
+        # If outside the patch region
+        if spherevalue < 0.0 and voronoiVectorDot < 0.0:
+            continue
+
+        # If inside the patch region and inside the tube
+        elif tubevalue <= 0.0:
+            inPatchArray[index] = 1
+
+    return npSurface.VTKObject
+
+def _is_bifurcation_aneurysm(
+        aneurysm_type: str
+    )   -> bool:
+    """Return True if aneurysm is bifurcation, else return False."""
+
+    if   aneurysm_type == "bifurcation":
+        return True
+
+    elif aneurysm_type == "lateral":
+        return False
+
+    else:
+        raise NameError(
+                "Aneurysm type either 'bifurcation' or 'lateral'."\
+                " {} passed".format(aneurysm_type)
+              )
+
+def HealthyVesselReconstruction(
+        vascular_surface: names.polyDataType,
+        aneurysm_type: str,
+        dome_point: tuple=None
+    )   -> names.polyDataType:
+    """Given vasculature model with aneurysm, extract vessel without aneurysm.
+
+    Based on the procedure proposed by
+
+        Ford et al. An objective approach to digital removal of saccular
+        aneurysms: technique and applications. The British Journal of
+        Radiology. 2009;82:S55–61
+
+    and implemented in VMTK by M. Piccinelli, this function extracts the
+    'hypothetical healthy' vessel of a vascular model with an intracranial
+    aneurysm.
+
+    Arguments
+        vascular_surface (vtkPolyData): the vascular surface model clipped
+            at the inlet and two outlets (if a bifurcation aneurysm) or one
+            outlet (if a lateral aneurysm)
+        aneurysm_type (str, "bifurcation" or "lateral"): the type of aneurysm
+        dome_point (tuple, None): a point on the aneurysm dome surface. It is
+            used to identify the aneurysm, and must be located at the tip of
+            the aneurysm dome, preferentially. If None is passed, the user is
+            prompted to select one interactively.
+
+    Returns
+        healthy_surface (vtkPolyData): the surface model without the aneurysm.
+    """
+    aneurysmInBifurcation = _is_bifurcation_aneurysm(aneurysm_type)
+
+    voronoi       = cl.ComputeVoronoiDiagram(vascular_surface)
+    centerlines   = cl.GenerateCenterlines(vascular_surface)
+
+    # Smooth the Voronoi diagram
+    smoothedVoronoi = mp.smooth_voronoi_diagram(
+                          voronoi,
+                          centerlines,
+                          0.25 # Smoothing factor, recommended by M. Piccinelli
+                      )
+
+    # 1) Compute parent centerline reconstruction
+    dome_point = tools.SelectSurfacePoint(vascular_surface) \
+                 if dome_point is None \
+                 else dome_point
+
+    # Get clipping points on model centerlines and order them correctly
+    if aneurysmInBifurcation:
+        dictClipPoints = _bifurcation_aneurysm_clipping_points(
+                             vascular_surface,
+                             dome_point
+                         )
+
+        orderedClipPoints = [dictClipPoints.get("bif",  None),
+                             dictClipPoints.get("dau0", None),
+                             dictClipPoints.get("dau1", None)]
+
+    else:
+        dictClipPoints = _lateral_aneurysm_clipping_points(
+                             vascular_surface,
+                             dome_point
+                         )
+
+        orderedClipPoints = [dictClipPoints.get("upstream",   None),
+                             dictClipPoints.get("downstream", None)]
+
+    # Store as VTk points
+    clippingPoints = vtk.vtkPoints()
+
+    for point in orderedClipPoints:
+        clippingPoints.InsertNextPoint(point)
+
+    # Extract patch centerlines
+    isSiphon = not aneurysmInBifurcation
+
+    patchCenterlines = mp.create_parent_artery_patches(
+                            centerlines,
+                            clippingPoints,
+                            siphon=isSiphon,
+                            bif=aneurysmInBifurcation
+                        )
+
+
+    # 2) Interpolate patch centerlines using splines
+    parentCenterlines = mp.interpolate_patch_centerlines(
+                            patchCenterlines,
+                            centerlines,
+                            additionalPoint=None,
+                            lower='bif', # ... Investigate this param
+                            version=True
+                        )
+
+
+    # 3) Clip Voronoi Diagram along centerline patches
+    filterArrayName =  "InPatchArray"
+
+    for cl_id in range(patchCenterlines.GetNumberOfCells()):
+
+        # Mark points on the Voronoi that are only on the patched centerlines
+        markedVoronoi = _set_portion_in_cl_patch(
+                            smoothedVoronoi,
+                            patchCenterlines,
+                            cl_id,
+                            filterArrayName
+                        )
+
+    # Apply filter and get portion with values == 1
+    clippedVoronoi = tools.ExtractPortion(
+                         markedVoronoi,
+                         filterArrayName,
+                         int(const.one)
+                     )
+
+    if aneurysmInBifurcation:
+        # As required by Morphman, also pass the clipping points as a Numpy
+        # array
+        clipPointsArray = np.array([clippingPoints.GetPoint(i)
+                                    for i in range(clippingPoints.GetNumberOfPoints())])
+
+        # 4) Interpolate Voronoi diagram along interpolated centerline
+        newVoronoi = mp.interpolate_voronoi_diagram(
+                        parentCenterlines,
+                        patchCenterlines,
+                        clippedVoronoi,
+                        [clippingPoints, clipPointsArray],
+                        bif=[],
+                        cylinder_factor=1.0
+                    )
+
+        # 5) Compute parent surface from new Voronoi
+        parentSurface = cl.ComputeVoronoiEnvelope(newVoronoi)
+
+    # TODO: implement the lateral case
+    else:
+        raise NotImplementedError(
+                  "Lateral aneurysm reconstruction not implemented, yet."
+              )
+
+    return parentSurface
+
+
 def _transf_normal(
         normal: tuple,
         tilt: float,
@@ -44,109 +370,6 @@ def _transf_normal(
     return tuple(np.dot(matrix, normal))
 
 
-def _compute_Voronoi(
-        surface_model: names.polyDataType
-    )   -> names.polyDataType:
-    """Compute Voronoi diagram of a vascular surface."""
-
-    voronoiDiagram = vmtkscripts.vmtkDelaunayVoronoi()
-    voronoiDiagram.Surface = surface_model
-    voronoiDiagram.CheckNonManifold = True
-    voronoiDiagram.Execute()
-
-    return voronoiDiagram.Surface
-
-
-def _tube_surface(
-        centerline: names.polyDataType,
-        smooth: bool = True
-    )   -> names.polyDataType:
-    """Reconstruct tube surface of a given vascular surface.
-
-    The tube surface is the maximum tubular structure inscribed in the
-    vasculature.
-
-    Arguments:
-        centerline -- the centerline to compute the tube surface with the radius
-            array.
-
-    Keyword arguments:
-        smooth -- to smooth tube surface (default True)
-    """
-
-    radiusArray = 'MaximumInscribedSphereRadius'
-
-    # Get bounds of model
-    centerlineBounds  = centerline.GetBounds()
-    radiusArrayBounds = centerline.GetPointData().GetArray(radiusArray).GetValueRange()
-    maxSphereRadius   = radiusArrayBounds[1]
-
-    # To enlarge the box: could be a fraction of maxSphereRadius
-    # tests show that the whole radius is appropriate
-    enlargeBoxBounds  = maxSphereRadius
-
-    modelBounds = np.array(centerlineBounds) + \
-                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
-
-    # Extract image with tube function from model
-    modeller = vtkvmtk.vtkvmtkPolyBallModeller()
-    modeller.SetInputData(centerline)
-    modeller.SetRadiusArrayName(radiusArray)
-
-    # This needs to be 'on' for centerline
-    modeller.UsePolyBallLineOn()
-
-    modeller.SetModelBounds(list(modelBounds))
-    modeller.SetNegateFunction(0)
-    modeller.Update()
-
-    tubeImage = modeller.GetOutput()
-
-    # Convert tube function to surface
-    tubeSurface = vmtkscripts.vmtkMarchingCubes()
-    tubeSurface.Image = tubeImage
-    tubeSurface.Execute()
-
-    tube = tools.ExtractConnectedRegion(tubeSurface.Surface, 'largest')
-
-    if smooth:
-        return tools.SmoothSurface(tube)
-    else:
-        return tube
-
-# This function was adapted from the Morphman library,
-# available at https://github.com/KVSlab/morphMan
-def _get_diverging_point(
-        centerline: names.polyDataType,
-        tol: float
-    )   -> tuple:
-    """Get diverging point on centerline bifurcation.
-
-    Args:
-        centerline1 (vtkPolyData): Centerline with two segments.
-        tol (float): Tolerance.
-    Returns:
-        point (tuple): ID at diverging point.
-    """
-    line0 = mp.extract_single_line(centerline, 0)
-    line1 = mp.extract_single_line(centerline, 1)
-
-    # Find clipping points
-    nPoints = min(line0.GetNumberOfPoints(), line1.GetNumberOfPoints())
-
-    bifPointIndex = None
-    getPoint0 = line0.GetPoints().GetPoint
-    getPoint1 = line1.GetPoints().GetPoint
-
-    for index in range(0, nPoints):
-        distance = geo.Distance(getPoint0(index), getPoint1(index))
-
-        if distance > tol:
-            bifPointIndex = index
-            break
-
-    return getPoint0(bifPointIndex)
-
 def _bifurcation_aneurysm_influence_region(
         vascular_surface: names.polyDataType,
         aneurysm_point: tuple
@@ -162,6 +385,8 @@ def _bifurcation_aneurysm_influence_region(
     centerlines, so avoid any outlet profile between the inlet and the
     aneurysm.
     """
+
+    # Get the clipping points
     inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
 
     # Tolerance distance to identify the bifurcation
@@ -568,9 +793,9 @@ def _search_neck_plane(
 def AneurysmNeckPlane(
         vascular_surface: names.polyDataType,
         aneurysm_type: str,
-        parent_vascular_surface: names.polyDataType = None,
-        min_variable: str = "area",
-        aneurysm_point: tuple = None
+        parent_vascular_surface: names.polyDataType=None,
+        min_variable: str="area",
+        aneurysm_point: tuple=None
     )   -> names.polyDataType:
     """Search the aneurysm neck plane and clip the aneurysm.
 

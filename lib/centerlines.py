@@ -318,3 +318,40 @@ def ComputeVoronoiEnvelope(
         return tools.SmoothSurface(envelope)
     else:
         return envelope
+
+def ComputeClPatchEndPointParameters(
+        patch_centerlines: names.polyDataType,
+        patch_id: int
+    )   -> tuple:
+
+    # Set cell to a vtk cell
+    cell = vtk.vtkGenericCell()
+    patch_centerlines.GetCell(patch_id, cell)
+
+    if (patch_id == 0):
+        # Then get the last point
+        lastPointId       = cell.GetNumberOfPoints() - 1
+        beforeLastpointId = cell.GetNumberOfPoints() - 2
+
+        point0 = np.array(cell.GetPoints().GetPoint(lastPointId))
+        point1 = np.array(cell.GetPoints().GetPoint(beforeLastpointId))
+
+        radius0 = patch_centerlines.GetPointData().GetArray(
+                      _radiusArrayName
+                  ).GetTuple1(cell.GetPointId(lastPointId))
+
+        tan = point1 - point0
+        vtk.vtkMath.Normalize(tan)
+
+    else:
+        # then get the first point
+        point0 = np.array(cell.GetPoints().GetPoint(0))
+        point1 = np.array(cell.GetPoints().GetPoint(1))
+        radius0 = patch_centerlines.GetPointData().GetArray(
+                      _radiusArrayName
+                  ).GetTuple1(cell.GetPointId(0))
+
+        tan = point1 - point0
+        vtk.vtkMath.Normalize(tan)
+
+    return tan, point0, radius0
