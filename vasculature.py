@@ -13,7 +13,7 @@ from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
 from . import aneurysms as aneu
-from .aneurysm_neck import AneurysmNeckPlane 
+from .vascular_operations import AneurysmNeckPlane
 
 from .lib import names
 from .lib import centerlines as cnt
