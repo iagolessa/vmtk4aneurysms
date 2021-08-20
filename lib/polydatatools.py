@@ -517,10 +517,27 @@ def ExtractPortion(
     if array_name not in GetCellArrays(vtk_object):
         raise ValueError("{} not in the object".format(array_name))
 
+    if array_name in GetPointArrays(polydata):
+        fieldAssociation = "pointField"
+
+    elif array_name in GetCellArrays(polydata):
+        fieldAssociation = "cellField"
+
+    else:
+        sys.exit(
+            "Can't find array {} in surface".format(array_name)
+        )
+
     threshold = vtk.vtkThreshold()
     threshold.SetInputData(vtk_object)
+
     # 1 indicates cell values
-    threshold.SetInputArrayToProcess(0, 0, 0, 1, array_name)
+    threshold.SetInputArrayToProcess(
+        0, 0, 0,
+        0 if fieldAssociation == "pointField" else 1,
+        array_name
+    )
+
     threshold.ThresholdBetween(isovalue, isovalue)
     threshold.Update()
 
