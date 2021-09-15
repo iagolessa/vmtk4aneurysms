@@ -13,11 +13,13 @@ from . import names
 from . import polydatatools as tools
 from . import polydatamath as pmath
 
-def GetPatchFieldOverTime(foam_case: str,
-                          field_names: Union[str,list],
-                          active_patch_name: str,
-                          multi_region: bool = False,
-                          region_name: str = '') -> (names.polyDataType, dict):
+def GetPatchFieldOverTime(
+        foam_case: str,
+        field_names: Union[str,list],
+        active_patch_name: str,
+        multi_region: bool = False,
+        region_name: str = ''
+    )   -> (names.polyDataType, dict):
     """Gets a time-varying patch field from an OpenFOAM case.
 
     Given an OpenFOAM case, the field name and the patch name, return a tuple
@@ -112,7 +114,7 @@ def GetPatchFieldOverTime(foam_case: str,
 
     # Assuming that the user passes a list of fields to collect
     # get only the ones that are on the passed patch
-    # Check whether field_names is a string (a single field), 
+    # Check whether field_names is a string (a single field),
     # if yes convert to list
     passed_fields = [field_names] if type(field_names) is str else field_names
 
@@ -164,16 +166,15 @@ def GetPatchFieldOverTime(foam_case: str,
     for arrayName in pointArraysInPatch:
         activePatch.GetPointData().RemoveArray(arrayName)
 
-    if type(field_names) is str:
-        return activePatch, selectedFields[field_names]
-    else:
-        return activePatch, selectedFields
+    return activePatch, selectedFields
 
-def FieldTimeStats(surface: names.polyDataType,
-                   field_name: str,
-                   temporal_field: dict,
-                   t_peak_systole: float,
-                   t_low_diastole: float) -> names.polyDataType:
+def FieldTimeStats(
+        surface: names.polyDataType,
+        field_name: str,
+        temporal_field: dict,
+        t_peak_systole: float,
+        t_low_diastole: float
+    )   -> names.polyDataType:
     """Compute field time statistics from OpenFOAM data.
 
     Get time statistics of a field defined on a surface S
@@ -304,12 +305,16 @@ def FieldSurfaceAverage(
     vessels surface. It takes the OpenFOAM case file. If the field os a vector
     or tensor, first it computes its L2-norm.
     """
-    surface, fieldOverTime = GetPatchFieldOverTime(foam_case,
-                                                   field_name,
-                                                   patch_name,
-                                                   multi_region=multi_region,
-                                                   region_name=region_name)
+    surface, fieldsOverTime = GetPatchFieldOverTime(
+                                  foam_case,
+                                  field_name,
+                                  patch_name,
+                                  multi_region=multi_region,
+                                  region_name=region_name
+                              )
 
+
+    fieldOverTime = fieldsOverTime[field_name]
 
     # Check type of field: scalar, vector, tensor
     # better here then inside the for
@@ -348,7 +353,7 @@ def FieldSurfaceAverageOnPatch(
 
     Given an OpenFOAM simulation result, a field and the boundary patch where
     the field is defined, compute the surface-average of the field over that
-    surface along time. 
+    surface along time.
 
     If a surface, equal to the boundary is passed with an array specifying a
     patch of the surface with the values 0 in it, compute the surface-average
@@ -364,11 +369,17 @@ def FieldSurfaceAverageOnPatch(
     # Define condition to compute on aneurysm portion
     computeOnPatch = patch_surface_id is not None
 
-    surface, fieldOverTime = GetPatchFieldOverTime(foam_case,
-                                                   field_name,
-                                                   boundary_patch,
-                                                   multi_region=multi_region,
-                                                   region_name=region_name)
+    surface, fieldsOverTime = GetPatchFieldOverTime(
+                                  foam_case,
+                                  field_name,
+                                  boundary_patch,
+                                  multi_region=multi_region,
+                                  region_name=region_name
+                              )
+
+    fieldOverTime = fieldsOverTime[field_name]
+
+    # It returns a dict, get only the important field
 
     # Map neck array into surface
     if computeOnPatch:
@@ -415,5 +426,3 @@ def FieldSurfaceAverageOnPatch(
 
     return {time: average_on_patch(time)
             for time in fieldOverTime.keys()}
-
-

@@ -48,9 +48,13 @@ def _wss_over_time(foam_case: str,
     of the patch where the WSS is defined.
     """
 
-    surface, fieldOverTime = fvtk.GetPatchFieldOverTime(foam_case,
-                                                        field,
-                                                        patch)
+    surface, fieldsOverTime = fvtk.GetPatchFieldOverTime(
+                                  foam_case,
+                                  field,
+                                  patch
+                              )
+
+    fieldOverTime = fieldsOverTime[field]
 
     # Compute the WSS = density * wallShearComponent
     wssVectorOverTime = {time: _density*wssField
@@ -346,7 +350,7 @@ def AneurysmStats(neck_surface: names.polyDataType,
     # Check type of field: vector or scalar
     nComponents = arrayOnAneurysm.shape[-1]
 
-    if nComponents == 3:
+    if nComponents == 3 or nComponents == 6:
         arrayOnAneurysm = pmath.NormL2(arrayOnAneurysm, 1)
     else:
         pass
