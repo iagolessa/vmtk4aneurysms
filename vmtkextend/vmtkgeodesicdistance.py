@@ -162,6 +162,28 @@ class vmtkGeodesicDistance(pypes.pypeScript):
         newPolyData.SetPoints(seedPoints)
         newPolyData.GetPointData().AddArray(radiusArray)
 
+        # The vtkvmtkNonManifoldFastMarching filter also computes a positive
+        # distance from the neck towards the aneurysm. Hence, we also use
+        # the points to invert the sign of the scalars on the aneurysm, to
+        # conform with the procedure executed when using the Euclidean distance
+        # (where the distance from the aneurysm is > 0 only on the branches)
+
+        # Get array of surface selection based on loop points
+        selectionScalarsName = "SelectionScalars"
+
+        selectionFilter = vtk.vtkSelectPolyData()
+        selectionFilter.SetInputData(self.Surface)
+        selectionFilter.SetLoop(seedPoints)
+        selectionFilter.GenerateSelectionScalarsOn()
+        selectionFilter.SetSelectionModeToSmallestRegion()
+        selectionFilter.Update()
+
+        selectionFilter.GetOutput().GetPointData().GetScalars().SetName(
+            selectionScalarsName
+        )
+
+        self.Surface = selectionFilter.GetOutput()
+
         # Apply the fast marching algorithm now in the surface
         geodesicFastMarching = vtkvmtk.vtkvmtkNonManifoldFastMarching()
         geodesicFastMarching.SetInputData(self.Surface)
@@ -182,6 +204,26 @@ class vmtkGeodesicDistance(pypes.pypeScript):
         geodesicFastMarching.Update()
 
         self.Surface = geodesicFastMarching.GetOutput()
+
+        # Get selection scalars
+        selectionScalars = self.Surface.GetPointData().GetArray(
+                               selectionScalarsName
+                           )
+
+        gdistanceArray = self.Surface.GetPointData().GetArray(
+                             self.GeodesicDistanceArrayName
+                         )
+
+        # Where selection value is < 0.0, for this case, invert sign of
+        # geodesic distance (inside the aneurysm, in this case)
+        for i in range(gdistanceArray.GetNumberOfValues()):
+            selectionValue = selectionScalars.GetTuple1(i)
+            gdistanceValue = gdistanceArray.GetValue(i)
+
+            if selectionValue < 0.0:
+                gdistanceArray.SetTuple1(i, -1.0*gdistanceValue)
+
+        self.Surface.GetPointData().RemoveArray(selectionScalarsName)
 
         # Map final geodesic distance field to original surface
         surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
