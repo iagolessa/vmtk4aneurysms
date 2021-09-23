@@ -4,6 +4,7 @@ from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py
 
 import sys
 from vmtk import vmtkscripts
+from vmtk import vtkvmtk
 from vmtk import pypes
 
 vmtksurfaceremeshwithresolution = 'vmtkSurfaceRemeshWithResolution'
@@ -50,13 +51,15 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
+        resolutionArrayName = 'ResolutionArray'
+
         # Creating resolution array 
         resolutionArrayCreator = vmtkscripts.vmtkSurfaceRegionDrawing()
         resolutionArrayCreator.Surface = self.Surface
         resolutionArrayCreator.Binary = 1
         resolutionArrayCreator.InsideValue = self.InsideValue
         resolutionArrayCreator.OutsideValue = self.OutsideValue
-        resolutionArrayCreator.ContourScalarsArrayName = 'ResolutionArray'
+        resolutionArrayCreator.ContourScalarsArrayName = resolutionArrayName
         resolutionArrayCreator.Execute()
 
         # Smooth the resolution array 
@@ -85,12 +88,11 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         cellData = self.Surface.GetCellData()
         pointData = self.Surface.GetPointData()
 
-        cellArrays = [ cellData.GetArray(id_).GetName() 
+        cellArrays = [ cellData.GetArray(id_).GetName()
                        for id_ in range(cellData.GetNumberOfArrays()) ]
 
-        pointArrays = [ pointData.GetArray(id_).GetName() 
+        pointArrays = [ pointData.GetArray(id_).GetName()
                        for id_ in range(pointData.GetNumberOfArrays()) ]
-
 
         for array in pointArrays:
             pointData.RemoveArray(array)
@@ -98,6 +100,14 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         for array in cellArrays:
             cellData.RemoveArray(array)
 
+        # The resolution array is deleted in the emesh procedure
+        # map it to the final surface to keep the array
+        surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
+        surfaceProjection.SetInputData(self.Surface)
+        surfaceProjection.SetReferenceSurface(resolutionArraySmoothing.Surface)
+        surfaceProjection.Update()
+
+        self.Surface = surfaceProjection.GetOutput()
 
 if __name__=='__main__':
     main = pypes.pypeMain()
