@@ -29,7 +29,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
         self.NumberOfAneurysms = 1
 
         self.ArteriesElasticity = 5e6
-        self.AneurysmElasticity = (2e6,)
+        self.AneurysmElasticity = [2e6]
 
         self.SelectAneurysmRegions = False
         self.LocalScaleFactor = 0.75
@@ -65,7 +65,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
             ['ArteriesElasticity', 'arterieselasticity', 'float', 1, '',
                 'elasticity of the arteries (and aneurysm neck)'],
 
-            ['AneurysmElasticity', 'aneurysmelasticity', 'tuple', 1, '',
+            ['AneurysmElasticity', 'aneurysmelasticity', 'float', -1, '',
                 'tuple holding the aneurysms elasticities, if more than '     \
                 'one (also, it is the aneurysm fundus elasticity, if the '    \
                 'linear varying option is enabled). If more than one '        \
