@@ -3,6 +3,7 @@
 from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py2-3 COMPATIBILITY
 
 import sys
+import vtk
 from vmtk import vmtkscripts
 from vmtk import vtkvmtk
 from vmtk import pypes
@@ -53,18 +54,30 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
 
         resolutionArrayName = 'ResolutionArray'
 
+        # Will operate on the triangulated one
+        triangulate = vtk.vtkTriangleFilter()
+        triangulate.SetInputData(self.Surface)
+        triangulate.Update()
+
         # Creating resolution array 
         resolutionArrayCreator = vmtkscripts.vmtkSurfaceRegionDrawing()
-        resolutionArrayCreator.Surface = self.Surface
+        resolutionArrayCreator.Surface = triangulate.GetOutput()
         resolutionArrayCreator.Binary = 1
         resolutionArrayCreator.InsideValue = self.InsideValue
         resolutionArrayCreator.OutsideValue = self.OutsideValue
         resolutionArrayCreator.ContourScalarsArrayName = resolutionArrayName
         resolutionArrayCreator.Execute()
 
+        # Clean before smoothing array
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(resolutionArrayCreator.Surface)
+        cleaner.Update()
+
+        self.Surface = cleaner.GetOutput()
+
         # Smooth the resolution array 
         resolutionArraySmoothing = vmtkscripts.vmtkSurfaceArraySmoothing()
-        resolutionArraySmoothing.Surface = resolutionArrayCreator.Surface
+        resolutionArraySmoothing.Surface = self.Surface
         resolutionArraySmoothing.SurfaceArrayName = resolutionArrayCreator.ContourScalarsArrayName
         resolutionArraySmoothing.Connexity = 1
         resolutionArraySmoothing.Relaxation = 1.0
