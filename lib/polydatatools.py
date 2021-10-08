@@ -160,6 +160,58 @@ def GetPointArrays(polydata):
     return [polydata.GetPointData().GetArray(id_).GetName()
             for id_ in range(nPointArrays)]
 
+def ProjectPointArray(
+        surface,
+        ref_surface,
+        field_name
+    ):
+    """Project a point field from a reference surface into another surface."""
+
+    # Clean before smoothing array
+    cleaner = vtk.vtkCleanPolyData()
+    cleaner.SetInputData(surface)
+    cleaner.Update()
+
+    surface = cleaner.GetOutput()
+
+    # Clean ref. surface too and use a copy to avoid destroying the original
+    # surface
+    cleaner = vtk.vtkCleanPolyData()
+    cleaner.SetInputData(ref_surface)
+    cleaner.Update()
+
+    ref_surface = cleaner.GetOutput()
+
+    WriteSurface(ref_surface, "./test.vtp")
+
+    # Remove spourious array from final surface
+    cellData  = ref_surface.GetCellData()
+    pointData = ref_surface.GetPointData()
+
+    cellArrays  = GetCellArrays(ref_surface)
+    pointArrays = GetPointArrays(ref_surface)
+
+    # Remove the one from the list
+    if field_name in pointArrays:
+        pointArrays.remove(field_name)
+
+    else:
+        raise ValueError("{} not in surface.".format(field_name))
+
+    for point_array in pointArrays:
+        pointData.RemoveArray(point_array)
+
+    for cell_array in cellArrays:
+        cellData.RemoveArray(cell_array)
+
+    # Then project the left one to new surface
+    surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
+    surfaceProjection.SetInputData(surface)
+    surfaceProjection.SetReferenceSurface(ref_surface)
+    surfaceProjection.Update()
+
+    return surfaceProjection.GetOutput()
+
 def CleanupArrays(surface):
     """Remove any point and/or cell array in a vtkPolyData."""
 
