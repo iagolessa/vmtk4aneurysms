@@ -298,11 +298,13 @@ def Hemodynamics(foam_case: str,
 
     return numpySurface.VTKObject
 
-def AneurysmStats(neck_surface: names.polyDataType,
-                  array_name: str,
-                  neck_array_name: str = aneu.AneurysmNeckArrayName,
-                  n_percentile: float = 95,
-                  neck_iso_value: float = aneu.NeckIsoValue) -> dict:
+def AneurysmStats(
+        neck_surface: names.polyDataType,
+        array_name: str,
+        neck_array_name: str=aneu.AneurysmNeckArrayName,
+        n_percentile: float=99,
+        neck_iso_value: float=aneu.NeckIsoValue
+    )   -> dict:
     """Compute statistics of array on aneurysm surface.
 
     Given a surface with the fields of hemodynamics variables defined on it,
@@ -317,57 +319,25 @@ def AneurysmStats(neck_surface: names.polyDataType,
     pointArrays = tools.GetPointArrays(neck_surface)
     cellArrays  = tools.GetCellArrays(neck_surface)
 
-    arrayInSurface = array_name in pointArrays or \
-                     array_name in cellArrays
-
     neckArrayInSurface = neck_array_name in pointArrays or \
                          neck_array_name in cellArrays
-
-    # Check if arrays are on surface
-    if not arrayInSurface:
-        sys.exit(array_name + " not found in the surface.")
-    else:
-        pass
 
     if not neckArrayInSurface:
         # Compute neck array
         neck_surface = aneu.SelectAneurysm(neck_surface)
-    else:
-        pass
 
     # Get aneurysm
-    aneurysm = tools.ClipWithScalar(
-                    neck_surface,
-                    neck_array_name,
-                    neck_iso_value
-                )
+    aneurysmSurface = tools.ClipWithScalar(
+                          neck_surface,
+                          neck_array_name,
+                          neck_iso_value
+                      )
 
-    # Get Array
-    npAneurysm = dsa.WrapDataObject(aneurysm)
-
-    arrayOnAneurysm = npAneurysm.GetCellData().GetArray(array_name)
-
-    # Check type of field: vector or scalar
-    nComponents = arrayOnAneurysm.shape[-1]
-
-    if nComponents == 3 or nComponents == 6:
-        arrayOnAneurysm = pmath.NormL2(arrayOnAneurysm, 1)
-    else:
-        pass
-
-    # WSS averaged
-    maximum = np.max(arrayOnAneurysm)
-    minimum = np.min(np.array(arrayOnAneurysm))
-    average = np.average(np.array(arrayOnAneurysm))
-    percentile  = np.percentile(np.array(arrayOnAneurysm), n_percentile)
-    areaAverage = pmath.SurfaceAverage(aneurysm, array_name)
-
-    return {'surf_avg': pmath.SurfaceAverage(aneurysm, array_name),
-            'average': np.average(arrayOnAneurysm),
-            'maximum': np.max(arrayOnAneurysm),
-            'minimum': np.min(arrayOnAneurysm),
-            'percentil'+str(n_percentile): np.percentile(arrayOnAneurysm,
-                                                         n_percentile)}
+    return pmath.SurfaceFieldStatistics(
+               aneurysmSurface,
+               array_name,
+               n_percentile=n_percentile
+           )
 
 def LsaAverage(neck_surface: names.polyDataType,
                lowWSS: float,
