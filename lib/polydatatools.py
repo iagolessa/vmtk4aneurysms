@@ -182,8 +182,6 @@ def ProjectPointArray(
 
     ref_surface = cleaner.GetOutput()
 
-    WriteSurface(ref_surface, "./test.vtp")
-
     # Remove spourious array from final surface
     cellData  = ref_surface.GetCellData()
     pointData = ref_surface.GetPointData()
