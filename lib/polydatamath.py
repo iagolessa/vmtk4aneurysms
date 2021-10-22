@@ -97,6 +97,8 @@ def SurfaceFieldStatistics(
                     type(surface)
                  )
               )
+    if surface.GetNumberOfCells() == 0:
+        raise ValueError("The surface passed has no cells!")
 
     pointArrays = tools.GetPointArrays(surface)
     cellArrays  = tools.GetCellArrays(surface)
