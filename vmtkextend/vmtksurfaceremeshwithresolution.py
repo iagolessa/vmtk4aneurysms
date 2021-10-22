@@ -91,7 +91,8 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         surfaceRemesh.ElementSizeMode = 'edgelengtharray'
         surfaceRemesh.TargetEdgeLengthArrayName = resolutionArraySmoothing.SurfaceArrayName
         surfaceRemesh.TargetEdgeLengthFactor = 1
-        surfaceRemesh.PreserveBoundaryEdges = 1
+        # Disable preserveing boundary edges, since this may impact extrusion
+        surfaceRemesh.PreserveBoundaryEdges = 0
         surfaceRemesh.OutputText("Remeshing... \n")
         surfaceRemesh.Execute()
 
@@ -120,7 +121,12 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         surfaceProjection.SetReferenceSurface(resolutionArraySmoothing.Surface)
         surfaceProjection.Update()
 
-        self.Surface = surfaceProjection.GetOutput()
+        # Clean before smoothing array
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(surfaceProjection.GetOutput())
+        cleaner.Update()
+
+        self.Surface = cleaner.GetOutput()
 
 if __name__=='__main__':
     main = pypes.pypeMain()
