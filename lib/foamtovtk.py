@@ -134,86 +134,18 @@ def GetPatchFieldOverTime(
     the instants as keys and the value the field given as a VTK Numpy Array.
     """
 
-    # Read OF case reader
-    ofReader = vtk.vtkPOpenFOAMReader()
-    ofReader.SetFileName(foam_case)
-    ofReader.AddDimensionsToArrayNamesOff()
-    ofReader.DecomposePolyhedraOff()
-    ofReader.SkipZeroTimeOn()
-    ofReader.CreateCellToPointOff()
-    ofReader.DisableAllLagrangianArrays()
-    ofReader.DisableAllPointArrays()
-    ofReader.EnableAllCellArrays()
-    ofReader.Update()
+    ofReader, activePatch = _read_foam_data(
+                                 foam_case,
+                                 patch_name=active_patch_name,
+                                 multi_region=multi_region,
+                                 region_name=region_name,
+                                 set_cell_to_point=False
+                             )
 
     # Get list with time steps
     nTimeSteps = ofReader.GetTimeValues().GetNumberOfValues()
     timeSteps  = list((ofReader.GetTimeValues().GetValue(id_)
                        for id_ in range(nTimeSteps)))
-
-    # Update OF reader with only selected patch
-    patches = list((ofReader.GetPatchArrayName(index)
-                    for index in range(ofReader.GetNumberOfPatchArrays())))
-
-    if multi_region:
-        active_patch_name = '/'.join([region_name, active_patch_name])
-
-    if active_patch_name not in patches:
-        message = "Patch {} not in geometry surface.".format(active_patch_name)
-        sys.exit(message)
-    else:
-        pass
-
-    # Set active patch
-    for patchName in patches:
-        if patchName == active_patch_name:
-            ofReader.SetPatchArrayStatus(patchName, 1)
-        else:
-            ofReader.SetPatchArrayStatus(patchName, 0)
-
-    ofReader.Update()
-
-    # Get blocks and get surface block
-    blocks  = ofReader.GetOutput()
-    nBlocks = blocks.GetNumberOfBlocks()
-
-    # With the selection of the patch above, here I have to find the
-    # non-empty block. If there is only one block left (THE patch)
-    # the loop will work regardless
-    idNonEmptyBlock = nBlocks - 1 # default non empty block to last one
-    nNonEmptyBlocks = 0
-
-    for iBlock in range(nBlocks):
-        block = blocks.GetBlock(iBlock)
-
-        if block.GetNumberOfBlocks() != 0:
-            idNonEmptyBlock = iBlock
-            nNonEmptyBlocks += 1
-
-        else:
-            continue
-
-    if nNonEmptyBlocks != 1:
-        message = "There is more than one non-empty block when extracting {}.".format(
-                    active_patch_name
-                )
-        sys.exit(message)
-    else:
-        pass
-
-    # Get block
-    block = blocks.GetBlock(idNonEmptyBlock)
-
-    # The active patch is the only one left
-    if multi_region:
-    # (?) maybe this is a less error-prone alternative
-    #if type(activePatch) == multiBlockType:
-
-        # Multi region requires a multilevel block extraction
-        activePatch = block.GetBlock(0).GetBlock(0)
-
-    else:
-        activePatch = block.GetBlock(0)
 
     # Check if array in surface
     cellArraysInPatch  = tools.GetCellArrays(activePatch)
