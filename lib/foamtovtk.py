@@ -13,6 +13,113 @@ from . import names
 from . import polydatatools as tools
 from . import polydatamath as pmath
 
+def _read_foam_data(
+    foam_case: str,
+    patch_name: str="",
+    multi_region: bool=False,
+    region_name: str="",
+    set_cell_to_point: bool=False
+)   -> (names.foamReaderType,
+        Union[names.polyDataType, names.unstructuredGridType]):
+    """Reads and process OpenFOAM data.
+
+    Given a FOAM case file and a patch name, this function reads in the
+    data and returns the OpenFOAM VTK reader and the patch structure
+    (be it a patch or the internal mesh if an empty string is passed
+    to patch_name). By default, it does not assume a multi-region
+    dataset, which should be passed as a bool together with the region
+    name. It loads all the point and cell fields that exists in the
+    meshes.
+
+    By default, it does not convert cell to point fields, although
+    this is possible through the option 'set_cell_to_point'.
+
+    If the dataset has temporal data, it can be accessed through the
+    FOAM reader object.
+    """
+
+    if multi_region and region_name == "":
+        raise NameError("Please, pass a region name if multiregion is on.")
+
+    # Get the internal mesh if patch passed is found in of reader
+    active_patch_name = "internalMesh" if patch_name == "" else patch_name
+
+    if multi_region:
+        active_patch_name = '/'.join([region_name, active_patch_name])
+
+    # Read OF case reader
+    ofReader = vtk.vtkPOpenFOAMReader()
+    ofReader.SetFileName(foam_case)
+    ofReader.AddDimensionsToArrayNamesOff()
+    ofReader.DecomposePolyhedraOff()
+    ofReader.SkipZeroTimeOn()
+    ofReader.SetCreateCellToPoint(set_cell_to_point) # important for resampling
+    ofReader.DisableAllLagrangianArrays()
+    ofReader.EnableAllPointArrays()
+    ofReader.EnableAllCellArrays()
+    ofReader.Update()
+
+    # Update OF reader with only selected patch
+    patches = list((ofReader.GetPatchArrayName(index)
+                    for index in range(ofReader.GetNumberOfPatchArrays())))
+
+    if active_patch_name not in patches:
+        raise ValueError(
+                  "Patch {} not in geometry surface.".format(active_patch_name)
+              )
+
+    # Set active patch
+    for patchName in patches:
+        if patchName == active_patch_name:
+            ofReader.SetPatchArrayStatus(patchName, 1)
+        else:
+            ofReader.SetPatchArrayStatus(patchName, 0)
+
+    ofReader.Update()
+
+    # Get blocks where the path or inrnalMesh is (not empty one)
+    blocks  = ofReader.GetOutput()
+    nBlocks = blocks.GetNumberOfBlocks()
+
+    # With the selection of the patch above, here I have to find the
+    # non-empty block. If there is only one block left (the patch)
+    # the loop will work regardless
+    idNonEmptyBlock = nBlocks - 1 # default non empty block to last one
+    nNonEmptyBlocks = 0
+
+    for iBlock in range(nBlocks):
+        block = blocks.GetBlock(iBlock)
+
+        if block.GetNumberOfBlocks() != 0:
+            idNonEmptyBlock = iBlock
+            nNonEmptyBlocks += 1
+
+        else:
+            continue
+
+    if nNonEmptyBlocks != 1:
+        raise ValueError(
+                  "There is more than one non-empty block when extracting {}.".format(
+                      active_patch_name
+                  )
+              )
+
+    # Get block
+    block = blocks.GetBlock(idNonEmptyBlock)
+
+    # The active patch is the only one left
+    if multi_region and patch_name != "":
+    # (?) maybe this is a less error-prone alternative
+    #if type(activePatch) == multiBlockType:
+        # Multi region requires a multilevel block extraction
+        activePatch = block.GetBlock(0).GetBlock(0)
+
+    else:
+        activePatch = block.GetBlock(0)
+
+    return (ofReader, activePatch)
+
+
 def GetPatchFieldOverTime(
         foam_case: str,
         field_names: Union[str,list],

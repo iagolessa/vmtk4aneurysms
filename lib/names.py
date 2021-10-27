@@ -2,7 +2,9 @@ import vtk
 
 # Attribute array names
 polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
+unstructuredGridType = vtk.vtkCommonDataModelPython.vtkUnstructuredGrid
 multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
+foamReaderType = vtk.vtkIOParallelPython.vtkPOpenFOAMReader
 
 # Field suffixes
 xAxisSufx = "X"
