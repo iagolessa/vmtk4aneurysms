@@ -185,16 +185,21 @@ def GetPatchFieldOverTime(
 
     npActivePatch = dsa.WrapDataObject(activePatch)
 
-    selectedFields = {}
-
-    def _get_field(time, field_name):
+    # Instant function to get field values
+    # (needed to call method UpdateTimeStep)
+    def _get_fields(time):
         ofReader.UpdateTimeStep(time)
-        return npActivePatch.GetCellData().GetArray(field_name)
 
-    # get only the fields passed by the user
-    selectedFields = {field_name: {time: _get_field(time, field_name)
-                                   for time in timeSteps}
-                      for field_name in fieldsOnThePatch}
+        return {field_name: npActivePatch.GetCellData().GetArray(field_name)
+                for field_name in fieldsOnThePatch}
+
+    # Get dict with values per time of all fields
+    fieldValuesPerTime = {time: _get_fields(time) for time in timeSteps}
+
+    # 'Reshape' dict to et each field over time
+    fieldsOverTime = {field_name: {time: fields[field_name]
+                                   for time, fields in fieldValuesPerTime.items()}
+                      for field_name in field_names}
 
     # Clean surface from any point or cell field
     activePatch = npActivePatch.VTKObject
@@ -205,7 +210,7 @@ def GetPatchFieldOverTime(
     for arrayName in pointArraysInPatch:
         activePatch.GetPointData().RemoveArray(arrayName)
 
-    return activePatch, selectedFields
+    return activePatch, fieldsOverTime
 
 def FieldTimeStats(
         surface: names.polyDataType,
