@@ -242,6 +242,24 @@ def ProjectPointArray(
 
     return surfaceProjection.GetOutput()
 
+def ResampleFieldsToSurface(
+        source_mesh: names.unstructuredGridType,
+        target_surface: names.polyDataType
+    )   -> names.polyDataType:
+    """Resample fields of a vtkUnstructuredGrid into a surface contained in it.
+
+    Given a volumetric mesh (vtkUnstructuredGrid) object with fields defined on
+    it, resamples these fields to a surface (vtkPolyData) that is contained
+    by the volumetric mesh.
+    """
+
+    resampleToMidSurface = vtk.vtkResampleWithDataSet()
+    resampleToMidSurface.SetSourceData(source_mesh)
+    resampleToMidSurface.SetInputData(target_surface)
+    resampleToMidSurface.Update()
+
+    return resampleToMidSurface.GetOutput()
+
 def CleanupArrays(surface):
     """Remove any point and/or cell array in a vtkPolyData."""
 
