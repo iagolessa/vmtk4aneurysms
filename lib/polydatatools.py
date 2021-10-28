@@ -3,6 +3,7 @@
 import os
 import sys
 import pandas as pd
+from typing import Union
 
 import vtk
 from vmtk import vtkvmtk
@@ -12,6 +13,37 @@ from vtk.numpy_interface import dataset_adapter as dsa
 
 from . import constants as const
 from . import names
+
+def ScaleVtkObject(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        scale_factor: float
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+
+    # Scaling transform
+    scaling = vtk.vtkTransform()
+    scaling.Scale(3*(scale_factor,))
+    scaling.Update()
+
+    if type(vtk_object) == names.polyDataType:
+        transformFilter = vtk.vtkTransformPolyDataFilter()
+        transformFilter.SetInputData(vtk_object)
+        transformFilter.SetTransform(scaling)
+        transformFilter.Update()
+
+    else:
+        transformFilter = vtk.vtkTransformFilter()
+        transformFilter.SetInputData(vtk_object)
+        transformFilter.SetTransform(scaling)
+        transformFilter.Update()
+
+    return transformFilter.GetOutput()
+
+def CopyVtkObject(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType]
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Returns a copy of the vtkPolyData or vtkUnstructuredGrid."""
+
+    return ScaleVtkObject(vtk_object, 1.0)
 
 def ReadSurface(file_name: str) -> names.polyDataType:
     """Read surface file to VTK object.
@@ -86,6 +118,18 @@ def WriteSurface(surface: names.polyDataType,
     writer.Update()
     writer.Write()
 
+def WriteUnsGrid(
+        grid: names.unstructuredGridType,
+        file_name: str
+    )   -> None:
+    """Write vtkUnstructuredGrid to .vtk file."""
+
+    writeGrid = vtk.vtkUnstructuredGridWriter()
+    writeGrid.SetInputData(grid)
+    writeGrid.SetFileTypeToBinary()
+    writeGrid.SetFileName(file_name)
+    writeGrid.Write()
+
 def WriteSpline(points, tangents, file_name):
     """Write spline from points.
 
@@ -123,18 +167,6 @@ def SmoothSurface(surface):
     smoother.Execute()
 
     return smoother.Surface
-
-def ScaleSurface(surface, scale_factor):
-    # Scale surface
-    transform = vtk.vtkTransform()
-    transform.Scale(3*(scale_factor,))
-
-    transformFilter = vtk.vtkTransformPolyDataFilter()
-    transformFilter.SetInputData(surface)
-    transformFilter.SetTransform(transform)
-    transformFilter.Update()
-
-    return transformFilter.GetOutput()
 
 def Cleaner(surface):
     """Polydata cleaner."""

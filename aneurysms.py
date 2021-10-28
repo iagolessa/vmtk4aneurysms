@@ -43,7 +43,7 @@ def SelectAneurysm(surface: names.polyDataType) -> names.polyDataType:
     # the output
     originalSurface = surface
 
-    scaledSurface = tools.ScaleSurface(surface, const.millimeterToMeterFactor)
+    scaledSurface = tools.ScaleVtkObject(surface, const.millimeterToMeterFactor)
 
     # It is better to remesh the triangulated surface because the triangulate
     # filter applied to a polygonal surface yields poor quality triangles
@@ -75,7 +75,7 @@ def SelectAneurysm(surface: names.polyDataType) -> names.polyDataType:
     smoother.Execute()
 
     # Scale bacj to meters
-    rescaledSurface = tools.ScaleSurface(smoother.Surface,
+    rescaledSurface = tools.ScaleVtkObject(smoother.Surface,
                                          1.0/const.millimeterToMeterFactor)
 
     # Map the field back to the original surface

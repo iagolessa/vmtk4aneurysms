@@ -43,7 +43,7 @@ def _read_foam_data(
 
     # Get the internal mesh if patch passed is found in of reader
     if patch_name == "":
-        print("Empty patch_name: computing volumetric mesh fields.")
+        print("Empty patch name: computing volumetric mesh fields.")
 
     active_patch_name = "internalMesh" if patch_name == "" else patch_name
 
@@ -122,7 +122,6 @@ def _read_foam_data(
 
     return (ofReader, activePatch)
 
-
 def GetPatchFieldOverTime(
         foam_case: str,
         field_names: Union[str,list],
@@ -167,7 +166,7 @@ def GetPatchFieldOverTime(
                          for field in passed_fields]
 
     if all(boolFieldsOnPatch):
-        print("Found all fields on the selected patch.")
+        print("Found all fields on the selected region/patch.")
 
         fieldsOnThePatch = passed_fields
 
@@ -220,125 +219,174 @@ def GetPatchFieldOverTime(
 
 def FieldTimeStats(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType],
-        field_name: str,
-        temporal_field: dict,
+        temporal_fields: dict,
         t_peak_systole: float,
-        t_low_diastole: float
+        t_low_diastole: float,
+        field_names: Union[str, list]=None,
     )   -> names.polyDataType:
     """Compute field time statistics from OpenFOAM data.
 
-    Get time statistics of a field defined on a surface S (or volume V) over
-    time for a cardiac cycle, generated with OpenFOAM. Outputs a surface (or a
+    Get time statistics of a field (or fields) defined on a surface S (or
+    volume V) over time for a cardiac cycle, generated with OpenFOAM. The
+    fields are passed through a dictionary where keys are the field names and
+    values are also a dictionary with time values as keys and arguments as the
+    temporal series of each field as a VTK numpy array. Outputs a surface (or a
     volume) with: the time-averaged of the field magnitude (if not a scalar),
     maximum and minimum over time, peak-systole and low-diastole fields.
 
     Arguments:
         vtk_object (vtkPolyData or vtkUnstructuredGrid) -- the surface or
-            volume where the field is defined; 
+            volume where the field is defined;
 
-        temporal_field (dict) -- a dictionary with
-            the field over each instant;
+        temporal_fields (dict) -- a dictionary with the field over each instant
+            defined over vtk_object. If field_names is a list, this must be a
+            dict which keys are the field_names and value a dict with the
+            respective field over time, as follows:
+
+                temporal_fields = {field_name1: {t1: V1, ..., tn: Vn},
+                                   field_name2: {t1: U1, ..., tn: Un},
+                                   ...,
+                                   field_nameN: {t1: W1, ..., tn: Wn}}
 
         t_peak_systole (float) -- instant of the peak systole;
 
         t_low_diastole (float) -- instant of the low diastole;
+
+        field_names (str or list of strs, optional) -- either a string with the
+            field name or a list of string with the all the fields that must be
+            included in the computation. if None, will compute all fields
+            passed through temporal_fields.keys().
     """
+
+    # Operate on copy of the vtk_object (transform applies the identity
+    # transformation if none is passed)
+    vtk_object  = tools.CopyVtkObject(vtk_object)
+    nCells      = vtk_object.GetNumberOfCells()
     npVtkObject = dsa.WrapDataObject(vtk_object)
 
-    # Get field over time as a Numpy array in ordered manner
-    timeSteps = list(temporal_field.keys())
+    # Append to the numpy surface wrap
+    appendToVtkObject = npVtkObject.CellData.append
 
-    # Sort list of time steps
-    timeSteps.sort()
-    fieldOverTime = dsa.VTKArray([temporal_field.get(time)
-                                  for time in timeSteps])
+    # Check if first level of temporal_fields dict are strings
+    if not all(type(key) == str for key in temporal_fields.keys()):
+        raise ValueError(
+                  "Expecting only strings in temporal_fields first-level keys."
+              )
 
-    # Assum that the input field is a scalar field
-    # then assign the magnitude field to itself
-    # it will be changed later if tensor order higher than 1
-    fieldMagOverTime = fieldOverTime.copy()
+    if field_names is not None:
 
-    # Check if size of field equals number of cells
-    if vtk_object.GetNumberOfCells() not in fieldOverTime.shape:
-        raise ValueError("VTK Object cells number and of field do not match.")
+        # Convert to list if string
+        fieldsToUse = [field_names] \
+                      if type(field_names) == str \
+                      else field_names
 
-    # Check if low diastole or peak systoel not in time list
-    lastTimeStep  = max(timeSteps)
-    firstTimeStep = min(timeSteps)
-
-    if t_low_diastole not in timeSteps:
-        warningMsg = "Low diastole instant not in " \
-                     "time-steps list. Using last time-step."
-        warnings.warn(warningMsg)
-
-        t_low_diastole = lastTimeStep
-
-    elif t_peak_systole not in timeSteps:
-        warningMsg = "Peak-systole instant not in " \
-                     "time-steps list. Using first time-step."
-        warnings.warn(warningMsg)
-
-        t_peak_systole = firstTimeStep
     else:
-        pass
+        fieldsToUse = list(temporal_fields.keys())
+
 
     # List of tuples to store stats arrays and their name
     # [(array1, name1), ... (array_n, name_n)]
     arraysToBeStored = []
     storeArray = arraysToBeStored.append
 
-    # Get peak-systole and low-diastole WSS
-    storeArray(
-        (temporal_field.get(t_peak_systole, None),
-         names.peakSystoleWSS \
-         if field_name == names.WSS \
-         else '_'.join([field_name, "peak_systole"]))
-    )
+    for field_name in fieldsToUse:
+        print("Computing stats for field {}".format(field_name))
 
-    storeArray(
-        (temporal_field.get(t_low_diastole, None),
-         names.lowDiastoleWSS if field_name == names.WSS
-                         else '_'.join([field_name, "low_diastole"]))
-    )
+        temporal_field = temporal_fields[field_name]
 
-    # Get period of time steps
-    period   = lastTimeStep - firstTimeStep
-    timeStep = period/len(timeSteps)
+        # Get field over time as a Numpy array in ordered manner
+        timeSteps = list(temporal_field.keys())
 
-    # Append to the numpy surface wrap
-    appendToVtkObject = npVtkObject.CellData.append
+        # Sort list of time steps
+        timeSteps.sort()
+        fieldOverTime = dsa.VTKArray([temporal_field.get(time)
+                                      for time in timeSteps])
 
-    # Compute the time-average of the WSS vector
-    # assumes uniform time-step (calculated above)
-    storeArray(
-        (pmath.TimeAverage(fieldOverTime, timeStep, period),
-         field_name + names.avg)
-    )
+        # Assum that the input field is a scalar field
+        # then assign the magnitude field to itself
+        # it will be changed later if tensor order higher than 1
+        fieldMagOverTime = fieldOverTime.copy()
 
-    # If the array is a tensor of order higher than one
-    # compute its magnitude too
-    if len(fieldOverTime.shape) == 3:
-        # Compute the time-average of the magnitude of the WSS vector
-        fieldMagOverTime = pmath.NormL2(fieldOverTime, 2)
+        # Check if size of field equals number of cells
+        if nCells not in fieldOverTime.shape:
+            raise ValueError(
+                      "VTK Object cells number and of field do not match."
+                  )
 
+        # Check if low diastole or peak systoel not in time list
+        lastTimeStep  = max(timeSteps)
+        firstTimeStep = min(timeSteps)
+
+        if t_low_diastole not in timeSteps:
+            warningMsg = "Low diastole instant not in " \
+                         "time-steps list for field {}. " \
+                         "Using last time-step.".format(field_name)
+
+            warnings.warn(warningMsg)
+
+            t_low_diastole = lastTimeStep
+
+        elif t_peak_systole not in timeSteps:
+            warningMsg = "Peak-systole instant not in " \
+                         "time-steps list for field {}. " \
+                         "Using first time-step.".format(field_name)
+
+            warnings.warn(warningMsg)
+
+            t_peak_systole = firstTimeStep
+
+        else:
+            pass
+
+        # Get peak-systole and low-diastole WSS
         storeArray(
-            (pmath.TimeAverage(fieldMagOverTime, timeStep, period),
-             names.TAWSS if field_name == names.WSS
-                         else field_name + names.mag + names.avg)
+            (temporal_field.get(t_peak_systole, None),
+             names.peakSystoleWSS \
+             if field_name == names.WSS \
+             else '_'.join([field_name, "peak_systole"]))
         )
 
-    else:
-        pass
+        storeArray(
+            (temporal_field.get(t_low_diastole, None),
+             names.lowDiastoleWSS if field_name == names.WSS
+                             else '_'.join([field_name, "low_diastole"]))
+        )
 
-    storeArray(
-        (fieldMagOverTime.max(axis=0),
-         field_name + names.mag + names.max_)
-    )
+        # Get period of time steps
+        period   = lastTimeStep - firstTimeStep
+        timeStep = period/len(timeSteps)
 
-    storeArray(
-        (fieldMagOverTime.min(axis=0),
-         field_name + names.mag + names.min_)
-    )
+        # Compute the time-average of the WSS vector
+        # assumes uniform time-step (calculated above)
+        storeArray(
+            (pmath.TimeAverage(fieldOverTime, timeStep, period),
+             field_name + names.avg)
+        )
+
+        # If the array is a tensor of order higher than one
+        # compute its magnitude too
+        if len(fieldOverTime.shape) == 3:
+            # Compute the time-average of the magnitude of the WSS vector
+            fieldMagOverTime = pmath.NormL2(fieldOverTime, 2)
+
+            storeArray(
+                (pmath.TimeAverage(fieldMagOverTime, timeStep, period),
+                 names.TAWSS if field_name == names.WSS
+                             else field_name + names.mag + names.avg)
+            )
+
+        else:
+            pass
+
+        storeArray(
+            (fieldMagOverTime.max(axis=0),
+             field_name + names.mag + names.max_)
+        )
+
+        storeArray(
+            (fieldMagOverTime.min(axis=0),
+             field_name + names.mag + names.min_)
+        )
 
     # Finally, append all arrays to surface
     for array, name in arraysToBeStored:
