@@ -42,6 +42,9 @@ def _read_foam_data(
         raise NameError("Please, pass a region name if multiregion is on.")
 
     # Get the internal mesh if patch passed is found in of reader
+    if patch_name == "":
+        print("Empty patch_name: computing volumetric mesh fields.")
+
     active_patch_name = "internalMesh" if patch_name == "" else patch_name
 
     if multi_region:
@@ -132,6 +135,9 @@ def GetPatchFieldOverTime(
     Given an OpenFOAM case, the field name and the patch name, return a tuple
     with the patch surface and a dictionary with the time-varying field with
     the instants as keys and the value the field given as a VTK Numpy Array.
+
+    It may also return the volumetric mesh data. In this case, the
+    'active_patch_name' passed must be the empty string ("").
     """
 
     ofReader, activePatch = _read_foam_data(
@@ -213,7 +219,7 @@ def GetPatchFieldOverTime(
     return activePatch, fieldsOverTime
 
 def FieldTimeStats(
-        surface: names.polyDataType,
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
         field_name: str,
         temporal_field: dict,
         t_peak_systole: float,
@@ -221,18 +227,23 @@ def FieldTimeStats(
     )   -> names.polyDataType:
     """Compute field time statistics from OpenFOAM data.
 
-    Get time statistics of a field defined on a surface S
-    over time for a cardiac cycle, generated with OpenFOAM. Outputs a surface
-    with: the time-averaged of the field magnitude (if not a scalar), maximum
-    and minimum over time, peak-systole and low-diastole fields.
+    Get time statistics of a field defined on a surface S (or volume V) over
+    time for a cardiac cycle, generated with OpenFOAM. Outputs a surface (or a
+    volume) with: the time-averaged of the field magnitude (if not a scalar),
+    maximum and minimum over time, peak-systole and low-diastole fields.
 
     Arguments:
-        surface (vtkPolyData) -- the surface where the field is defined;
-        temporal_field (dict) -- a dictuionary with the field over each instant;
+        vtk_object (vtkPolyData or vtkUnstructuredGrid) -- the surface or
+            volume where the field is defined; 
+
+        temporal_field (dict) -- a dictionary with
+            the field over each instant;
+
         t_peak_systole (float) -- instant of the peak systole;
+
         t_low_diastole (float) -- instant of the low diastole;
     """
-    npSurface = dsa.WrapDataObject(surface)
+    npVtkObject = dsa.WrapDataObject(vtk_object)
 
     # Get field over time as a Numpy array in ordered manner
     timeSteps = list(temporal_field.keys())
@@ -248,10 +259,8 @@ def FieldTimeStats(
     fieldMagOverTime = fieldOverTime.copy()
 
     # Check if size of field equals number of cells
-    if surface.GetNumberOfCells() not in fieldOverTime.shape:
-        sys.exit("Size of surface and of field do not match.")
-    else:
-        pass
+    if vtk_object.GetNumberOfCells() not in fieldOverTime.shape:
+        raise ValueError("VTK Object cells number and of field do not match.")
 
     # Check if low diastole or peak systoel not in time list
     lastTimeStep  = max(timeSteps)
@@ -281,8 +290,9 @@ def FieldTimeStats(
     # Get peak-systole and low-diastole WSS
     storeArray(
         (temporal_field.get(t_peak_systole, None),
-         names.peakSystoleWSS if field_name == names.WSS
-                         else '_'.join([field_name, "peak_systole"]))
+         names.peakSystoleWSS \
+         if field_name == names.WSS \
+         else '_'.join([field_name, "peak_systole"]))
     )
 
     storeArray(
@@ -296,7 +306,7 @@ def FieldTimeStats(
     timeStep = period/len(timeSteps)
 
     # Append to the numpy surface wrap
-    appendToSurface = npSurface.CellData.append
+    appendToVtkObject = npVtkObject.CellData.append
 
     # Compute the time-average of the WSS vector
     # assumes uniform time-step (calculated above)
@@ -332,9 +342,9 @@ def FieldTimeStats(
 
     # Finally, append all arrays to surface
     for array, name in arraysToBeStored:
-        appendToSurface(array, name)
+        appendToVtkObject(array, name)
 
-    return npSurface.VTKObject
+    return npVtkObject.VTKObject
 
 def FieldSurfaceAverage(
         foam_case: str,
