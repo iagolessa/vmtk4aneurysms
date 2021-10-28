@@ -111,7 +111,7 @@ def get_peak_instant(case_folder):
 
 # Names
 foamFolder       = args.case
-surfacePatch     = args.patch
+surfacePatchName = args.patch
 wallDynamicsFile = args.ofile
 multiRegion      = args.multiregion
 
@@ -160,33 +160,27 @@ print(
 statsSurface, fields = fvtk.GetPatchFieldOverTime(
                            foamFile,
                            fieldNames,
-                           surfacePatch,
+                           surfacePatchName,
                            multi_region=multiRegion,
                            region_name=regionName
                        )
 
-for fieldName, field in fields.items():
-    # Computes the statistics of each field
-    print(
-        "    Computing stats for field {}...".format(fieldName),
-        end="\n"
-    )
+# Computes the statistics of each field
+print(
+    "Computing stats for fields.",
+    end="\n"
+)
 
-    statsSurface = fvtk.FieldTimeStats(
-                       statsSurface,
-                       fieldName,
-                       field,
-                       peakSystoleInstant,
-                       lowDiastoleInstant
-                   )
+statsSurface = fvtk.FieldTimeStats(
+                   statsSurface,
+                   fields,
+                   peakSystoleInstant,
+                   lowDiastoleInstant
+               )
 
 # Scale the surface back to millimeters (fields are not scaled)
-scaling = vmtkscripts.vmtkSurfaceScaling()
-scaling.Surface = statsSurface
-scaling.ScaleFactor = 1.0e3
-scaling.Execute()
-
-statsSurface = scaling.Surface
+scaleMeterToMM = 1.0e3
+statsSurface = tools.ScaleVtkObject(statsSurface, scaleMeterToMM)
 
 # Scale displacement arrays too
 cellArrays = tools.GetCellArrays(statsSurface)
@@ -198,13 +192,11 @@ displacementArrays = [arrayName
 npSurface = dsa.WrapDataObject(statsSurface)
 
 for arrayName in displacementArrays:
-    array = 1.0e3*npSurface.CellData.GetArray(arrayName)
+    array = scaleMeterToMM*npSurface.CellData.GetArray(arrayName)
 
     npSurface.CellData.append(array, arrayName)
 
-statsSurface = npSurface.VTKObject
-
 tools.WriteSurface(
-    statsSurface,
+    npSurface.VTKObject,
     wallDynamicsFile
 )
