@@ -57,7 +57,7 @@ def SurfaceGradient(surface: names.polyDataType,
               for id_ in range(nArrays))
 
     if names.normals not in arrays:
-        surface = SurfaceNormals(surface)
+        surface = Surface.Normals(surface)
 
     # Compute spatial gradient (adds field)
     surfaceWithGradient = SpatialGradient(surface, field_name)
