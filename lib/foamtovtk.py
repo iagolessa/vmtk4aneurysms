@@ -18,6 +18,7 @@ def _read_foam_data(
     patch_name: str="",
     multi_region: bool=False,
     region_name: str="",
+    enable_point_fields: bool=False,
     set_cell_to_point: bool=False
 )   -> (names.foamReaderType,
         Union[names.polyDataType, names.unstructuredGridType]):
@@ -58,8 +59,13 @@ def _read_foam_data(
     ofReader.SkipZeroTimeOn()
     ofReader.SetCreateCellToPoint(set_cell_to_point) # important for resampling
     ofReader.DisableAllLagrangianArrays()
-    ofReader.EnableAllPointArrays()
     ofReader.EnableAllCellArrays()
+
+    if enable_point_fields:
+        ofReader.EnableAllPointArrays()
+    else:
+        ofReader.DisableAllPointArrays()
+
     ofReader.Update()
 
     # Update OF reader with only selected patch
@@ -144,6 +150,7 @@ def GetPatchFieldOverTime(
                                  patch_name=active_patch_name,
                                  multi_region=multi_region,
                                  region_name=region_name,
+                                 enable_point_fields=False,
                                  set_cell_to_point=False
                              )
 
@@ -160,6 +167,7 @@ def GetPatchFieldOverTime(
     # get only the ones that are on the passed patch
     # Check whether field_names is a string (a single field),
     # if yes convert to list
+    # TODO: account for point fields too in this framework?
     passed_fields = [field_names] if type(field_names) is str else field_names
 
     boolFieldsOnPatch = [field in cellArraysInPatch
