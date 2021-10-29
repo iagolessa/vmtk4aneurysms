@@ -204,7 +204,7 @@ def GetPatchFieldOverTime(
     # 'Reshape' dict to et each field over time
     fieldsOverTime = {field_name: {time: fields[field_name]
                                    for time, fields in fieldValuesPerTime.items()}
-                      for field_name in field_names}
+                      for field_name in fieldsOnThePatch}
 
     # Clean surface from any point or cell field
     activePatch = npActivePatch.VTKObject
