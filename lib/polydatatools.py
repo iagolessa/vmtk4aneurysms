@@ -248,17 +248,33 @@ def ResampleFieldsToSurface(
     )   -> names.polyDataType:
     """Resample fields of a vtkUnstructuredGrid into a surface contained in it.
 
-    Given a volumetric mesh (vtkUnstructuredGrid) object with fields defined on
-    it, resamples these fields to a surface (vtkPolyData) that is contained
-    by the volumetric mesh.
+    Given a volumetric mesh (vtkUnstructuredGrid) object with cell or point
+    fields defined on it, resamples these fields to a surface (vtkPolyData)
+    that is contained by the volumetric mesh. The resampling filter resamples
+    all fields to point fields and this procedure may generate erroneous
+    results for cell fields, particularly. Therefore, this function first
+    converts all cell fields to point fields, resamples, and then convert all
+    fields to cell fields again in the resulting mesh.
     """
 
+    # Before resampling, convert all cell fields to point fields
+    cellToPointFilter = vtk.vtkCellDataToPointData()
+    cellToPointFilter.SetInputData(source_mesh)
+    cellToPointFilter.PassCellDataOff()
+    cellToPointFilter.Update()
+
     resampleToMidSurface = vtk.vtkResampleWithDataSet()
-    resampleToMidSurface.SetSourceData(source_mesh)
+    resampleToMidSurface.SetSourceConnection(cellToPointFilter.GetOutputPort())
     resampleToMidSurface.SetInputData(target_surface)
     resampleToMidSurface.Update()
 
-    return resampleToMidSurface.GetOutput()
+    # Convert all fields back to cell data in new mesh
+    pointToCell = vtk.vtkPointDataToCellData()
+    pointToCell.SetInputConnection(resampleToMidSurface.GetOutputPort())
+    pointToCell.PassPointDataOff()
+    pointToCell.Update()
+
+    return pointToCell.GetOutput()
 
 def CleanupArrays(surface):
     """Remove any point and/or cell array in a vtkPolyData."""
