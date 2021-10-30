@@ -35,7 +35,7 @@ _density = 1056.0 # kg/m3
 
 def _wss_over_time(foam_case: str,
                    density=_density,
-                   field=names.foamWSS,
+                   field_name=names.foamWSS,
                    patch=names.wallPatchName) -> tuple:
     """Get surface object and the WSS vector field over time.
 
@@ -50,35 +50,17 @@ def _wss_over_time(foam_case: str,
 
     surface, fieldsOverTime = fvtk.GetPatchFieldOverTime(
                                   foam_case,
-                                  field,
+                                  field_name,
                                   patch
                               )
 
-    fieldOverTime = fieldsOverTime[field]
+    fieldOverTime = fieldsOverTime[field_name]
 
     # Compute the WSS = density * wallShearComponent
     wssVectorOverTime = {time: _density*wssField
                          for time, wssField in fieldOverTime.items()}
 
     return surface, wssVectorOverTime
-
-def _wss_time_stats(surface: names.polyDataType,
-                    temporal_wss: dict,
-                    t_peak_systole: float,
-                    t_low_diastole: float) -> names.polyDataType:
-    """Compute WSS time statistics from OpenFOAM data.
-
-    Get time statistics of the wall shear stress field defined on a surface S
-    over time for a cardiac cycle, generated with OpenFOAM. Outputs a surface
-    with: the time-averaged WSS, maximum and minimum over time, peak-systole
-    and low-diastole WSS vector fields. Since this function use OpenFOAM data,
-    specify the density considered.
-    """
-
-    return fvtk.FieldTimeStats(surface, names.WSS,
-                               temporal_wss,
-                               t_peak_systole,
-                               t_low_diastole)
 
 def _compute_gon(np_surface,
                  temporal_wss,
@@ -165,7 +147,7 @@ def Hemodynamics(foam_case: str,
                  t_peak_systole: float,
                  t_low_diastole: float,
                  density: float = _density,  # kg/m3
-                 field: str = names.foamWSS,
+                 field_name: str = names.foamWSS,
                  patch: str = names.wallPatchName,
                  compute_gon: bool = False,
                  compute_afi: bool = False) -> names.polyDataType:
@@ -179,16 +161,20 @@ def Hemodynamics(foam_case: str,
     n) is a suitable coordinate system defined on the vascular surface.
     """
     # Get WSS over time
-    surface, temporalWss = _wss_over_time(foam_case,
-                                          density=density,
-                                          field=field,
-                                          patch=patch)
+    surface, temporalWss = _wss_over_time(
+                               foam_case,
+                               density=density,
+                               field_name=field_name,
+                               patch=patch
+                           )
 
     # Compute WSS time statistics
-    surface = _wss_time_stats(surface,
-                              temporalWss,
-                              t_peak_systole,
-                              t_low_diastole)
+    surface = fvtk.FieldTimeStats(
+                  surface,
+                  {names.WSS: temporalWss},
+                  t_peak_systole,
+                  t_low_diastole
+              )
 
     # Compute normals and gradient of TAWSS
     surfaceWithNormals  = geo.Surface.Normals(surface)
@@ -431,7 +417,7 @@ def WssSurfaceAverage(foam_case: str,
                       neck_array_name: str = aneu.AneurysmNeckArrayName,
                       neck_iso_value: float = aneu.NeckIsoValue,
                       density: float = _density,
-                      field: str = names.foamWSS,
+                      field_name: str = names.foamWSS,
                       patch: str = names.wallPatchName):
     """Compute the surface-averaged WSS over time.
 
@@ -445,10 +431,12 @@ def WssSurfaceAverage(foam_case: str,
     # Define condition to compute on aneurysm portion
     computeOnAneurysm = neck_surface is not None
 
-    surface, temporalWss = _wss_over_time(foam_case,
-                                          density=density,
-                                          field=field,
-                                          patch=patch)
+    surface, temporalWss = _wss_over_time(
+                               foam_case,
+                               density=density,
+                               field_name=field_name,
+                               patch=patch
+                           )
 
     # Map neck array into surface
     if computeOnAneurysm:
@@ -496,7 +484,7 @@ def LsaInstant(foam_case: str,
                neck_array_name: str = aneu.AneurysmNeckArrayName,
                neck_iso_value: float = aneu.NeckIsoValue,
                density: float = _density,
-               field: str = names.foamWSS,
+               field_name: str = names.foamWSS,
                patch: str = names.wallPatchName) -> list:
     """Compute the LSA over time.
 
@@ -526,10 +514,12 @@ def LsaInstant(foam_case: str,
     aneurysmArea = geo.Surface.Area(aneurysm)
 
     # Compute WSS temporal for foam_case
-    surface, temporalWss = _wss_over_time(foam_case,
-                                          density=density,
-                                          field=field,
-                                          patch=patch)
+    surface, temporalWss = _wss_over_time(
+                               foam_case,
+                               density=density,
+                               field_name=field_name,
+                               patch=patch
+                           )
 
     # Project the aneurysm neck contour array to the surface
     # TODO: check if surface are equal (must match the scaling)
