@@ -2,6 +2,7 @@
 
 import sys
 import warnings
+import numpy as np
 from typing import Union
 from itertools import compress, repeat
 
@@ -360,15 +361,16 @@ def FieldTimeStats(
                              else '_'.join([field_name, "low_diastole"]))
         )
 
-        # Get period of time steps
-        period   = lastTimeStep - firstTimeStep
-        timeStep = period/len(timeSteps)
-
         # Compute the time-average of the WSS vector
         # assumes uniform time-step (calculated above)
         storeArray(
-            (pmath.TimeAverage(fieldOverTime, timeStep, period),
-             field_name + names.avg)
+            (
+                pmath.TimeAverage(
+                    fieldOverTime,
+                    np.array(timeSteps)
+                ),
+                field_name + names.avg
+            )
         )
 
         # If the array is a tensor of order higher than one
@@ -378,9 +380,15 @@ def FieldTimeStats(
             fieldMagOverTime = pmath.NormL2(fieldOverTime, 2)
 
             storeArray(
-                (pmath.TimeAverage(fieldMagOverTime, timeStep, period),
-                 names.TAWSS if field_name == names.WSS
-                             else field_name + names.mag + names.avg)
+                (
+                    pmath.TimeAverage(
+                        fieldMagOverTime,
+                        np.array(timeSteps)
+                    ),
+                    names.TAWSS \
+                        if field_name == names.WSS \
+                        else field_name + names.mag + names.avg
+                )
             )
 
         else:

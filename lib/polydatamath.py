@@ -14,10 +14,12 @@ def NormL2(array, axis):
 
     return np.linalg.norm(array, ord=2, axis=axis)
 
-def TimeAverage(array, step, period):
+def TimeAverage(y_array, time_array):
     """Compute temporal average of a time-dependent variable."""
 
-    return simps(array, dx=step, axis=0)/period
+    period = time_array.max() - time_array.min()
+
+    return simps(y_array, x=time_array, axis=0)/period
 
 # TODO: improve this computattion. I thought about using vtkIntegrateAttributes
 # but is not available in the version shipped with vmtk!

@@ -132,13 +132,22 @@ def _compute_gon(np_surface,
     period = max(time_steps) - min(time_steps)
     timeStep = period/len(time_steps)
 
-    avgGVecArray = pmath.TimeAverage(GVecOverTime, timeStep, period)
+    avgGVecArray = pmath.TimeAverage(
+                       GVecOverTime,
+                       np.array(time_steps)
+                   )
+
     magAvgGVecArray = pmath.NormL2(avgGVecArray, 1)
 
     # Compute the average of the magnitude of G vec
     magGVecArray = pmath.NormL2(GVecOverTime, 2)
-    avgMagGVecArray = pmath.TimeAverage(magGVecArray, timeStep, period)
 
+    avgMagGVecArray = pmath.TimeAverage(
+                          magGVecArray,
+                          np.array(time_steps)
+                      )
+
+    # TODO: divided by zero here?
     GON = 1.0 - magAvgGVecArray/avgMagGVecArray
 
     # Array clean-up
@@ -278,8 +287,13 @@ def Hemodynamics(foam_case: str,
                                   for time in timeSteps])
 
     storeArray(
-        (names.transWSS,
-         pmath.TimeAverage(wssVecDotQHat, timeStep, period))
+        (
+            names.transWSS,
+            pmath.TimeAverage(
+                wssVecDotQHat,
+                np.array(timeSteps)
+            )
+        )
     )
 
     # Compute the WSSTG = max(dWSSdt) over time
