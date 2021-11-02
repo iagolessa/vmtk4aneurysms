@@ -26,16 +26,28 @@ def TimeAverage(y_array, time_array):
 def SurfaceAverage(surface, array_name):
     """Compute area-averaged array over surface with first-order accuracy."""
 
+    # Operate on copy of the vtk_object to be able to destroy all other
+    # fields on the surface (improves performance when triangulating)
+    surface    = tools.CopyVtkObject(surface)
+    cellArrays = tools.GetCellArrays(surface)
+
+    # Check if array is in surface
+    if array_name not in cellArrays:
+        raise ValueError(array_name + " not found in the VTK object.")
+
+    else:
+        # Delete all fields in vtk_object, except the one passed
+        cellArrays.remove(array_name)
+
+        for field_name in cellArrays:
+            surface.GetCellData().RemoveArray(field_name)
+
     # Needs to triangulate the surface to get the cell areas
     triangulate = vtk.vtkTriangleFilter()
     triangulate.SetInputData(surface)
     triangulate.Update()
 
     surface = triangulate.GetOutput()
-
-    # Check if array is in surface
-    if array_name not in tools.GetCellArrays(surface):
-        raise ValueError(array_name + " not found in the VTK object.")
 
     # Use Numpy interface to compute field norm
     npSurface      = dsa.WrapDataObject(surface)
@@ -57,7 +69,7 @@ def SurfaceAverage(surface, array_name):
                      for id_ in range(surface.GetNumberOfCells())]
                 )
 
-    return sum(arrayOnSurface*cellAreas)/Surface.Area(surface)
+    return np.sum(arrayOnSurface*cellAreas)/Surface.Area(surface)
 
 def SurfaceFieldStatistics(
         surface: names.polyDataType,
