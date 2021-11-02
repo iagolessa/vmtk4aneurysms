@@ -26,6 +26,7 @@ def TimeAverage(y_array, time_array):
 def SurfaceAverage(surface, array_name):
     """Compute area-averaged array over surface with first-order accuracy."""
 
+    # Needs to triangulate the surface to get the cell areas
     triangulate = vtk.vtkTriangleFilter()
     triangulate.SetInputData(surface)
     triangulate.Update()
@@ -34,12 +35,10 @@ def SurfaceAverage(surface, array_name):
 
     # Check if array is in surface
     if array_name not in tools.GetCellArrays(surface):
-        sys.exit(array_name + " not found in the surface.")
-    else:
-        pass
+        raise ValueError(array_name + " not found in the VTK object.")
 
     # Use Numpy interface to compute field norm
-    npSurface = dsa.WrapDataObject(surface)
+    npSurface      = dsa.WrapDataObject(surface)
     arrayOnSurface = npSurface.GetCellData().GetArray(array_name)
 
     # Check type of field: vector or scalar
@@ -52,30 +51,13 @@ def SurfaceAverage(surface, array_name):
 
         # back to VTK interface
         surface = npSurface.VTKObject
-    else:
-        pass
 
-    # Helper functions
-    cellData = surface.GetCellData()
-    getArea  = lambda id_: surface.GetCell(id_).ComputeArea()
-    getValue = lambda id_, name: cellData.GetArray(name).GetValue(id_)
+    cellAreas = np.array(
+                    [surface.GetCell(id_).ComputeArea()
+                     for id_ in range(surface.GetNumberOfCells())]
+                )
 
-    def getCellValue(id_):
-        cellArea   = getArea(id_)
-        arrayValue = getValue(id_, array_name)
-
-        return cellArea, arrayValue
-
-    integral = 0.0
-    cellIds = range(surface.GetNumberOfCells())
-
-    # Map function to cell ids
-    integral = sum(area*value for area, value in map(getCellValue, cellIds))
-
-    surfaceArea = Surface.Area(surface)
-
-    # Compute L2-norm
-    return integral/surfaceArea
+    return sum(arrayOnSurface*cellAreas)/Surface.Area(surface)
 
 def SurfaceFieldStatistics(
         surface: names.polyDataType,
