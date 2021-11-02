@@ -458,14 +458,12 @@ def FieldSurfaceAverage(
             for time in fieldOverTime.keys()}
 
 def FieldSurfaceAverageOnPatch(
-        foam_case: str,
-        field_name: str,
-        boundary_patch: str,
-        patch_surface_id: names.polyDataType = None,
-        patch_array_name: str = '',
-        patch_boundary_value: float = 0.0,
-        multi_region: bool = False,
-        region_name: str = ''
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        temporal_fields: dict,
+        field_names: Union[str, list]=None,
+        patch_surface_id: names.polyDataType=None,
+        patch_array_name: str='',
+        patch_boundary_value: float=0.0
     ):
     """Compute the surface-averaged of a field over time over a patch only.
 
@@ -487,49 +485,46 @@ def FieldSurfaceAverageOnPatch(
     # Define condition to compute on aneurysm portion
     computeOnPatch = patch_surface_id is not None
 
-    surface, fieldsOverTime = GetPatchFieldOverTime(
-                                  foam_case,
-                                  field_name,
-                                  boundary_patch,
-                                  multi_region=multi_region,
-                                  region_name=region_name
-                              )
+    # Fields to compute
+    if field_names is not None:
 
-    fieldOverTime = fieldsOverTime[field_name]
+        # Convert to list if string
+        fieldsToUse = [field_names] \
+                      if type(field_names) == str \
+                      else field_names
 
-    # It returns a dict, get only the important field
+    else:
+        fieldsToUse = list(temporal_fields.keys())
 
     # Map neck array into surface
     if computeOnPatch:
         # Map  array field into current surface
         # (aneurysmExtract triangulas the surface)
         # Important: both surface must match the scaling
-
-        surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
-        surfaceProjection.SetInputData(surface)
-        surfaceProjection.SetReferenceSurface(patch_surface_id)
-        surfaceProjection.Update()
-
-        surface = surfaceProjection.GetOutput()
+        vtk_object = tools.ProjectPointArray(
+                         vtk_object,
+                         patch_surface_id,
+                         patch_array_name
+                     )
     else:
         pass
 
-    npSurface = dsa.WrapDataObject(surface)
+    npVtkObject = dsa.WrapDataObject(vtk_object)
 
     # Function to compute average of field over surface/patch
-    def average_on_patch(t):
+    def average_on_patch(field_t):
         # Add instant field array on surface
-        field_t = fieldOverTime.get(t)
+        tmp_field_name = "tmp_name_t"
 
-        npSurface.CellData.append(
+        npVtkObject.CellData.append(
             field_t,
-            field_name + "_t"
+            tmp_field_name
         )
 
         if computeOnPatch:
             # Clip patch portion
             patch = tools.ClipWithScalar(
-                        npSurface.VTKObject,
+                        npVtkObject.VTKObject,
                         patch_array_name,
                         patch_boundary_value
                     )
@@ -538,9 +533,13 @@ def FieldSurfaceAverageOnPatch(
             surfaceToComputeAvg = npPatch
 
         else:
-            surfaceToComputeAvg = npSurface
+            surfaceToComputeAvg = npVtkObject
 
-        return pmath.SurfaceAverage(surfaceToComputeAvg.VTKObject, field_name+'_t')
+        return pmath.SurfaceAverage(
+                   surfaceToComputeAvg.VTKObject,
+                   tmp_field_name
+               )
 
-    return {time: average_on_patch(time)
-            for time in fieldOverTime.keys()}
+    return {field_name: {time: average_on_patch(field)
+                         for time, field in temporal_fields[field_name].items()}
+            for field_name in fieldsToUse}
