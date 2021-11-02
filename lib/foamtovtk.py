@@ -482,6 +482,10 @@ def FieldSurfaceAverageOnPatch(
     sur- face. It is essential that the surface with the ne- ck array be the
     same as the wall surface of the OpenFOAM case, i.e. they are the same mesh.
     """
+    # Operate on copy of the vtk_object (transform applies the identity
+    # transformation if none is passed)
+    vtk_object  = tools.CopyVtkObject(vtk_object)
+
     # Define condition to compute on aneurysm portion
     computeOnPatch = patch_surface_id is not None
 
@@ -496,50 +500,39 @@ def FieldSurfaceAverageOnPatch(
     else:
         fieldsToUse = list(temporal_fields.keys())
 
+    npVtkObject = dsa.WrapDataObject(vtk_object)
+
+    # Add all fields to the surface (all times)
+    for fname in fieldsToUse:
+        for instant, field_t in temporal_fields[fname].items():
+            npVtkObject.CellData.append(
+                field_t,
+                fname + "_" + str(instant)
+            )
+
     # Map neck array into surface
     if computeOnPatch:
         # Map  array field into current surface
         # (aneurysmExtract triangulas the surface)
         # Important: both surface must match the scaling
         vtk_object = tools.ProjectPointArray(
-                         vtk_object,
+                         npVtkObject.VTKObject,
                          patch_surface_id,
                          patch_array_name
                      )
+
+        vtk_object = tools.ClipWithScalar(
+                         vtk_object,
+                         patch_array_name,
+                         patch_boundary_value
+                     )
+
     else:
-        pass
+        vtk_object = npVtkObject.VTKObject
 
-    npVtkObject = dsa.WrapDataObject(vtk_object)
-
-    # Function to compute average of field over surface/patch
-    def average_on_patch(field_t):
-        # Add instant field array on surface
-        tmp_field_name = "tmp_name_t"
-
-        npVtkObject.CellData.append(
-            field_t,
-            tmp_field_name
-        )
-
-        if computeOnPatch:
-            # Clip patch portion
-            patch = tools.ClipWithScalar(
-                        npVtkObject.VTKObject,
-                        patch_array_name,
-                        patch_boundary_value
-                    )
-
-            npPatch = dsa.WrapDataObject(patch)
-            surfaceToComputeAvg = npPatch
-
-        else:
-            surfaceToComputeAvg = npVtkObject
-
-        return pmath.SurfaceAverage(
-                   surfaceToComputeAvg.VTKObject,
-                   tmp_field_name
-               )
-
-    return {field_name: {time: average_on_patch(field)
+    return {field_name: {time: pmath.SurfaceAverage(
+                                    vtk_object,
+                                    field_name + '_' + str(time)
+                                )
                          for time, field in temporal_fields[field_name].items()}
             for field_name in fieldsToUse}
