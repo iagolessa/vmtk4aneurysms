@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+from typing import Union
 from scipy.integrate import simps
 
 import vtk
@@ -23,13 +24,16 @@ def TimeAverage(y_array, time_array):
 
 # TODO: improve this computattion. I thought about using vtkIntegrateAttributes
 # but is not available in the version shipped with vmtk!
-def SurfaceAverage(surface, array_name):
+def SurfaceAverage(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        array_name: str
+    )   -> float:
     """Compute area-averaged array over surface with first-order accuracy."""
 
     # Operate on copy of the vtk_object to be able to destroy all other
     # fields on the surface (improves performance when triangulating)
-    surface    = tools.CopyVtkObject(surface)
-    cellArrays = tools.GetCellArrays(surface)
+    vtk_object = tools.CopyVtkObject(vtk_object)
+    cellArrays = tools.GetCellArrays(vtk_object)
 
     # Check if array is in surface
     if array_name not in cellArrays:
@@ -40,36 +44,59 @@ def SurfaceAverage(surface, array_name):
         cellArrays.remove(array_name)
 
         for field_name in cellArrays:
-            surface.GetCellData().RemoveArray(field_name)
+            vtk_object.GetCellData().RemoveArray(field_name)
 
-    # Needs to triangulate the surface to get the cell areas
-    triangulate = vtk.vtkTriangleFilter()
-    triangulate.SetInputData(surface)
-    triangulate.Update()
+    # Needs to triangulate the object to get the cell areas and volumes
+    # This generic filter can oerate on both vtkPolyData or vtkUnstructuredGrid
+    triangleFilter = vtk.vtkDataSetTriangleFilter()
+    triangleFilter.SetInputData(vtk_object)
+    triangleFilter.Update()
 
-    surface = triangulate.GetOutput()
+    vtk_object = triangleFilter.GetOutput()
 
     # Use Numpy interface to compute field norm
-    npSurface      = dsa.WrapDataObject(surface)
-    arrayOnSurface = npSurface.GetCellData().GetArray(array_name)
+    npVtkObject   = dsa.WrapDataObject(vtk_object)
+    arrayOnObject = npVtkObject.GetCellData().GetArray(array_name)
 
     # Check type of field: vector or scalar
-    nComponents = arrayOnSurface.shape[-1]
+    nComponents = arrayOnObject.shape[-1]
 
     if nComponents == 3 or nComponents == 6:
-        arrayOnSurface = NormL2(arrayOnSurface, 1)
+        arrayOnObject = NormL2(arrayOnObject, 1)
 
-        npSurface.CellData.append(arrayOnSurface, array_name)
+        npVtkObject.CellData.append(arrayOnObject, array_name)
 
-        # back to VTK interface
-        surface = npSurface.VTKObject
+    # back to VTK interface
+    vtk_object = npVtkObject.VTKObject
 
-    cellAreas = np.array(
-                    [surface.GetCell(id_).ComputeArea()
-                     for id_ in range(surface.GetNumberOfCells())]
-                )
+    # Check if surface or volume
+    if type(vtk_object) == names.polyDataType:
 
-    return np.sum(arrayOnSurface*cellAreas)/Surface.Area(surface)
+        cellAreas = np.array(
+                        [vtk_object.GetCell(id_).ComputeArea()
+                         for id_ in range(vtk_object.GetNumberOfCells())]
+                    )
+
+        return np.sum(arrayOnObject*cellAreas)/Surface.Area(vtk_object)
+
+    elif type(vtk_object) == names.unstructuredGridType:
+
+        # Compute Cell volumes
+        meshQuality = vtk.vtkMeshQuality()
+        meshQuality.SetInputData(vtk_object)
+        meshQuality.SetTetQualityMeasureToVolume()
+        meshQuality.Update()
+
+        npVtkObject = dsa.WrapDataObject(meshQuality.GetOutput())
+        cellVolumes = npVtkObject.CellData.GetArray("Quality")
+
+        return np.sum(arrayOnObject*cellVolumes)/np.sum(cellVolumes)
+
+    else:
+        raise TypeError(
+                "VTK object must be either vtkPolyData or vtkUnstructuredGrid."
+              )
+
 
 def SurfaceFieldStatistics(
         surface: names.polyDataType,
