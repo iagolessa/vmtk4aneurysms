@@ -359,6 +359,36 @@ def ProjectPointArray(
                 )
             )
 
+def ProjectCellArray(
+        surface: names.polyDataType,
+        ref_surface: names.polyDataType,
+        field_name: str
+    )   -> names.polyDataType:
+    """Project a cell field from a reference VTK surface into another one.
+
+    Given a vtkPolyData, project a cell field named 'field_name' from a
+    reference VTK surface to the original object. Returns a copy of the
+    original input surface.
+    """
+
+    surface = CopyVtkObject(surface)
+    surface = Cleaner(surface)
+
+    if field_name not in GetCellArrays(ref_surface):
+        raise ValueError(
+                  "No field {} on the reference surface.".format(self.FieldName)
+              )
+
+    else:
+        # Then project the left one to new surface
+        projector = vtkvmtk.vtkvmtkSurfaceProjectCellArray()
+        projector.SetInputData(surface)
+        projector.SetReferenceSurface(ref_surface)
+        projector.SetProjectedArrayName(field_name)
+        projector.SetDefaultValue(0.0)
+        projector.Update()
+
+        return projector.GetOutput()
 
 def ResampleFieldsToSurface(
         source_mesh: names.unstructuredGridType,
