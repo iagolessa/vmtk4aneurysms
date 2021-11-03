@@ -434,19 +434,22 @@ def ExtractConnectedRegion(regions, method, closest_point=None):
 
     return connectivity.GetOutput()
 
-def ClipWithScalar(surface: names.polyDataType,
-                   array_name: str,
-                   value: float,
-                   inside_out=True) -> names.polyDataType:
-    """ Clip surface with scalar field.
+def ClipWithScalar(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        array_name: str,
+        value: float,
+        inside_out=True
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """ Clip a vtkPolyData or vtkUnstructuredGrid with scalar field.
 
-    Provided a surface (vtkPolyData), a point scalar array and a 'value' of
-    this array, clip the surface portion that have the condition 'scalar_array
-    < value'. If inside out is 'False', than the oposite will be output.
+    Provided a vtk object of type vtkPolyData or vtkUnstructuredGrid, a point
+    scalar array and a 'value' of this array, clip the object portion that
+    have the condition 'scalar_array < value'. If inside out is 'False', than
+    the oposite will be output.
     """
     # Get point data and cell data
-    pointArrays = GetPointArrays(surface)
-    cellArrays = GetCellArrays(surface)
+    pointArrays = GetPointArrays(vtk_object)
+    cellArrays  = GetCellArrays(vtk_object)
 
     # TODO: Cannot use a try-statement here because the vtkClipPolyData filter
     # does not throw any exception if error occurs (investigate why, I think I
@@ -455,25 +458,24 @@ def ClipWithScalar(surface: names.polyDataType,
     if array_name not in pointArrays and array_name in cellArrays:
         # Convert cell to point
         pointdata = vtk.vtkCellDataToPointData()
-        pointdata.SetInputData(surface)
+        pointdata.SetInputData(vtk_object)
         pointdata.Update()
 
-        surface = pointdata.GetOutput()
+        vtk_object = pointdata.GetOutput()
 
     elif array_name not in pointArrays and array_name not in cellArrays:
-        errorMsg = 'I cannot find ' + array_name + 'on the surface.'
-        print(errorMsg, end='\n')
+        raise ValueError("Cannot find " + array_name + "on the object.")
 
     else:
         pass
 
     # Change active array
-    surface.GetPointData().SetActiveScalars(array_name)
+    vtk_object.GetPointData().SetActiveScalars(array_name)
 
     # Clip the aneurysm surface in the lowWSSValue ang gets portion smaller
     # than it
-    clipper = vtk.vtkClipPolyData()
-    clipper.SetInputData(surface)
+    clipper = vtk.vtkClipDataSet()
+    clipper.SetInputData(vtk_object)
     clipper.SetValue(value)
 
     if inside_out:
