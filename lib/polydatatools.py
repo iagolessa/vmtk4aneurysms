@@ -192,41 +192,76 @@ def GetPointArrays(polydata):
     return [polydata.GetPointData().GetArray(id_).GetName()
             for id_ in range(nPointArrays)]
 
+def _project_point_arrays_mesh_to_mesh(
+        mesh: names.unstructuredGridType,
+        ref_mesh: names.unstructuredGridType
+    )   -> names.unstructuredGridType:
+
+    projection = vtkvmtk.vtkvmtkMeshProjection()
+    projection.SetInputData(mesh)
+    projection.SetReferenceMesh(ref_mesh)
+    projection.Update()
+
+    return projection.GetOutput()
+
+def _project_point_arrays_surface_to_surface(
+        surface: names.polyDataType,
+        ref_surface: names.polyDataType
+    )   -> names.polyDataType:
+
+    surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
+    surfaceProjection.SetInputData(surface)
+    surfaceProjection.SetReferenceSurface(ref_surface)
+    surfaceProjection.Update()
+
+    return surfaceProjection.GetOutput()
+
 def ProjectPointArray(
-        surface,
-        ref_surface,
-        field_name
-    ):
-    """Project a point field from a reference surface into another surface."""
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        ref_vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        field_name: str
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Project a point field from a reference VTK object into another one.
 
-    # Clean before smoothing array
-    cleaner = vtk.vtkCleanPolyData()
-    cleaner.SetInputData(surface)
-    cleaner.Update()
+    Given a vtkPolyData or a vtkUnstructuredGrid, project a point field named
+    'field_name' from a reference VTK object (vtkPolyData or
+    vtkUnstructuredGrid) to original object. Returns a copy of the original
+    input vtk_object (with the same type).
+    """
 
-    surface = cleaner.GetOutput()
+    # Operates on copy
+    vtk_object = CopyVtkObject(vtk_object)
+    ref_vtk_object = CopyVtkObject(ref_vtk_object)
 
-    # Clean ref. surface too and use a copy to avoid destroying the original
-    # surface
-    cleaner = vtk.vtkCleanPolyData()
-    cleaner.SetInputData(ref_surface)
-    cleaner.Update()
+    if type(vtk_object) == names.polyDataType:
+        # Clean before smoothing array
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(vtk_object)
+        cleaner.Update()
 
-    ref_surface = cleaner.GetOutput()
+        vtk_object = cleaner.GetOutput()
+
+    if type(ref_vtk_object) == names.polyDataType:
+        # Clean ref. surface too
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(ref_vtk_object)
+        cleaner.Update()
+
+        ref_vtk_object = cleaner.GetOutput()
 
     # Remove spourious array from final surface
-    cellData  = ref_surface.GetCellData()
-    pointData = ref_surface.GetPointData()
+    cellData  = ref_vtk_object.GetCellData()
+    pointData = ref_vtk_object.GetPointData()
 
-    cellArrays  = GetCellArrays(ref_surface)
-    pointArrays = GetPointArrays(ref_surface)
+    cellArrays  = GetCellArrays(ref_vtk_object)
+    pointArrays = GetPointArrays(ref_vtk_object)
 
     # Remove the one from the list
     if field_name in pointArrays:
         pointArrays.remove(field_name)
 
     else:
-        raise ValueError("{} not in surface.".format(field_name))
+        raise ValueError("{} not in input VTK object.".format(field_name))
 
     for point_array in pointArrays:
         pointData.RemoveArray(point_array)
@@ -234,13 +269,83 @@ def ProjectPointArray(
     for cell_array in cellArrays:
         cellData.RemoveArray(cell_array)
 
-    # Then project the left one to new surface
-    surfaceProjection = vtkvmtk.vtkvmtkSurfaceProjection()
-    surfaceProjection.SetInputData(surface)
-    surfaceProjection.SetReferenceSurface(ref_surface)
-    surfaceProjection.Update()
+    # Then project the left one to new vtk_object
+    # Convert ref. surface to mesh
+    if type(ref_vtk_object) == names.polyDataType:
 
-    return surfaceProjection.GetOutput()
+        if type(vtk_object) == names.polyDataType:
+
+            return _project_point_arrays_surface_to_surface(
+                       vtk_object,
+                       ref_vtk_object
+                   )
+
+        elif type(vtk_object) == names.unstructuredGridType:
+
+            refSurfaceToMesh = vtkvmtk.vtkvmtkPolyDataToUnstructuredGridFilter()
+            refSurfaceToMesh.SetInputData(ref_vtk_object)
+            refSurfaceToMesh.Update()
+
+            ref_vtk_object = refSurfaceToMesh.GetOutput()
+
+            return _project_point_arrays_mesh_to_mesh(
+                       vtk_object,
+                       ref_vtk_object
+                   )
+
+        else:
+            raise TypeError(
+                    "Input object neither {} or {}".format(
+                        names.polyDataType,
+                        names.unstructuredGridType
+                    )
+                )
+
+    elif type(ref_vtk_object) == names.unstructuredGridType:
+
+        if type(vtk_object) == names.unstructuredGridType:
+
+            return _project_point_arrays_mesh_to_mesh(
+                       vtk_object,
+                       ref_vtk_object
+                   )
+
+        elif type(vtk_object) == names.polyDataType:
+
+            surfaceToMesh = vtkvmtk.vtkvmtkPolyDataToUnstructuredGridFilter()
+            surfaceToMesh.SetInputData(vtk_object)
+            surfaceToMesh.Update()
+
+            vtk_object = surfaceToMesh.GetOutput()
+
+            vtk_object =  _project_point_arrays_mesh_to_mesh(
+                               vtk_object,
+                               ref_vtk_object
+                           )
+
+            # Convert bask to vtkPolyData
+            meshToSurface = vtk.vtkGeometryFilter()
+            meshToSurface.SetInputData(vtk_object)
+            meshToSurface.Update()
+
+            return meshToSurface.GetOutput()
+
+        else:
+            raise TypeError(
+                    "Input object neither {} or {}".format(
+                        names.polyDataType,
+                        names.unstructuredGridType
+                    )
+                )
+
+    else:
+        raise TypeError(
+                "Input object neither {} or {}".format(
+                    names.polyDataType,
+                    names.unstructuredGridType
+                )
+            )
+
 
 def ResampleFieldsToSurface(
         source_mesh: names.unstructuredGridType,
