@@ -185,20 +185,24 @@ def Cleaner(surface):
 
     return cleaner.GetOutput()
 
-def GetCellArrays(polydata):
-    """Return the names and number of arrays for a vtkPolyData."""
+def GetCellArrays(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType]
+    )   -> list:
+    """Return the names of CELL arrays in a VTK object."""
 
-    nCellArrays = polydata.GetCellData().GetNumberOfArrays()
+    nCellArrays = vtk_object.GetCellData().GetNumberOfArrays()
 
-    return [polydata.GetCellData().GetArray(id_).GetName()
+    return [vtk_object.GetCellData().GetArray(id_).GetName()
             for id_ in range(nCellArrays)]
 
-def GetPointArrays(polydata):
-    """Return the names of point arrays for a vtkPolyData."""
+def GetPointArrays(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType]
+    )   -> list:
+    """Return the names of POINT arrays in a VTK object."""
 
-    nPointArrays = polydata.GetPointData().GetNumberOfArrays()
+    nPointArrays = vtk_object.GetPointData().GetNumberOfArrays()
 
-    return [polydata.GetPointData().GetArray(id_).GetName()
+    return [vtk_object.GetPointData().GetArray(id_).GetName()
             for id_ in range(nPointArrays)]
 
 def _project_point_arrays_mesh_to_mesh(
