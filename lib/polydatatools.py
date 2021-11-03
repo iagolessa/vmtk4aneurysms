@@ -71,6 +71,15 @@ def ReadSurface(file_name: str) -> names.polyDataType:
 
     return reader.GetOutput()
 
+def ReadUnsGrid(
+        mesh_file_name: str
+    )   -> names.unstructuredGridType:
+
+    readMesh = vmtkscripts.vmtkMeshReader()
+    readMesh.InputFileName = mesh_file_name
+    readMesh.Execute()
+
+    return readMesh.Mesh
 
 def ViewSurface(surface, array_name=None):
     """View surface vtkPolyData objects.
