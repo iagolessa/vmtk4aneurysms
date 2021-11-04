@@ -14,6 +14,26 @@ from vtk.numpy_interface import dataset_adapter as dsa
 from . import constants as const
 from . import names
 
+def UnsGridToPolyData(
+        mesh: names.unstructuredGridType
+    )   -> names.polyDataType:
+
+    meshToSurface = vtk.vtkGeometryFilter()
+    meshToSurface.SetInputData(mesh)
+    meshToSurface.Update()
+
+    return meshToSurface.GetOutput()
+
+def PolyDataToUnsGrid(
+        surface: names.polyDataType
+    )   -> names.unstructuredGridType:
+
+    surfaceToMesh = vtkvmtk.vtkvmtkPolyDataToUnstructuredGridFilter()
+    surfaceToMesh.SetInputData(surface)
+    surfaceToMesh.Update()
+
+    return surfaceToMesh.GetOutput()
+
 def ScaleVtkObject(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType],
         scale_factor: float
@@ -336,12 +356,8 @@ def ProjectPointArray(
                                ref_vtk_object
                            )
 
-            # Convert bask to vtkPolyData
-            meshToSurface = vtk.vtkGeometryFilter()
-            meshToSurface.SetInputData(vtk_object)
-            meshToSurface.Update()
-
-            return meshToSurface.GetOutput()
+            # Convert back to vtkPolyData
+            return UnsGridToPolyData(vtk_object)
 
         else:
             raise TypeError(
@@ -446,11 +462,7 @@ def ExtractPortion(polydata, array_name, isovalue):
     threshold.Update()
 
     # Converts vtkUnstructuredGrid -> vtkPolyData
-    gridToSurfaceFilter = vtk.vtkGeometryFilter()
-    gridToSurfaceFilter.SetInputData(threshold.GetOutput())
-    gridToSurfaceFilter.Update()
-
-    return gridToSurfaceFilter.GetOutput()
+    return UnsGridToPolyData(threshold.GetOutput())
 
 def ExtractConnectedRegion(regions, method, closest_point=None):
     """Extract the largest or closest to point patch of a disconnected domain.
@@ -516,7 +528,7 @@ def ClipWithScalar(
     vtk_object.GetPointData().SetActiveScalars(array_name)
 
     # Clip the aneurysm surface in the lowWSSValue ang gets portion smaller
-    # than it
+    # than it (ClipDataSet returns a unstructured grid)
     clipper = vtk.vtkClipDataSet()
     clipper.SetInputData(vtk_object)
     clipper.SetValue(value)
@@ -530,7 +542,12 @@ def ClipWithScalar(
 
     clipper.Update()
 
-    return clipper.GetOutput()
+    # Convert output to vtkPolyData if input was vtkPolyData
+    if type(vtk_object) == names.polyDataType:
+        return UnsGridToPolyData(clipper.GetOutput())
+
+    else:
+        return clipper.GetOutput()
 
 def ClipWithPlane(
         surface: names.polyDataType,

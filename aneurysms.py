@@ -281,12 +281,10 @@ class Aneurysm:
         getNeckSurface.Update()
 
         # Converts vtkUnstructuredGrid -> vtkPolyData
-        gridToSurfaceFilter = vtk.vtkGeometryFilter()
-        gridToSurfaceFilter.SetInputData(getNeckSurface.GetOutput())
-        gridToSurfaceFilter.Update()
+        neckSurface = tools.UnsGridToPolyData(getNeckSurface.GetOutput())
 
         ostiumRemesher = vmtkscripts.vmtkSurfaceRemeshing()
-        ostiumRemesher.Surface = tools.Cleaner(gridToSurfaceFilter.GetOutput())
+        ostiumRemesher.Surface = tools.Cleaner(neckSurface)
         ostiumRemesher.ElementSizeMode = 'edgelength'
         ostiumRemesher.TargetEdgeLength = 0.15
         ostiumRemesher.TargetEdgeLengthFactor = 1.0
@@ -332,11 +330,7 @@ class Aneurysm:
         getNeckSurface.Update()
 
         # Converts vtkUnstructuredGrid -> vtkPolyData
-        gridToSurfaceFilter = vtk.vtkGeometryFilter()
-        gridToSurfaceFilter.SetInputData(getNeckSurface.GetOutput())
-        gridToSurfaceFilter.Update()
-
-        ostiumSurface = gridToSurfaceFilter.GetOutput()
+        ostiumSurface = tools.UnsGridToPolyData(getNeckSurface.GetOutput())
 
         # Convert to points
         cellCenter = vtk.vtkCellCenters()

@@ -146,13 +146,11 @@ def ContourPlaneArea(contour):
     fillContour.SetInputData(contour)
     fillContour.Update()
 
-    # Convert vtkUnstructuredData to vtkPolyData
-    meshToSurfaceFilter = vtk.vtkGeometryFilter()
-    meshToSurfaceFilter.SetInputData(fillContour.GetOutput())
-    meshToSurfaceFilter.Update()
-
+    # Convert vtkUnstructuredData to vtkPolyData and compute area
     computeArea = vtk.vtkMassProperties()
-    computeArea.SetInputData(meshToSurfaceFilter.GetOutput())
+    computeArea.SetInputData(
+        tools.UnsGridToPolyData(fillContour.GetOutput())
+    )
     computeArea.Update()
 
     return computeArea.GetSurfaceArea()
