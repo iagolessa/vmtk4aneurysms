@@ -91,7 +91,7 @@ def generate_arg_parser():
 parser = generate_arg_parser()
 args   = parser.parse_args()
 
-# Begin 
+# Begin
 import os
 import vtk
 import sys
@@ -112,10 +112,11 @@ import vmtk4aneurysms.wallmotion as wm
 
 # Names
 foamFolder       = args.case
-surfacePatch     = args.patch
+surfacePatchName = args.patch
 fieldName        = args.field
 temporalDataFile = args.ofile
-neckSurfaceFile  = args.patchfile
+neckSurface      = tools.ReadSurface(args.patchfile) \
+                    if args.patchfile is not None else None
 aneurysmState    = args.state
 multiRegion      = args.multiregion
 
@@ -123,17 +124,6 @@ if multiRegion == True and args.region == "":
     raise NameError("Provide valid region name.")
 else:
     regionName = args.region
-
-# Scale the surface back to millimeters (fields are not scaled)
-neckSurface = None
-
-if neckSurfaceFile is not None:
-    scaling = vmtkscripts.vmtkSurfaceScaling()
-    scaling.Surface = tools.ReadSurface(neckSurfaceFile)
-    scaling.ScaleFactor = 1.0e-3
-    scaling.Execute()
-
-    neckSurface = scaling.Surface
 
 # Compute the surface-averaged stress over time
 print(
@@ -145,7 +135,7 @@ print(
 
 # Compute surface average over time.
 # In the case where the vasculature has >= 2 aneurysms (case4, so far)
-# specify which state. Code assumes that the name is prepended by the 
+# specify which state. Code assumes that the name is prepended by the
 # aneruysmNeckArray name
 arrayName = aneurysmState + an.AneurysmNeckArrayName
 
@@ -155,27 +145,43 @@ foamFile = os.path.join(foamFolder, "case.foam")
 # Pathlib will just update mod time if the file already exists
 Path(foamFile).touch(exist_ok=True)
 
-fieldAvgOverTime = fvtk.FieldSurfaceAverageOnPatch(
-                       foamFile,
-                       fieldName,
-                       surfacePatch,
-                       patch_surface_id=neckSurface,
-                       patch_array_name=arrayName,
-                       patch_boundary_value=0.5,
-                       multi_region=multiRegion,
-                       region_name=regionName
-                   )
+fieldNames = [fieldName]
+
+emptySurface, fields = fvtk.GetPatchFieldOverTime(
+                           foamFile,
+                           field_names=fieldNames,
+                           active_patch_name=surfacePatchName,
+                           multi_region=multiRegion,
+                           region_name=regionName
+                       )
+
+scaleMeterToMM = 1.0e3
+# Now, compute the surface-average of each field over time
+fieldSurfAvg = fvtk.FieldSurfaceAverageOnPatch(
+                   tools.ScaleVtkObject(
+                       emptySurface,
+                       scaleMeterToMM
+                   ),
+                   fields,
+                   patch_surface_id=neckSurface,
+                   patch_array_name=an.AneurysmNeckArrayName,
+                   patch_boundary_value=0.5
+               )
 
 # Write temporal data
-with open(temporalDataFile, "a") as file_:
-    file_.write(
-        "Time,{}\n".format(fieldName)
+with open(temporalDataFile, "a") as tfile:
+
+    tfile.write(
+        ",".join(
+            ["Time"] + fieldNames
+        ) + "\n"
     )
 
-    for time in sorted(fieldAvgOverTime.keys()):
-        file_.write(
-            "{},{}\n".format(
-                time, 
-                fieldAvgOverTime.get(time)
-            )
+    for time in sorted(fieldSurfAvg[fieldNames[0]].keys()):
+
+        tfile.write(
+            ",".join(
+                [str(time)] + [str(fieldSurfAvg[fname].get(time))
+                               for fname in fieldNames]
+            ) + "\n"
         )
