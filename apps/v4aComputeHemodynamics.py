@@ -39,11 +39,31 @@ def generate_arg_parser():
         required=True
     )
 
+    # Optional
     parser.add_argument(
         '--density',
         help="density of blood (default 1056.0 kg/m3)",
         type=float,
         default=1056.0
+    )
+
+    parser.add_argument(
+        '--computegon',
+        help="Flag to activate GON computation (computationally expensive)",
+        dest="computegon",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        '--computeafi',
+        help="Flag to activate AFI computation (computationally expensive)",
+        dest="computeafi",
+        action="store_true",
+    )
+
+    parser.set_defaults(
+        computegon=False,
+        computeafi=False
     )
 
     return parser
@@ -90,6 +110,9 @@ hemodynamicsFile = args.ofile
 temporalDataFile = args.otemporalfile
 bloodDensity     = args.density
 
+boolComputeGon   = args.computegon
+boolComputeAfi   = args.computeafi
+
 # Get peak systole and low diastole instant per case
 foamFile = os.path.join(foamFolder, "case.foam")
 peakSystoleInstant, lowDiastoleInstant = get_peak_instant(foamFolder)
@@ -102,25 +125,22 @@ print(
     end="\n"
 )
 
+# TODO: include multiregion support
 hemodynamicsSurface = hm.Hemodynamics(
                           foamFile,
                           peakSystoleInstant,
                           lowDiastoleInstant,
-                          compute_gon=False,
-                          compute_afi=True
+                          patch=surfacePatch,
+                          compute_gon=boolComputeGon,
+                          compute_afi=boolComputeAfi
                       )
 
 # Scale the surface back to millimeters (fields are not scaled)
 # before computing the curvatures
-scaling = vmtkscripts.vmtkSurfaceScaling()
-scaling.Surface = hemodynamicsSurface
-scaling.ScaleFactor = 1.0e3
-scaling.Execute()
-
-hemodynamicsSurface = scaling.Surface
-
-# Compute the curvature of the surface
-# hemoAndCurvaturesSurface = geo.Surface.Curvatures(hemodynamicsSurface)
+hemodynamicsSurface = tools.ScaleVtkObject(
+                          hemodynamicsSurface,
+                          1.0e3
+                      )
 
 tools.WriteSurface(
     hemodynamicsSurface,
