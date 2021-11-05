@@ -72,9 +72,10 @@ def generate_arg_parser():
         required=True
     )
 
+    # Optional
     parser.add_argument(
         '--aneurysmscale',
-        help="Scale factor to control aneurysm global thickness",
+        help="Scale factor to control aneurysm global thickness (default: 0.75)",
         type=float,
         default=0.75,
         required=False
@@ -82,7 +83,8 @@ def generate_arg_parser():
 
     parser.add_argument(
         '--influencedistance',
-        help="Distance, in millimeters, from neck line influenced by the aneurysm",
+        help="""Distance, in millimeters, from neck line influenced by the
+            aneurysm (default: 0.5)""",
         type=float,
         default=0.5,
         required=False
@@ -98,7 +100,7 @@ def generate_arg_parser():
 
     parser.add_argument(
         '--case',
-        help="The path to the OpenFOAM case where to store the files",
+        help="The path to the OpenFOAM case where to store the files (default: cwd)",
         type=str,
         required=False,
         default=os.getcwd()
@@ -110,7 +112,7 @@ def generate_arg_parser():
         type=str,
         required=False,
         default=os.path.join(
-                    os.getcwd(), 
+                    os.getcwd(),
                     "surfaceWithUniformAneurysmArrays.vtp"
                 )
     )
