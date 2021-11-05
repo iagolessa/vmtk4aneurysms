@@ -33,7 +33,8 @@ def generate_arg_parser():
 
     parser.add_argument(
         '--patch',
-        help="The patch where to compute the hemodynamics",
+        help="""The patch where to compute the wall dynamics (either the patch
+             name, or 'volumeMesh' to get the internal mesh)""",
         type=str,
         required=True
     )
@@ -141,7 +142,7 @@ def get_peak_instant(case_folder):
 
 # Names
 foamFolder       = args.case
-surfacePatchName = args.patch
+surfacePatchName = "" if args.patch == "volumeMesh" else args.patch
 wallDynamicsFile = args.ofile
 temporalDataFile = args.otemporalfile
 multiRegion      = args.multiregion
@@ -154,6 +155,8 @@ if multiRegion == True and args.region == "":
 else:
     regionName = args.region
 
+if args.patch == "volumeMesh" and wallDynamicsFile.endswith(".vtp"):
+    raise ValueError("If volume mesh is extract, passa a file name with extension .vtk")
 
 fieldNames = ["D",
               "sigmaEq",
@@ -221,10 +224,17 @@ for arrayName in displacementArrays:
 
     npSurface.CellData.append(array, arrayName)
 
-tools.WriteSurface(
-    npSurface.VTKObject,
-    wallDynamicsFile
-)
+if args.patch == "volumeMesh":
+    tools.WriteUnsGrid(
+        npSurface.VTKObject,
+        wallDynamicsFile
+    )
+
+else:
+    tools.WriteSurface(
+        npSurface.VTKObject,
+        wallDynamicsFile
+    )
 
 # Now, compute the surface-average of each field over time
 fieldSurfAvg = fvtk.FieldSurfaceAverageOnPatch(
