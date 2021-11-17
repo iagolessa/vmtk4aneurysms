@@ -240,7 +240,9 @@ else:
 fieldSurfAvg = fvtk.FieldSurfaceAverageOnPatch(
                    emptySurface,
                    fields,
-                   patch_surface_id=tools.ReadSurface(neckSurfaceFile),
+                   patch_surface_id=tools.ReadSurface(neckSurfaceFile) \
+                                    if neckSurfaceFile is not None \
+                                    else None,
                    patch_array_name=aneu.AneurysmNeckArrayName,
                    patch_boundary_value=0.5
                )
