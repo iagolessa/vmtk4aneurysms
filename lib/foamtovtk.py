@@ -91,41 +91,50 @@ def _read_foam_data(
     blocks  = ofReader.GetOutput()
     nBlocks = blocks.GetNumberOfBlocks()
 
-    # With the selection of the patch above, here I have to find the
-    # non-empty block. If there is only one block left (the patch)
-    # the loop will work regardless
-    idNonEmptyBlock = nBlocks - 1 # default non empty block to last one
-    nNonEmptyBlocks = 0
+    # If the case is not multiregion and the internalMesh is sought then, the
+    # block will result in the internal mesh directly
+    if not multi_region and active_patch_name == "internalMesh":
+        activePatch = blocks.GetBlock(0)
 
-    for iBlock in range(nBlocks):
-        block = blocks.GetBlock(iBlock)
+    # All the other cases (no multiregion but a patch, any case
+    # of the multiregion situation) then there will be a multiblock dataset
+    else:
+        # Hence I have to find the
+        # non-empty block. If there is only one block left (the patch)
+        # the loop will work regardless
+        idNonEmptyBlock = nBlocks - 1 # default non empty block to last one
+        nNonEmptyBlocks = 0
 
-        if block.GetNumberOfBlocks() != 0:
-            idNonEmptyBlock = iBlock
-            nNonEmptyBlocks += 1
+        for iBlock in range(nBlocks):
+            block = blocks.GetBlock(iBlock)
+
+            if block.GetNumberOfBlocks() != 0:
+                idNonEmptyBlock = iBlock
+                nNonEmptyBlocks += 1
+
+            else:
+                continue
+
+        if nNonEmptyBlocks != 1:
+            raise ValueError(
+                      "There is more than one non-empty block when extracting {}.".format(
+                          active_patch_name
+                      )
+                  )
+
+        # Get block
+        block = blocks.GetBlock(idNonEmptyBlock)
+
+        # The active patch is the only one left
+        if multi_region and patch_name != "":
+        # (?) maybe this is a less error-prone alternative
+        #if type(activePatch) == multiBlockType:
+            # Multi region requires a multilevel block extraction
+            activePatch = block.GetBlock(0).GetBlock(0)
 
         else:
-            continue
+            activePatch = block.GetBlock(0)
 
-    if nNonEmptyBlocks != 1:
-        raise ValueError(
-                  "There is more than one non-empty block when extracting {}.".format(
-                      active_patch_name
-                  )
-              )
-
-    # Get block
-    block = blocks.GetBlock(idNonEmptyBlock)
-
-    # The active patch is the only one left
-    if multi_region and patch_name != "":
-    # (?) maybe this is a less error-prone alternative
-    #if type(activePatch) == multiBlockType:
-        # Multi region requires a multilevel block extraction
-        activePatch = block.GetBlock(0).GetBlock(0)
-
-    else:
-        activePatch = block.GetBlock(0)
 
     return (ofReader, activePatch)
 
