@@ -55,14 +55,12 @@ def generate_arg_parser():
     )
 
     parser.add_argument(
-        '--ofile',
-        help="Output file with thickness and material constants fields",
+        '--ofilename',
+        help="""Output file name with thickness and material constants fields
+            (stored in the case directory, default: surfaceWithAbnormalAneurysmArrays.vtp)""",
         type=str,
         required=False,
-        default=os.path.join(
-                    os.getcwd(),
-                    "surfaceWithAbnormalAneurysmArrays.vtp"
-                )
+        default="surfaceWithAbnormalAneurysmArrays.vtp"
     )
 
     parser.add_argument(
@@ -123,8 +121,12 @@ args = parser.parse_args()
 
 uniformSurface   = tools.ReadSurface(args.surfacefile)
 hemoSurface      = tools.ReadSurface(args.hemodynamicsfile)
-abnormalOutFile  = args.ofile
 casePath         = args.case
+abnormalOutFile  = os.path.join(
+                      args.case,
+                      args.ofilename
+                   )
+
 
 typeIThicknessFactor  = args.typeIthicknessscale  # red regions
 typeIIThicknessFactor = args.typeIIthicknessscale # atherosclerotic regions

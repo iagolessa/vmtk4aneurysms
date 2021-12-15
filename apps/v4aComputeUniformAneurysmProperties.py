@@ -107,14 +107,12 @@ def generate_arg_parser():
     )
 
     parser.add_argument(
-        '--ofile',
-        help="Output file with thickness and material constants fields",
+        '--ofilename',
+        help="""Output file name with thickness and material constants fields
+            (stored in the case directory, default: surfaceWithUniformAneurysmArrays.vtp)""",
         type=str,
         required=False,
-        default=os.path.join(
-                    os.getcwd(),
-                    "surfaceWithUniformAneurysmArrays.vtp"
-                )
+        default="surfaceWithUniformAneurysmArrays.vtp"
     )
 
     return parser
@@ -194,7 +192,11 @@ aneurysmScale   = args.aneurysmscale
 influenceDist   = args.influencedistance
 updateThickness = args.updatethickness
 casePath        = args.case
-uniformAneurysmSurfaceFile = args.ofile
+
+uniformAneurysmSurfaceFile = os.path.join(
+                                 args.case,
+                                 args.ofilename
+                             )
 
 thicknessArrayName = "Thickness"
 
