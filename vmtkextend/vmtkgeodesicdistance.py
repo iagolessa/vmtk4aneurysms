@@ -1,8 +1,5 @@
 #! /usr/bin/env python
 
-# Creating Python Class to handle aneurysms operations
-# My idea is to expand this class in the future:
-# extract the aneyurysm and calculate other geometric parameters
 import sys
 import vtk
 
@@ -27,15 +24,18 @@ class vmtkGeodesicDistance(pypes.pypeScript):
         self.Interpolator  = None
         self.GeodesicDistanceArrayName = "GeodesicDistance"
 
-        self.SetScriptName('vmtkgeodesicdistancefromneckline')
+        self.SetScriptName('vmtkgeodesicdistance')
         self.SetScriptDoc(
-            """compute the geodesic distance from an aneurysm neck line draw
-            interactively by the user"""
+            """compute the geodesic distance from a closed contour draw on
+            a surface"""
         )
 
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
+
+            ['GeodesicDistanceArrayName','distancearrayname', 'str', 1, '',
+                'name of the distance array']
         ])
 
         self.SetOutputMembers([
@@ -121,7 +121,7 @@ class vmtkGeodesicDistance(pypes.pypeScript):
 
         self.vmtkRenderer.AddKeyBinding(
             'i',
-            'Start interaction: select aneurysm neck',
+            'Start interaction: select contour',
             self.InteractCallback
         )
 
