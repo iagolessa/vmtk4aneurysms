@@ -145,6 +145,7 @@ def WallTypeClassification(surface: names.polyDataType,
                       tools.GetCellArrays(surface)
 
     if aneurysmNeckArrayName not in arraysInSurface:
+        print("Neck array name not in surface. Computing it.")
         surface = aneu.SelectAneurysm(surface)
 
     elif names.TAWSS not in arraysInSurface:
