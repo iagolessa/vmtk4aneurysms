@@ -341,31 +341,31 @@ class Surface():
         surfaceLocalShapes = {
             'ellipticalConvex' :
                 {'condition': (GaussCurvature >  0.0) & (meanCurvature >  0.0),
-                 'id': 1},
+                 'id': 0},
             'ellipticalConcave':
                 {'condition': (GaussCurvature >  0.0) & (meanCurvature <  0.0),
-                 'id': 2},
+                 'id': 1},
             'elliptical'       : # apparently, not possible
                 {'condition': (GaussCurvature >  0.0) & (meanCurvature == 0.0),
-                 'id': 3},
+                 'id': 2},
             'hyperbolicConvex' :
                 {'condition': (GaussCurvature <  0.0) & (meanCurvature >  0.0),
-                 'id': 4},
+                 'id': 3},
             'hyperboliConcave' :
                 {'condition': (GaussCurvature <  0.0) & (meanCurvature <  0.0),
-                 'id': 5},
+                 'id': 4},
             'hyperbolic'       :
                 {'condition': (GaussCurvature <  0.0) & (meanCurvature == 0.0),
-                 'id': 6},
+                 'id': 5},
             'cylindricConvex'  :
                 {'condition': (GaussCurvature == 0.0) & (meanCurvature >  0.0),
-                 'id': 7},
+                 'id': 6},
             'cylindricConcave' :
                 {'condition': (GaussCurvature == 0.0) & (meanCurvature <  0.0),
-                 'id': 8},
+                 'id': 7},
             'planar'           :
                 {'condition': (GaussCurvature == 0.0) & (meanCurvature == 0.0),
-                 'id': 9}
+                 'id': 8}
         }
 
         LocalShapeArray = zeros(shape=len(meanCurvature), dtype=int)
