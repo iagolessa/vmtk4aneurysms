@@ -2,6 +2,7 @@
 """Compute surface-average field over aneurysm surface over time."""
 
 import argparse
+from vmtk4aneurysms.aneurysms import AneurysmNeckArrayName
 
 def generate_arg_parser():
     """Creates and return a parser object for this app."""
@@ -67,12 +68,11 @@ def generate_arg_parser():
     )
 
     parser.add_argument(
-        '--state',
-        help="In case of multiple aneurysms, key to identify on aneurysm",
+        '--patchfield',
+        help="Name of the arrays that marks the patch where to integrate",
         type=str,
-        choices=["ruptured", "unruptured"],
         required=False,
-        default=""
+        default=AneurysmNeckArrayName
     )
 
     parser.add_argument(
@@ -117,7 +117,7 @@ fieldName        = args.field
 temporalDataFile = args.ofile
 neckSurface      = tools.ReadSurface(args.patchfile) \
                     if args.patchfile is not None else None
-aneurysmState    = args.state
+patchFieldName   = args.patchfield
 multiRegion      = args.multiregion
 
 if multiRegion == True and args.region == "":
@@ -132,12 +132,6 @@ print(
     ),
     end="\n"
 )
-
-# Compute surface average over time.
-# In the case where the vasculature has >= 2 aneurysms (case4, so far)
-# specify which state. Code assumes that the name is prepended by the
-# aneruysmNeckArray name
-arrayName = aneurysmState + an.AneurysmNeckArrayName
 
 foamFile = os.path.join(foamFolder, "case.foam")
 
@@ -164,7 +158,7 @@ fieldSurfAvg = fvtk.FieldSurfaceAverageOnPatch(
                    ),
                    fields,
                    patch_surface_id=neckSurface,
-                   patch_array_name=an.AneurysmNeckArrayName,
+                   patch_array_name=patchFieldName,
                    patch_boundary_value=0.5
                )
 

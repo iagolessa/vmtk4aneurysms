@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import argparse
+from vmtk4aneurysms.aneurysms import AneurysmNeckArrayName
 
 def generate_arg_parser():
     """Creates and return a parser object for this app."""
@@ -88,12 +89,11 @@ def generate_arg_parser():
     )
 
     parser.add_argument(
-        '--state',
-        help="In case of multiple aneurysms, key to identify on aneurysm",
+        '--patchfield',
+        help="Name of the arrays that marks the patch where to integrate",
         type=str,
-        choices=["ruptured", "unruptured"],
         required=False,
-        default=""
+        default=AneurysmNeckArrayName
     )
 
     return parser
@@ -118,7 +118,6 @@ import vmtk4aneurysms.lib.polydatageometry as geo
 import vmtk4aneurysms.lib.foamtovtk as fvtk
 
 import vmtk4aneurysms.hemodynamics as hm
-import vmtk4aneurysms.aneurysms as aneu
 import vmtk4aneurysms.wallmotion as wm
 
 def folders_in(path_to_parent):
@@ -148,7 +147,7 @@ temporalDataFile = args.otemporalfile
 multiRegion      = args.multiregion
 
 neckSurfaceFile  = args.patchfile
-aneurysmState    = args.state
+patchFieldName   = args.patchfield
 
 if multiRegion == True and args.region == "":
     raise NameError("Provide valid region name.")
@@ -243,7 +242,7 @@ fieldSurfAvg = fvtk.FieldSurfaceAverageOnPatch(
                    patch_surface_id=tools.ReadSurface(neckSurfaceFile) \
                                     if neckSurfaceFile is not None \
                                     else None,
-                   patch_array_name=aneu.AneurysmNeckArrayName,
+                   patch_array_name=patchFieldName,
                    patch_boundary_value=0.5
                )
 
