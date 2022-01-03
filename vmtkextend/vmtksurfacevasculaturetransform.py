@@ -22,6 +22,8 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
         self.Remesh = False
         self.Cap = False
         self.AddFlowExtensions = False
+        self.Center = [0, 0, 0]
+        self.Orientation = [0, 0, -1]
 
         self.SetScriptName('vmtksurfacevasculaturetransform')
         self.SetScriptDoc('Transform a vasculature surface by rotating and '
@@ -43,7 +45,13 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
                 'to cap surface after transfrom it'],
 
             ['AddFlowExtensions' , 'addextensions', 'bool', 1, '',
-                'to add short flow extensions before transforming the surface']
+                'to add short flow extensions before transforming the surface'],
+
+            ['Orientation' , 'orientation', 'float', -1, '',
+                'list with the desired orientation (default: [0,0,-1])'],
+
+            ['Center' , 'center', 'float', -1, '',
+                'list with the desired translation center (default: [0,0,0])']
         ])
 
         self.SetOutputMembers([
@@ -121,10 +129,9 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
                 maxRadius = radius
 
         # The new origin and outward normal of the inlet surface
-        # Eventual TODO: set as user input
         zero3dVector = [0.0, 0.0, 0.0]
-        origin = zero3dVector
-        orientation = [0, 0, -1]
+        origin = self.Center
+        orientation = self.Orientation
 
         currentOrigin = refSystems.GetPoint(idMaxRadius)
         currentNormal1 = refSystems.GetPointData().GetArray("BoundaryNormals").GetTuple3(idMaxRadius)
