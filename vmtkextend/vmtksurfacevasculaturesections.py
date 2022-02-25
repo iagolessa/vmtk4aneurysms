@@ -20,7 +20,8 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         self.Surface = None
         self.Centerlines = None
         self.Remesh = False
-        self.Clip = True
+        self.ClipSurface = False
+        self.ClipSections = True
         self.SpheresDistance = 1
         self.ElementAreaSize = 0.001
 
@@ -42,8 +43,11 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
             ['Remesh' , 'remesh', 'bool', 1, '',
                 'apply remeshing procedure to the sections'],
 
-            ['Clip' , 'clip' ,'bool', 1,'',
+            ['ClipSurface' , 'clipsurface' ,'bool', 1,'',
                 'clip surface with a box before computing sections'],
+
+            ['ClipSections' , 'clipsections' ,'bool', 1,'',
+                'clip (potentially worng) sections with a box'],
 
             ['SpheresDistance', 'spheresdistance', 'int', 1, '',
                 'the number of spheres to be accouted as '
@@ -196,7 +200,7 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
 
     def Execute(self):
 
-        if self.Clip:
+        if self.ClipSurface:
             self.ClipModel()
 
         cleaner = vtk.vtkCleanPolyData()
@@ -266,7 +270,8 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
 
         # Include a final clip to remove eventual "slices" that can 
         # renders the remeshing wrong
-        self.ClipModel()
+        if self.ClipSections:
+            self.ClipModel()
 
         if self.Remesh:
             # Remeshing the surface with quality triangles

@@ -23,13 +23,6 @@ def generate_arg_parser():
     )
 
     parser.add_argument(
-        '--surfacefile',
-        help="The original surface of the simulated case (in millimeters)",
-        type=str,
-        required=True
-    )
-
-    parser.add_argument(
         '--ofile',
         help="Output sections file with U and p fields.",
         type=str,
@@ -37,6 +30,22 @@ def generate_arg_parser():
     )
 
     # Optional
+    parser.add_argument(
+        '--patch',
+        help="The patch where to compute the hemodynamics (default: 'wall')",
+        type=str,
+        required=False,
+        default="wall"
+    )
+
+    parser.add_argument(
+        '--sectionsfile',
+        help="The sections surface of the simulated case (in millimeters)",
+        type=str,
+        required=False,
+        default=None
+    )
+
     parser.add_argument(
         '--multiregion',
         help="Indicate that the simulation has multiregions",
@@ -100,9 +109,11 @@ def get_peak_instant(case_folder):
 
 # Names
 foamFolder       = args.case
-surfaceFileName  = args.surfacefile
+surfacePatch     = args.patch
 outSectionsFile  = args.ofile
 multiRegion      = args.multiregion
+
+sectionsFile     = args.sectionsfile
 
 if multiRegion == True and args.region == "":
     raise NameError("Provide valid region name.")
@@ -135,8 +146,6 @@ print(
 )
 
 # Read hemodynamics surface
-hemoSurface = tools.ReadSurface(surfaceFileName)
-
 # Compute volume stats
 emptyVolume, fields = fvtk.GetPatchFieldOverTime(
                           foamFile,
@@ -158,30 +167,41 @@ statsVolume = fvtk.FieldTimeStats(
 scaleMeterToMM = 1.0e3
 statsVolume = tools.ScaleVtkObject(statsVolume, scaleMeterToMM)
 
-# tools.WriteUnsGrid(
-#     statsVolume,
-#     os.path.join(foamFolder, "statsFlowDynamics.vtk")
-# )
+if not sectionsFile:
+    print(
+        "No sections file passed, computing it based on", surfacePatch, "patch",
+        end="\n"
+    )
 
-capper = vmtkscripts.vmtkSurfaceCapper()
-capper.Surface = hemoSurface
-capper.Interactive = False
-capper.Method = "centerpoint"
-capper.Execute()
+    # Get wall surface
+    wallSurface, _ = fvtk.GetPatchFieldOverTime(
+                              foamFile,
+                              field_names=[],
+                              active_patch_name=surfacePatch,
+                              multi_region=multiRegion,
+                              region_name=regionName
+                          )
 
-tools.ViewSurface(capper.Surface)
+    wallSurface = tools.ScaleVtkObject(wallSurface, scaleMeterToMM)
 
-# Compute the sections surface
-computeSections = customscripts.vmtkSurfaceVasculatureSections()
-computeSections.Surface = hemoSurface
-computeSections.Remesh  = True
-computeSections.Clip    = False
-computeSections.Execute()
+    # Compute the sections surface
+    computeSections = customscripts.vmtkSurfaceVasculatureSections()
+    computeSections.Surface = wallSurface
+    computeSections.Remesh  = True
+    computeSections.ClipBefore = False
+    computeSections.ClipSections = False
+    computeSections.Execute()
+
+    sectionsSurface = computeSections.Surface
+
+else:
+    sectionsSurface = tools.ReadSurface(sectionsFile)
+
 
 # Finally, resample to mid surface
 statsSectionsSurface = tools.ResampleFieldsToSurface(
                               statsVolume,
-                              computeSections.Surface
+                              sectionsSurface
                           )
 
 # Write mid surface
