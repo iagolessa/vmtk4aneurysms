@@ -115,11 +115,12 @@ def SurfaceFieldStatistics(
     computation of the stats.
     """
 
-    if type(surface) != names.polyDataType:
-        raise TypeError("Need vtkPolyData surface, not {}.". format(
-                    type(surface)
-                 )
-              )
+    # if type(surface) != names.polyDataType:
+    #     raise TypeError("Need vtkPolyData surface, not {}.". format(
+    #                 type(surface)
+    #              )
+    #           )
+
     if surface.GetNumberOfCells() == 0:
         raise ValueError("The surface passed has no cells!")
 
