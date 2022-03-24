@@ -33,10 +33,14 @@ from . import aneurysms as aneu
 # Default density used for WSS
 _density = 1056.0 # kg/m3
 
-def _wss_over_time(foam_case: str,
-                   density=_density,
-                   field_name=names.foamWSS,
-                   patch=names.wallPatchName) -> tuple:
+def _wss_over_time(
+        foam_case: str,
+        density: float=_density,
+        field_name: str=names.foamWSS,
+        patch: str=names.wallPatchName,
+        multi_region: bool=False,
+        region_name: str=''
+    )   -> tuple:
     """Get surface object and the WSS vector field over time.
 
     Given the OpenFOAM case with the WSS calculated at each time-step, extracts
@@ -51,13 +55,15 @@ def _wss_over_time(foam_case: str,
     surface, fieldsOverTime = fvtk.GetPatchFieldOverTime(
                                   foam_case,
                                   field_name,
-                                  patch
+                                  patch,
+                                  multi_region=multi_region,
+                                  region_name=region_name
                               )
 
     fieldOverTime = fieldsOverTime[field_name]
 
     # Compute the WSS = density * wallShearComponent
-    wssVectorOverTime = {time: _density*wssField
+    wssVectorOverTime = {time: density*wssField
                          for time, wssField in fieldOverTime.items()}
 
     return surface, wssVectorOverTime
@@ -143,14 +149,18 @@ def _compute_gon(np_surface,
     setArray(avgMagGVecArray, names.WSSSGmag)
 
 
-def Hemodynamics(foam_case: str,
-                 t_peak_systole: float,
-                 t_low_diastole: float,
-                 density: float = _density,  # kg/m3
-                 field_name: str = names.foamWSS,
-                 patch: str = names.wallPatchName,
-                 compute_gon: bool = False,
-                 compute_afi: bool = False) -> names.polyDataType:
+def Hemodynamics(
+        foam_case: str,
+        t_peak_systole: float,
+        t_low_diastole: float,
+        density: float=_density,  # kg/m3
+        field_name: str=names.foamWSS,
+        patch: str=names.wallPatchName,
+        compute_gon: bool=False,
+        compute_afi: bool=False,
+        multi_region: bool=False,
+        region_name: str=''
+    )   -> names.polyDataType:
     """Compute hemodynamics of WSS field.
 
     Based on the temporal statistics of the WSS field over a vascular and
@@ -165,7 +175,9 @@ def Hemodynamics(foam_case: str,
                                foam_case,
                                density=density,
                                field_name=field_name,
-                               patch=patch
+                               patch=patch,
+                               multi_region=multi_region,
+                               region_name=region_name
                            )
 
     # Compute WSS time statistics
@@ -412,13 +424,17 @@ def WssParentVessel(parent_artery_surface: names.polyDataType,
     # average = np.average(np.array(wssArray))
     return pmath.SurfaceAverage(parentArtery, wss_field)
 
-def WssSurfaceAverage(foam_case: str,
-                      neck_surface: names.polyDataType = None,
-                      neck_array_name: str = aneu.AneurysmNeckArrayName,
-                      neck_iso_value: float = aneu.NeckIsoValue,
-                      density: float = _density,
-                      field_name: str = names.foamWSS,
-                      patch: str = names.wallPatchName):
+def WssSurfaceAverage(
+        foam_case: str,
+        neck_surface: names.polyDataType=None,
+        neck_array_name: str=aneu.AneurysmNeckArrayName,
+        neck_iso_value: float=aneu.NeckIsoValue,
+        density: float=_density,
+        field_name: str=names.foamWSS,
+        patch: str=names.wallPatchName,
+        multi_region: bool=False,
+        region_name: str=''
+    ):
     """Compute the surface-averaged WSS over time.
 
     Function to compute surface integrals of WSS over an aneurysm or vessels
@@ -435,7 +451,9 @@ def WssSurfaceAverage(foam_case: str,
                                foam_case,
                                density=density,
                                field_name=field_name,
-                               patch=patch
+                               patch=patch,
+                               multi_region=multi_region,
+                               region_name=region_name
                            )
 
     # Map neck array into surface
@@ -478,14 +496,18 @@ def WssSurfaceAverage(foam_case: str,
     return {time: wss_average_on_surface(time)
             for time in temporalWss.keys()}
 
-def LsaInstant(foam_case: str,
-               neck_surface: names.polyDataType,
-               low_wss: float,
-               neck_array_name: str = aneu.AneurysmNeckArrayName,
-               neck_iso_value: float = aneu.NeckIsoValue,
-               density: float = _density,
-               field_name: str = names.foamWSS,
-               patch: str = names.wallPatchName) -> list:
+def LsaInstant(
+        foam_case: str,
+        neck_surface: names.polyDataType,
+        low_wss: float,
+        neck_array_name: str=aneu.AneurysmNeckArrayName,
+        neck_iso_value: float=aneu.NeckIsoValue,
+        density: float=_density,
+        field_name: str=names.foamWSS,
+        patch: str=names.wallPatchName,
+        multi_region: bool=False,
+        region_name: str=''
+    )   -> list:
     """Compute the LSA over time.
 
     Calculates the LSA (low WSS area ratio) for aneurysm simulations performed
@@ -518,7 +540,9 @@ def LsaInstant(foam_case: str,
                                foam_case,
                                density=density,
                                field_name=field_name,
-                               patch=patch
+                               patch=patch,
+                               multi_region=multi_region,
+                               region_name=region_name
                            )
 
     # Project the aneurysm neck contour array to the surface
