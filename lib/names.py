@@ -1,3 +1,5 @@
+"""Definitions of names and other variables."""
+
 import vtk
 
 # Attribute array names

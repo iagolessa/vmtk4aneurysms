@@ -1,4 +1,4 @@
-"""Provide functions to compute geometric properties of VTK poly data."""
+"""Collection of tools to compute geometric properties of VTK objects."""
 
 import vtk
 import math
@@ -12,7 +12,10 @@ from . import names
 from . import constants as const
 from . import polydatatools as tools
 
-def Distance(point1, point2):
+def Distance(
+        point1: tuple,
+        point2: tuple
+    )   -> float:
     """Compute distance between two points."""
     sqrDistance = vtk.vtkMath.Distance2BetweenPoints(
         point1,
@@ -21,8 +24,10 @@ def Distance(point1, point2):
 
     return math.sqrt(sqrDistance)
 
-def SpatialGradient(surface: names.polyDataType,
-                    field_name: str) -> names.polyDataType:
+def SpatialGradient(
+        surface: names.polyDataType,
+        field_name: str
+    )   -> names.polyDataType:
     """Compute gradient of field on a surface."""
 
     gradient = vtk.vtkGradientFilter()
@@ -41,8 +46,10 @@ def SpatialGradient(surface: names.polyDataType,
 
     return gradient.GetOutput()
 
-def SurfaceGradient(surface: names.polyDataType,
-                    field_name: str) -> names.polyDataType:
+def SurfaceGradient(
+        surface: names.polyDataType,
+        field_name: str
+    )   -> names.polyDataType:
     """Compute surface gradient of field on a surface.
 
     Given the surface (vtkPolyData) and the scalar field name, compute the
@@ -85,7 +92,7 @@ def SurfaceGradient(surface: names.polyDataType,
 
 def ContourPerimeter(
         contour: names.polyDataType
-    ) -> float:
+    )   -> float:
     """Compute the perimeter of a contour defined in 3D space."""
 
     perimeter = 0.0
@@ -121,7 +128,7 @@ def ContourPerimeter(
 
 def ContourBarycenter(
         contour: names.polyDataType
-    ) -> tuple:
+    )   -> tuple:
     """Return contour barycenter."""
 
     # For the barycenter, the contour can be open
@@ -135,8 +142,9 @@ def ContourBarycenter(
 
     return tuple(barycenter)
 
-
-def ContourPlaneArea(contour):
+def ContourPlaneArea(
+        contour: names.polyDataType
+    )   -> float:
     """Compute plane surface area enclosed by a 3D contour path."""
 
     # Fill contour
@@ -164,11 +172,9 @@ def ContourPlaneArea(contour):
     # # Alternative procedure based on closing the aneurysm
     # pass
 
-# TODO: overload this functions: receive a surface closed too
-# investigate functionoverloading for modules in Python
-
-
-def ContourHydraulicDiameter(contour):
+def ContourHydraulicDiameter(
+        contour: names.polyDataType
+    )   -> float:
     """Compute hydraulic diameter of a plane contour."""
 
     perimeter = ContourPerimeter(contour)
@@ -179,14 +185,19 @@ def ContourHydraulicDiameter(contour):
 
 
 # TODO: review this function to check closed contour
-def ContourIsClosed(contour):
+def ContourIsClosed(
+        contour: names.polyDataType
+    )   -> bool:
     """Check if contour (vtkPolyData) is closed."""
     nVertices = contour.GetNumberOfPoints()
     nEdges = contour.GetNumberOfCells()
 
     return nVertices == nEdges
 
-def WarpPolydata(polydata, field_name):
+def WarpPolydata(
+        polydata: names.polyDataType,
+        field_name: str
+    )   -> names.polyDataType:
     """Given a vtkPolyData with a field, warp it by the field."""
 
     # Convert cell data to point data
@@ -292,7 +303,10 @@ class Surface():
         (2004) for intracranial aneurysms, if Kg and Km are the Gauss and mean
         curvature, we have:
 
+        .. table ::
+            =========================================
             Kg   Km     Local Shape         Int Label
+            =========================================
             > 0  > 0    Elliptical Convex   0
             > 0  < 0    Elliptical Concave  1
             > 0  = 0    Not possible        2
@@ -302,6 +316,7 @@ class Surface():
             = 0  > 0    Cylidrical Convex   6
             = 0  < 0    Cylidrical Concave  7
             = 0  = 0    Planar              8
+            =========================================
 
         The name of the generated arrays are: "Mean_Curvature",
         "Gauss_Curvature", and "Local_Shape_Type".
@@ -382,13 +397,15 @@ class Surface():
         return self._surface_object
 
     def GetSurfaceArea(self):
+        """Return the surface total area."""
         return Surface.Area(self._surface_object)
 
     def GetSurfaceVolume(self):
+        """Return the surface total enclosed volume."""
         return Surface.Volume(self._surface_object)
 
     def GetCellArrays(self):
-        """Return the names and number of arrays for a vtkPolyData."""
+        """Return the names of arrays for a vtkPolyData."""
         return tools.GetCellArrays(self._surface_object)
 
     def GetPointArrays(self):

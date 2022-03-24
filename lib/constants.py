@@ -1,3 +1,5 @@
+"""Mathematical and physical constants."""
+
 import math
 import vtk
 

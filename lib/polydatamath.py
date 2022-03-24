@@ -1,3 +1,5 @@
+"""Collection of mathematical functions that operates on VTK objects."""
+
 import sys
 import numpy as np
 from typing import Union
@@ -96,7 +98,6 @@ def SurfaceAverage(
         raise TypeError(
                 "VTK object must be either vtkPolyData or vtkUnstructuredGrid."
               )
-
 
 def SurfaceFieldStatistics(
         surface: names.polyDataType,

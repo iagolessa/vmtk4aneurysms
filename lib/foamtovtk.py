@@ -1,4 +1,4 @@
-"""Module with functions bridging FOAM to VTK."""
+"""Collection of conversion tools between OpenFOAM and VTK."""
 
 import sys
 import warnings
@@ -23,21 +23,20 @@ def _read_foam_data(
     set_cell_to_point: bool=False
 )   -> (names.foamReaderType,
         Union[names.polyDataType, names.unstructuredGridType]):
-    """Reads and process OpenFOAM data.
+    """Read and process OpenFOAM data.
 
-    Given a FOAM case file and a patch name, this function reads in the
-    data and returns the OpenFOAM VTK reader and the patch structure
-    (be it a patch or the internal mesh if an empty string is passed
-    to patch_name). By default, it does not assume a multi-region
-    dataset, which should be passed as a bool together with the region
-    name. It loads all the point and cell fields that exists in the
-    meshes.
+    Given a FOAM case file and a patch name, this function reads in the data
+    and returns the OpenFOAM VTK reader and the patch structure (be it a patch
+    or the internal mesh if an empty string is passed to patch_name). By
+    default, it does not assume a multi-region dataset, which should be passed
+    as a bool together with the region name. It loads all the point and cell
+    fields that exists in the meshes.
 
-    By default, it does not convert cell to point fields, although
-    this is possible through the option 'set_cell_to_point'.
+    By default, it does not convert cell to point fields, although this is
+    possible through the option 'set_cell_to_point'.
 
-    If the dataset has temporal data, it can be accessed through the
-    FOAM reader object.
+    If the dataset has temporal data, it can be accessed through the FOAM
+    reader object.
     """
 
     if multi_region and region_name == "":
@@ -145,11 +144,13 @@ def GetPatchFieldOverTime(
         multi_region: bool = False,
         region_name: str = ''
     )   -> (names.polyDataType, dict):
-    """Gets a time-varying patch field from an OpenFOAM case.
+    """Return a time-varying patch field from an OpenFOAM case.
 
-    Given an OpenFOAM case, the field name and the patch name, return a tuple
-    with the patch surface and a dictionary with the time-varying field with
-    the instants as keys and the value the field given as a VTK Numpy Array.
+    Given an OpenFOAM case file (foam_case: path to the .foam file), the field
+    name (or field names as a list) and the patch name (active_patch_name),
+    return a tuple with the patch surface and a dictionary with the
+    time-varying field with the instants as keys and the value the field given
+    as a VTK Numpy Array.
 
     It may also return the volumetric mesh data. In this case, the
     'active_patch_name' passed must be the empty string ("").
@@ -253,27 +254,28 @@ def FieldTimeStats(
     maximum and minimum over time, peak-systole and low-diastole fields.
 
     Arguments:
-        vtk_object (vtkPolyData or vtkUnstructuredGrid) -- the surface or
-            volume where the field is defined;
+    vtk_object (vtkPolyData or vtkUnstructuredGrid) -- the surface or volume
+    where the field is defined;
 
-        temporal_fields (dict) -- a dictionary with the field over each instant
-            defined over vtk_object. If field_names is a list, this must be a
-            dict which keys are the field_names and value a dict with the
-            respective field over time, as follows:
+    temporal_fields (dict) -- a dictionary with the field over each instant
+    defined over vtk_object. If field_names is a list, this must be a dict
+    which keys are the field_names and value a dict with the respective field
+    over time, as follows:
 
-                temporal_fields = {field_name1: {t1: V1, ..., tn: Vn},
-                                   field_name2: {t1: U1, ..., tn: Un},
-                                   ...,
-                                   field_nameN: {t1: W1, ..., tn: Wn}}
+    .. code::
+        temporal_fields = {field_name1: {t1: V1, ..., tn: Vn},
+                           field_name2: {t1: U1, ..., tn: Un},
+                           ...,
+                           field_nameN: {t1: W1, ..., tn: Wn}}
 
-        t_peak_systole (float) -- instant of the peak systole;
+    t_peak_systole (float) -- instant of the peak systole;
 
-        t_low_diastole (float) -- instant of the low diastole;
+    t_low_diastole (float) -- instant of the low diastole;
 
-        field_names (str or list of strs, optional) -- either a string with the
-            field name or a list of string with the all the fields that must be
-            included in the computation. if None, will compute all fields
-            passed through temporal_fields.keys().
+    field_names (str or list of strs, optional) -- either a string with the
+    field name or a list of string with the all the fields that must be
+    included in the computation. if None, will compute all fields passed
+    through temporal_fields.keys().
     """
 
     # Operate on copy of the vtk_object (transform applies the identity
@@ -426,11 +428,13 @@ def FieldSurfaceAverage(
         multi_region: bool = False,
         region_name: str = ''
     )   -> dict:
-    """Compute the surface-averaged field over time.
+    """Compute the surface-averaged metric of a temporal field.
 
-    Function to compute surface integrals of a field over an aneurysm or
-    vessels surface. It takes the OpenFOAM case file. If the field os a vector
-    or tensor, first it computes its L2-norm.
+    Given the foam_case file, compute surface integrals of a field over a
+    specfied patch name.
+
+    .. warning ::
+        If the field os a vector or tensor, first it computes its L2-norm.
     """
     surface, fieldsOverTime = GetPatchFieldOverTime(
                                   foam_case,
@@ -474,23 +478,18 @@ def FieldSurfaceAverageOnPatch(
         patch_array_name: str='',
         patch_boundary_value: float=0.0
     ):
-    """Compute the surface-averaged of a field over time over a patch only.
+    """Compute the surface-averaged of a temporal field over a portion.
 
-    Given an OpenFOAM simulation result, a field and the boundary patch where
-    the field is defined, compute the surface-average of the field over that
-    surface along time.
+    Given a surface patch and the fields defined on it, as obtained by the
+    function GetPatchFieldOverTime, compute the surface-average of the field(s)
+    over that surface along time.
 
-    If a surface, equal to the boundary is passed with an array specifying a
-    patch of the surface with the values 0 in it, compute the surface-average
-    over this patch, instead of the whole surface.
-
-    Function to compute surface integrals of sigma field over an aneurysm or vessels
-    surface. It takes the OpenFOAM case file and an optional surface where it
-    is stored a field with the aneurysm neck line loaded as a ParaView PolyData
-    surface. If the surface is None, it computes the integral over the entire
-    sur- face. It is essential that the surface with the ne- ck array be the
-    same as the wall surface of the OpenFOAM case, i.e. they are the same mesh.
+    To compute the surface-average over a portion only, instead of the whole
+    surface, an extra surface (patch_surface_id), equal to the "vtk_object"
+    must be passed with an array (patch_array_name) specifying a portion of the
+    surface by the value 0 on it.
     """
+
     # Operate on copy of the vtk_object (transform applies the identity
     # transformation if none is passed)
     vtk_object  = tools.CopyVtkObject(vtk_object)

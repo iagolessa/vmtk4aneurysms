@@ -1,4 +1,4 @@
-"""Operations on centerlines"""
+"""Collection of tools that operate or are relateed to centerlines."""
 
 import vtk
 import numpy as np
@@ -24,6 +24,7 @@ def ComputeOpenCenters(
     two lists: one with the inlet coordinates (tuple) and another with the
     outlets coordinates also as tuples of three components:
 
+    .. code::
         Inlet coords:  [(xi, yi, zi)]
         Outlet coords: [(xo1,yo1,zo1),
                         (xo2,yo2,zo2),
@@ -191,9 +192,6 @@ def GetDivergingPoint(
 
     return getPoint0(bifPointIndex)
 
-
-
-
 def ComputeCenterlineGeometry(centerlines):
     """Compute centerline sections and geometry."""
 
@@ -230,11 +228,11 @@ def ComputeTubeSurface(
     vasculature.
 
     Arguments:
-        centerline -- the centerline to compute the tube surface with the radius
-            array.
+    centerline -- the centerline to compute the tube surface with the radius
+    array.
 
     Keyword arguments:
-        smooth -- to smooth tube surface (default True)
+    smooth -- to smooth tube surface (default True)
     """
 
 
@@ -319,10 +317,13 @@ def ComputeVoronoiEnvelope(
     else:
         return envelope
 
+# This function was adapted from the Morphman library,
+# available at https://github.com/KVSlab/morphMan
 def ComputeClPatchEndPointParameters(
         patch_centerlines: names.polyDataType,
         patch_id: int
     )   -> tuple:
+    """Compute the tangent, point and radius at the ends of a centerline."""
 
     # Set cell to a vtk cell
     cell = vtk.vtkGenericCell()

@@ -1,4 +1,4 @@
-"""Provide functions to work with VTK poly data."""
+"""Collection of tools to manipulate and operate on VTK objetcs."""
 
 import os
 import sys
@@ -17,6 +17,7 @@ from . import names
 def UnsGridToPolyData(
         mesh: names.unstructuredGridType
     )   -> names.polyDataType:
+    """Convert a vtkUnstructuredGrid to vtkPolyData."""
 
     meshToSurface = vtk.vtkGeometryFilter()
     meshToSurface.SetInputData(mesh)
@@ -27,6 +28,7 @@ def UnsGridToPolyData(
 def PolyDataToUnsGrid(
         surface: names.polyDataType
     )   -> names.unstructuredGridType:
+    """Convert a vtkPolyData to a vtkUnstructuredGrid."""
 
     surfaceToMesh = vtkvmtk.vtkvmtkPolyDataToUnstructuredGridFilter()
     surfaceToMesh.SetInputData(surface)
@@ -38,6 +40,7 @@ def ScaleVtkObject(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType],
         scale_factor: float
     )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Scale a VTK object by a scale factor."""
 
     # Scaling transform
     scaling = vtk.vtkTransform()
@@ -61,12 +64,12 @@ def ScaleVtkObject(
 def CopyVtkObject(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType]
     )   -> Union[names.polyDataType, names.unstructuredGridType]:
-    """Returns a copy of the vtkPolyData or vtkUnstructuredGrid."""
+    """Returns a copy of the passed vtkPolyData or vtkUnstructuredGrid."""
 
     return ScaleVtkObject(vtk_object, 1.0)
 
 def ReadSurface(file_name: str) -> names.polyDataType:
-    """Read surface file to VTK object.
+    """Read surface file name to VTK object.
 
     Arguments:
     file_name -- complete path with file name
@@ -94,6 +97,7 @@ def ReadSurface(file_name: str) -> names.polyDataType:
 def ReadUnsGrid(
         mesh_file_name: str
     )   -> names.unstructuredGridType:
+    """Read mesh file name to VTK object."""
 
     readMesh = vmtkscripts.vmtkMeshReader()
     readMesh.InputFileName = mesh_file_name
@@ -162,7 +166,7 @@ def ViewSurface(
 
 def WriteSurface(surface: names.polyDataType,
                  file_name: str) -> None:
-    """Write surface vtkPolyData.
+    """Write vtkPolyData to file.
 
     Arguments:
     surface -- surface vtkPolyData object
@@ -194,7 +198,7 @@ def WriteUnsGrid(
         grid: names.unstructuredGridType,
         file_name: str
     )   -> None:
-    """Write vtkUnstructuredGrid to .vtk file."""
+    """Write a vtkUnstructuredGrid to .vtk file."""
 
     writeGrid = vtk.vtkUnstructuredGridWriter()
     writeGrid.SetInputData(grid)
@@ -203,7 +207,7 @@ def WriteUnsGrid(
     writeGrid.Write()
 
 def WriteSpline(points, tangents, file_name):
-    """Write spline from points.
+    """Write spline from a set of points and tangents.
 
     Given a set of points and its tangents at each point, writes to VTP file
     the spline formed by the points set.
@@ -423,7 +427,7 @@ def ProjectCellArray(
         ref_surface: names.polyDataType,
         field_name: str
     )   -> names.polyDataType:
-    """Project a cell field from a reference VTK surface into another one.
+    """Project a cell field from a reference VTK polydata into another one.
 
     Given a vtkPolyData, project a cell field named 'field_name' from a
     reference VTK surface to the original object. Returns a copy of the
@@ -456,12 +460,15 @@ def ResampleFieldsToSurface(
     """Resample fields of a vtkUnstructuredGrid into a surface contained in it.
 
     Given a volumetric mesh (vtkUnstructuredGrid) object with cell or point
-    fields defined on it, resamples these fields to a surface (vtkPolyData)
+    fields defined on it, resample these fields to a surface (vtkPolyData)
     that is contained by the volumetric mesh. The resampling filter resamples
-    all fields to point fields and this procedure may generate erroneous
-    results for cell fields, particularly. Therefore, this function first
-    converts all cell fields to point fields, resamples, and then convert all
-    fields to cell fields again in the resulting mesh.
+    all fields to point fields.
+
+    .. warning ::
+        This procedure may generate erroneous results for cell fields,
+        particularly. Therefore, it first converts all cell fields to point
+        fields, resamples, and then convert all fields to cell fields again in
+        the resulting mesh.
     """
 
     # Before resampling, convert all cell fields to point fields
@@ -483,8 +490,10 @@ def ResampleFieldsToSurface(
 
     return pointToCell.GetOutput()
 
-def CleanupArrays(surface):
-    """Remove any point and/or cell array in a vtkPolyData."""
+def CleanupArrays(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType]
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Remove all point and/or cell arrays in a VTK object."""
 
     for p_array in GetPointArrays(surface):
         surface.GetPointData().RemoveArray(p_array)
@@ -497,10 +506,10 @@ def CleanupArrays(surface):
 
 def ExtractPortion(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType],
-        array_name,
-        isovalue
-    ):
-    """Extract portion of vtkPolyData based on array.
+        array_name: str,
+        isovalue: float
+    )   -> names.polyDataType:
+    """Extract portion of vtkPolyData based on array value.
 
     Given a VTK poly data or unstructured grid, extract the portion of it
     marked by the value 'iso_value' of the field 'array_name'. Notte, it
@@ -556,11 +565,15 @@ def ExtractPortion(
     else:
         return portion
 
-def ExtractConnectedRegion(regions, method, closest_point=None):
+def ExtractConnectedRegion(
+        regions: names.polyDataType,
+        method: str,
+        closest_point: tuple=None
+    )   -> names.polyDataType:
     """Extract the largest or closest to point patch of a disconnected domain.
 
     Given a disconnected surface, extract a portion of the surface by choosing
-    the largest or closest to point patch.
+    the largest patch or the one closest to a point.
     """
 
     triangulator = vtk.vtkTriangleFilter()
@@ -587,7 +600,7 @@ def ClipWithScalar(
         value: float,
         inside_out=True
     )   -> Union[names.polyDataType, names.unstructuredGridType]:
-    """ Clip a vtkPolyData or vtkUnstructuredGrid with scalar field.
+    """Clip a vtkPolyData or vtkUnstructuredGrid with scalar field.
 
     Provided a vtk object of type vtkPolyData or vtkUnstructuredGrid, a point
     scalar array and a 'value' of this array, clip the object portion that
@@ -646,7 +659,7 @@ def ClipWithPlane(
         plane_center: tuple,
         plane_normal: tuple,
         inside_out: bool = False
-    ) -> names.polyDataType:
+    )   -> names.polyDataType:
     """ Clip a surface with a plane defined with a point and its normal."""
 
     cutPlane = vtk.vtkPlane()
@@ -670,7 +683,7 @@ def ContourCutWithPlane(
         surface: names.polyDataType,
         plane_center: tuple,
         plane_normal: tuple
-    ) -> names.polyDataType:
+    )   -> names.polyDataType:
     """Cuts a surface with a plane, returning the cut contour."""
 
     plane = vtk.vtkPlane()
@@ -685,14 +698,17 @@ def ContourCutWithPlane(
 
     return cutWithPlane.GetOutput()
 
-def ComputeSurfacesDistance(isurface,
-                            rsurface,
-                            array_name='DistanceArray',
-                            signed_array=True):
+def ComputeSurfacesDistance(
+        isurface: names.polyDataType,
+        rsurface: names.polyDataType,
+        array_name: str='DistanceArray',
+        signed_array: bool=True
+    )   -> names.polyDataType:
     """Compute point-wise distance between two surfaces.
 
     Compute distance between a reference surface, rsurface, and an input
-    surface, isurface, with the resulting array written in the isurface.
+    surface, isurface. Return a copy of isurface with the distance array
+    defined on it.
     """
 
     if signed_array:
@@ -718,7 +734,9 @@ def ComputeSurfacesDistance(isurface,
 
     return surfaceDistance.GetOutput()
 
-def vtkPolyDataToDataFrame(polydata: names.polyDataType) -> pd.core.frame.DataFrame:
+def vtkPolyDataToDataFrame(
+        polydata: names.polyDataType
+    )   -> pd.core.frame.DataFrame:
     """Convert a vtkPolyData with cell arrays to Pandas DataFrame.
 
     Given a vtkPolyData object containing cell arrays of any kind (scalars,
@@ -815,6 +833,7 @@ def vtkPolyDataToDataFrame(polydata: names.polyDataType) -> pd.core.frame.DataFr
 # This class was adapted from the 'vmtkcenterlines.py' script
 # distributed with VMTK in https://github.com/vmtk/vmtk
 class PickPointSeedSelector():
+    """Select point on a surface."""
 
     def __init__(self):
         self._Surface = None
@@ -944,8 +963,10 @@ class PickPointSeedSelector():
         if self.OwnRenderer:
             self.vmtkRenderer.Deallocate()
 
-def SelectSurfacePoint(surface):
-    """Enable selection of aneurysm point."""
+def SelectSurfacePoint(
+        surface: names.polyDataType
+    )   -> Union[tuple,list]:
+    """Enable selection of point on a surface."""
 
     # Select aneurysm tip point
     pickPoint = PickPointSeedSelector()
