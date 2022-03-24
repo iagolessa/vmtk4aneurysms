@@ -1,7 +1,8 @@
-"""Provide function to calculate the aneurysm neck plane.
+"""Collection of tools to manipulate vascular models and aneurysms.
 
-The module provides a function to compute the aneurysm neck plane, as defined
-by Piccinelli et al. (2009).
+The two main functions provided by the module compute the aneurysm neck plane,
+as defined by Piccinelli et al. (2009), and extracts the hypothetically healthy
+vasculature.
 """
 
 import sys
@@ -83,15 +84,14 @@ def _lateral_aneurysm_clipping_points(
     )   -> dict:
     """Extract vessel portion where a lateral aneurysm grew.
 
-    Given the vascular model surface with open inlet and outlet
-    profiles, extract the portion of the tube surface where the
-    aneurysm grew by calculating the divegence points of the
-    centerlines. The user must select a point on the aneurysm's
-    dome surface.
+    Given the vascular model surface with open inlet and outlet profiles,
+    extract the portion of the tube surface where the aneurysm grew by
+    calculating the divegence points of the centerlines. The user must select a
+    point on the aneurysm's dome surface.
 
-    Note that the algorithm will use the first outlet to
-    compute the centerlines, so avoid any outlet profile
-    between the inlet and the aneurysm region.
+    Note that the algorithm will use the first outlet to compute the
+    centerlines, so avoid any outlet profile between the inlet and the aneurysm
+    region.
     """
     inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
 
@@ -217,26 +217,29 @@ def HealthyVesselReconstruction(
 
     Based on the procedure proposed by
 
-        Ford et al. An objective approach to digital removal of saccular
-        aneurysms: technique and applications. The British Journal of
-        Radiology. 2009;82:S55–61
+    Ford et al. An objective approach to digital removal of saccular aneurysms:
+    technique and applications. The British Journal of Radiology.
+    2009;82:S55–61
 
-    and implemented in VMTK by M. Piccinelli, this function extracts the
+    and implemented in VMTK by Ms. Piccinelli, this function extracts the
     'hypothetical healthy' vessel of a vascular model with an intracranial
     aneurysm.
 
     Arguments
-        vascular_surface (vtkPolyData): the vascular surface model clipped
-            at the inlet and two outlets (if a bifurcation aneurysm) or one
-            outlet (if a lateral aneurysm)
-        aneurysm_type (str, "bifurcation" or "lateral"): the type of aneurysm
-        dome_point (tuple, None): a point on the aneurysm dome surface. It is
-            used to identify the aneurysm, and must be located at the tip of
-            the aneurysm dome, preferentially. If None is passed, the user is
-            prompted to select one interactively.
+    vascular_surface (vtkPolyData) -- the vascular surface model clipped at the
+    inlet and two outlets (if a bifurcation aneurysm) or one outlet (if a
+    lateral aneurysm)
+
+    aneurysm_type (str) -- the type of aneurysm ("bifurcation" or "lateral")
+
+    Optional
+    dome_point (tuple) -- a point on the aneurysm dome surface. It is used
+    to identify the aneurysm, and must be located at the tip of the aneurysm
+    dome, preferentially. If None is passed, the user is prompted to select one
+    interactively (default None).
 
     Returns
-        healthy_surface (vtkPolyData): the surface model without the aneurysm.
+    healthy_surface (vtkPolyData) -- the surface model without the aneurysm.
     """
     aneurysmInBifurcation = _is_bifurcation_aneurysm(aneurysm_type)
 
@@ -247,7 +250,7 @@ def HealthyVesselReconstruction(
     smoothedVoronoi = mp.smooth_voronoi_diagram(
                           voronoi,
                           centerlines,
-                          0.25 # Smoothing factor, recommended by M. Piccinelli
+                          0.25 # Smoothing factor, recommended by Ms. Piccinelli
                       )
 
     # 1) Compute parent centerline reconstruction
@@ -447,15 +450,14 @@ def _lateral_aneurysm_influence_region(
     )   -> names.polyDataType:
     """Extract vessel portion where a lateral aneurysm grew.
 
-    Given the vascular model surface with open inlet and outlet
-    profiles, extract the portion of the tube surface where the
-    aneurysm grew by calculating the divegence points of the
-    centerlines. The user must select a point on the aneurysm's
-    dome surface.
+    Given the vascular model surface with open inlet and outlet profiles,
+    extract the portion of the tube surface where the aneurysm grew by
+    calculating the divegence points of the centerlines. The user must select a
+    point on the aneurysm's dome surface.
 
-    Note that the algorithm will use the first outlet to
-    compute the centerlines, so avoid any outlet profile
-    between the inlet and the aneurysm region.
+    Note that the algorithm will use the first outlet to compute the
+    centerlines, so avoid any outlet profile between the inlet and the aneurysm
+    region.
     """
     inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
 
@@ -810,26 +812,24 @@ def AneurysmNeckPlane(
 
     Arguments
     ---------
-        vascular_surface (names.polyDataType)
-            the original vasculature surface with the aneurysm
+    vascular_surface (names.polyDataType) -- the original vasculature surface
+    with the aneurysm
 
-        aneurysm_type (str)
-            the aneurysm type, bifurcation or lateral
+    aneurysm_type (str) -- the aneurysm type, bifurcation or lateral
 
     Optional
-        parent_vascular_surface (names.polyDataType, default: None)
-            reconstructed parent vasculature
+    parent_vascular_surface (names.polyDataType, default: None) --
+    reconstructed parent vasculature
 
-        min_variable (str, 'area' or 'perimeter', default: 'area')
-            the varible by which the neck will be searched
+    min_variable (str, 'area' or 'perimeter', default: 'area') -- the varible
+    by which the neck will be searched
 
-        aneurysm_point (tuple)
-            point at the tip of the aneurysm dome, for aneurysm identification.
-            If none, the user is prompted to select it.
+    aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
+    aneurysm identification.  If none, the user is prompted to select it.
 
     Return
-        aneurysm_surface (names.polyDataType)
-            returns the aneurysm clipped at the neck plane
+    aneurysm_surface (names.polyDataType) -- returns the aneurysm clipped at
+    the neck plane
     """
 
     # Clean up any arrays on the surface

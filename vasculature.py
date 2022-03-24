@@ -1,12 +1,4 @@
-"""Provide Vasculature class.
-
-This module provides the Vasculature class that models a portion of the
-vascular system. The basic input is a surface model of the vasculature as a
-vtkPolyData or a file name. When instantiated, the bifurcations and branches
-are automatically identified after the calculation of the vasculature's
-centerlines by using the VMTK\R library. Both centerline and surface
-geometrical characterization is performed and stored as arrays in the model.
-"""
+"""Collection of tools to represent vascular models."""
 
 import vtk
 from vmtk import vtkvmtk
@@ -61,15 +53,13 @@ class Branch():
 class Bifurcation:
     """Model of a bifurcation of a vascular network.
 
-    Based on the work of Piccinelli et al. (2009), who 
-    proposed a framework to identify and quantitatively
-    analyze bifurcations in vascular models, this class
-    implements some of their geometric definitions. 
-    It inputs are the bifurcation reference system
-    vtkPolyData containg its center and normal, and 
-    the bifurcation vectors. Both can be computed with
-    'vmtkbifurcationreferencesystem' and 'vmtkbifurca-
-    tionvectors' scripts of the VMTK library.
+    Based on the work by Piccinelli et al. (2009), who proposed a framework to
+    identify and quantitatively analyze bifurcations in vascular models, this
+    class implements some of their geometric definitions.  Its inputs are the
+    bifurcation reference system (vtkPolyData) containing its center and
+    normal, and the bifurcation vectors. Both can be computed with
+    'vmtkbifurcationreferencesystem' and 'vmtkbifurcationvectors' scripts of
+    the VMTK library.
     """
 
     def __init__(self, referenceSystem, vectors):
@@ -113,35 +103,40 @@ class Bifurcation:
 
 
 class Vasculature:
-    """Class of vascular model represented by a surface.
+    """Representation of a vascular network tree model.
 
     This class presents an interface to work with vascular models represented
     as surfaces (vtkPolyData). The surface model must contain the open
     boundaries of the domain, i.e.  its inlets and outlets of blood flow as
-    perpendicular open sections as traditionally used for CFD. So far, it
+    perpendicular open sections, as traditionally used for CFD. So far, it
     handles only vasculatures with a single inlet, defined as the one with
-    largest radius. At construction, the class automatically computes the
-    centerline and the morphology of the vasculature. Internally, it uses VMTK
-    to compute all the geometrical features of the centerline path to fully
-    characterize the vasculature topology. Furthermore, the surface curvature 
-    characterization is added as arrays to the surface: mean and Gaussian 
-    curvatures with an array containing the local curvature type.
+    largest radius.
 
-    The vasculature may contain an aneurysm: this must be explicitly informed 
-    by the user through the switch 'with_aneurysm'. If true, the user can also 
-    determine if the aneurysm surface will detected automatically and a plane 
-    neck will be generated, or manually draw by the user, in which case a 
-    window is open allowing the user to select the aneurysm neck. 
+    At construction, it automatically computes the centerline and the
+    morphology of the vasculature. Internally, it uses VMTK to compute all the
+    geometrical features of the centerline path to fully characterize the
+    vasculature topology. Furthermore, the surface curvature characterization
+    is added as arrays to the surface: mean and Gaussian curvatures with an
+    array defining the local curvature type.
+
+    The vasculature may contain an aneurysm: this must be explicitly informed
+    by the user through the switch 'with_aneurysm'. If true, the user can also
+    determine whether the aneurysm surface will be detected automatically
+    (experimental yet) and a plane neck will be generated, or manually draw by
+    the user, in which case a window is open allowing the user to select the
+    aneurysm neck.
     """
 
-    def __init__(self,
-                 vtk_poly_data,
-                 with_aneurysm=False,
-                 manual_aneurysm=False,
-                 aneurysm_prop={}):
+    def __init__(
+            self,
+            vtk_poly_data,
+            with_aneurysm=False,
+            manual_aneurysm=False,
+            aneurysm_prop={}
+        ):
         """Initiate vascular model.
 
-        Given vascular surface (vtkPolyData), automatically compute its
+        Given a vascular surface (vtkPolyData), automatically compute its
         centerlines and bifurcations geometry. If the vasculature has an
         aneurysm, the flag 'with_aneurysm' enables its selection.
 
@@ -149,24 +144,22 @@ class Vasculature:
         vtk_poly_data -- the vtkPolyData vascular model (default None)
 
         with_aneurysm -- bool to indicate that the vasculature
-            has an aneurysm (default False)
+        has an aneurysm (default False)
 
         manual_aneurysm -- bool that enable the manual selection of the
-            aneurysm neck, otherwise, try to automatically extract the aneurysm
-            neck *plane*, based on the user input of the aneurysm tip point and
-            the algorithm proposed in 
+        aneurysm neck, otherwise, try to automatically extract the aneurysm
+        neck *plane*, based on the user input of the aneurysm tip point and the
+        algorithm proposed in
 
-                Piccinelli et al. (2012).  
-                Automatic neck plane detection and 3d geometric
-                characterization of aneurysmal sacs. 
-                Annals of Biomedical Engineering, 40(10), 2188–2211. 
-                DOI :10.1007/s10439-012-0577-5.
+        Piccinelli et al. (2012).  Automatic neck plane detection and 3d
+        geometric characterization of aneurysmal sacs.  Annals of Biomedical
+        Engineering, 40(10), 2188–2211.  DOI :10.1007/s10439-012-0577-5.
 
-            Only enabled if the 'with_aneurysm' arguments is True.  (default
-            False).
+        Only enabled if the 'with_aneurysm' arguments is True.  (default
+        False).
 
-        aneurysm_prop -- dictionary with properties required by Aneurysm
-            class: type, status, label.
+        aneurysm_prop -- dictionary with properties required by Aneurysm class:
+        type, status, label.
         """
 
         print('Initiating model.', end='\n')
@@ -192,7 +185,7 @@ class Vasculature:
         print('Computing centerlines.', end='\n')
 
         self._centerlines = cnt.GenerateCenterlines(
-                                vtk_poly_data 
+                                vtk_poly_data
                             )
 
         self._centerlines = cnt.ComputeCenterlineGeometry(
@@ -228,14 +221,16 @@ class Vasculature:
                                     )
 
     @classmethod
-    def from_file(cls,
-                  file_name,
-                  with_aneurysm=False,
-                  manual_aneurysm=False,
-                  aneurysm_prop={}):
+    def from_file(
+            cls,
+            file_name,
+            with_aneurysm=False,
+            manual_aneurysm=False,
+            aneurysm_prop={}
+        ):
         """Initialize vasculature object from vasculature surface file."""
 
-        return cls(tools.ReadSurface(file_name), 
+        return cls(tools.ReadSurface(file_name),
                    with_aneurysm=with_aneurysm,
                    manual_aneurysm=manual_aneurysm,
                    aneurysm_prop=aneurysm_prop)
@@ -396,10 +391,10 @@ class Vasculature:
             vascular_surface: names.polyDataType
         )   -> names.polyDataType:
         """Clip a vascular surface segment, by selecting end points.
-        
+
         Given a vascular surface, the user is prompted to select points
         on the surface that 1) identifies the surface's bulk and 2) where the
-        vasculature should be clipped. Uses, internally, the 
+        vasculature should be clipped. Uses, internally, the
         'vmtksurfaceendclipper' script.
         """
 
@@ -418,25 +413,33 @@ class Vasculature:
         return surfaceEndClipper.Surface
 
     def GetSurface(self):
+        """Return the vascular surface."""
         return self._surface_model
 
     def GetAneurysm(self):
+        """Return the aneurysm model, if any."""
         return self._aneurysm_model
 
     def GetCenterlines(self):
+        """Return the vasculature's centerlines."""
         return self._centerlines
 
     def GetInletCenters(self):
+        """Return the inlet center."""
         return self._inlet_centers
 
     def GetOutletCenters(self):
+        """Return the outlet center(s)."""
         return self._outlet_centers
 
     def GetBifurcations(self):
+        """Return the vascular model's bifurcations."""
         return self._bifurcations
 
     def GetNumberOfBifurcations(self):
+        """Return the number of bifurcations."""
         return self._nbifurcations
 
     def GetBranches(self):
+        """Return the vascular model's branches."""
         return self._branches

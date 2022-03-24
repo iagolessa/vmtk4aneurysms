@@ -1,4 +1,4 @@
-"""Mechanical characterization of aneurysms wall motion."""
+"""Collection of tools to mechanically characterize an aneurysm wall motion."""
 
 import sys
 import vtk
@@ -11,21 +11,27 @@ from .lib import polydatageometry as geo
 
 from . import aneurysms as aneu
 
-def AneurysmPulsatility(displacement_surface: names.polyDataType,
-                        ps_displ_field_name: str,
-                        ld_displ_field_name: str,
-                        aneurysm_neck_array_name: str = aneu.AneurysmNeckArrayName):
-    """Compute aneurysm wall pulsatility.
+def AneurysmPulsatility(
+        displacement_surface: names.polyDataType,
+        ps_displ_field_name: str,
+        ld_displ_field_name: str,
+        aneurysm_neck_array_name: str=aneu.AneurysmNeckArrayName
+    )   -> float:
+    """Return an aneurysm's wall pulsatility.
 
-    Aneurysm pulsatility computation, defined as (Sanchez et al. (2014)):
+    The pulsatility, :math:`\delta_v`, of a cerebral aneurysm is defined as
+    (Sanchez et al. (2014)):
 
-        Pulsatility = (V_ps/V_ld) - 1
+    .. math::
+        \delta_v = (V_{ps}/V_{ld}) - 1
 
-    where "ld" indicate low diastole and "ps" indicate peak systole values. It
-    uses the the lumen surface with the peak systole and low diastole
-    displacement field on the surface. The input surface must alread have the
-    aneurysm neck array, otherwise the function prompts the user to select the
-    aneurysm neck contour.
+    where "ld" indicates low diastole and "ps" indicates peak systole values,
+    and V is the aneurysm sac volume. It uses the the lumen surface with the
+    peak systole and low diastole displacement field on the surface. 
+    
+    .. note::
+        The input surface must alread have the aneurysm neck array, otherwise
+        the function prompts the user to select the aneurysm neck contour.
     """
 
     # Warp whole surface at peak systole and low diastole
@@ -50,12 +56,14 @@ def AneurysmPulsatility(displacement_surface: names.polyDataType,
 
     return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
 
-def AneurysmPulsatility2(lumen_surface: names.polyDataType,
-                         displacement_over_time: dict,
-                         peak_systole_instant: float,
-                         low_diastole_instant: float,
-                         aneurysm_neck_array_name: str = aneu.AneurysmNeckArrayName):
-    """Compute aneurysm wall pulsatility.
+def AneurysmPulsatility2(
+        lumen_surface: names.polyDataType,
+        displacement_over_time: dict,
+        peak_systole_instant: float,
+        low_diastole_instant: float,
+        aneurysm_neck_array_name: str = aneu.AneurysmNeckArrayName
+    )   -> float:
+    """Compute aneurysm wall pulsatility (alternative version).
 
     Alternative version of the aneurysm pulsatility computation by using the
     lumen surface and the dictionary with the displacement field computed with
@@ -100,33 +108,33 @@ def AneurysmPulsatility2(lumen_surface: names.polyDataType,
     # Compute pulsatility
     return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
 
-def WallTypeClassification(surface: names.polyDataType,
-                           low_wss: float = 5.0,
-                           high_wss: float = 10.0,
-                           low_osi: float = 0.001,
-                           high_osi: float = 0.01) -> names.polyDataType:
-    """Based on hemodynamics, characterize wall morphology.
+def WallTypeClassification(
+        surface: names.polyDataType,
+        low_wss: float=5.0,
+        high_wss: float=10.0,
+        low_osi: float=0.001,
+        high_osi: float=0.01
+    )   -> names.polyDataType:
+    """Based on the WSS hemodynamics, characterize an aneurysm wall morphology.
 
     Based on the TAWSS and OSI fields, identifies the aneurysm regions prone to
     atherosclerotic walls (thicker walls) and red wall (thinner) by adding a
     new array on the passed surface name "WallType" with the following values:
 
-        0 -> normal wall;
-        1 -> atherosclerotic wall;
-        2 -> thinner wall.
+    0 -> normal wall;
+    1 -> atherosclerotic wall;
+    2 -> thinner wall.
 
-    Classifications based on the publications:
+    Classifications based on the references:
 
-        Furukawa et al. "Hemodynamic characteristics of hyperplastic remodeling
-        lesions in cerebral aneurysms". PLoS ONE. 2018 Jan 16;13:1–11.
+        [1] Furukawa et al. "Hemodynamic characteristics of hyperplastic
+        remodeling lesions in cerebral aneurysms". PLoS ONE. 2018 Jan
+        16;13:1–11.
 
-    and
-
-        Cebral et al. "Local hemodynamic conditions associated with focal
+        [2] Cebral et al. "Local hemodynamic conditions associated with focal
         changes in the intracranial aneurysm wall". American Journal of
         Neuroradiology.  2019; 40(3):510–6.
     """
-    # Code
     normalWall  = 0
     thickerWall = 1
     thinnerWall = 2
