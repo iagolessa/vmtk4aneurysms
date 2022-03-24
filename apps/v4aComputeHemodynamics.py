@@ -33,6 +33,13 @@ def generate_arg_parser():
     )
 
     parser.add_argument(
+        '--opressurefile',
+        help="Output pressure file as a vtkPolyData object (.vtp)",
+        type=str,
+        required=True
+    )
+
+    parser.add_argument(
         '--otemporalfile',
         help="Output surface-averaged WSS over time(.csv)",
         type=str,
@@ -42,9 +49,9 @@ def generate_arg_parser():
     # Optional
     parser.add_argument(
         '--density',
-        help="density of blood (default 1056.0 kg/m3)",
+        help="density of blood",
         type=float,
-        default=1056.0
+        required=True
     )
 
     parser.add_argument(
@@ -61,7 +68,31 @@ def generate_arg_parser():
         action="store_true",
     )
 
+    parser.add_argument(
+        '--multiregion',
+        help="Indicate that the simulation has multiregions",
+        dest="multiregion",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        '--no-multiregion',
+        help="Indicate that the simulation has a single region",
+        dest="multiregion",
+        action="store_false",
+    )
+
+    parser.add_argument(
+        '--region',
+        help="Name of region if multiregion is activated",
+        type=str,
+        choices=["solid", "fluid"],
+        required=False,
+        default=""
+    )
+
     parser.set_defaults(
+        multiregion=False,
         computegon=False,
         computeafi=False
     )
@@ -107,11 +138,20 @@ def get_peak_instant(case_folder):
 foamFolder       = args.case
 surfacePatch     = args.patch
 hemodynamicsFile = args.ofile
+pressureFile     = args.opressurefile
 temporalDataFile = args.otemporalfile
 bloodDensity     = args.density
 
 boolComputeGon   = args.computegon
 boolComputeAfi   = args.computeafi
+
+multiRegion      = args.multiregion
+
+if multiRegion == True and args.region == "":
+    raise NameError("Provide valid region name.")
+
+else:
+    regionName = args.region
 
 # Get peak systole and low diastole instant per case
 foamFile = os.path.join(foamFolder, "case.foam")
@@ -130,10 +170,23 @@ hemodynamicsSurface = hm.Hemodynamics(
                           foamFile,
                           peakSystoleInstant,
                           lowDiastoleInstant,
+                          density=bloodDensity,
                           patch=surfacePatch,
                           compute_gon=boolComputeGon,
-                          compute_afi=boolComputeAfi
+                          compute_afi=boolComputeAfi,
+                          multi_region=multiRegion,
+                          region_name=regionName
                       )
+
+pressureSurface = hm.PressureTemporalStats(
+                      foamFile,
+                      peakSystoleInstant,
+                      lowDiastoleInstant,
+                      density=bloodDensity,
+                      patch=surfacePatch,
+                      multi_region=multiRegion,
+                      region_name=regionName
+                  )
 
 # Scale the surface back to millimeters (fields are not scaled)
 # before computing the curvatures
@@ -142,13 +195,28 @@ hemodynamicsSurface = tools.ScaleVtkObject(
                           1.0e3
                       )
 
+pressureSurface = tools.ScaleVtkObject(
+                      pressureSurface,
+                      1.0e3
+                  )
+
 tools.WriteSurface(
     hemodynamicsSurface,
     hemodynamicsFile
 )
 
+tools.WriteSurface(
+    pressureSurface,
+    pressureFile
+)
+
 # Compute temporal evolution of WSS over the *whole surface*
-fieldAvgOverTime = hm.WssSurfaceAverage(foamFile)
+fieldAvgOverTime = hm.WssSurfaceAverage(
+                       foamFile,
+                       density=bloodDensity,
+                       multi_region=multiRegion,
+                       region_name=regionName
+                   )
 
 with open(temporalDataFile, "a") as file_:
     file_.write("Time, surfaceAveragedWSS\n")
