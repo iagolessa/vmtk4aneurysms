@@ -262,11 +262,10 @@ def FieldTimeStats(
     which keys are the field_names and value a dict with the respective field
     over time, as follows:
 
-    .. code::
-        temporal_fields = {field_name1: {t1: V1, ..., tn: Vn},
-                           field_name2: {t1: U1, ..., tn: Un},
-                           ...,
-                           field_nameN: {t1: W1, ..., tn: Wn}}
+    temporal_fields = {field_name1: {t1: V1, ..., tn: Vn},
+                       field_name2: {t1: U1, ..., tn: Un},
+                       ...,
+                       field_nameN: {t1: W1, ..., tn: Wn}}
 
     t_peak_systole (float) -- instant of the peak systole;
 

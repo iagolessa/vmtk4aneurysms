@@ -2,36 +2,36 @@
 
 ### What is this repository for? ###
 
-Set of new Python scripts based on VMTK to automatically (or as automatically 
-as possible) extract high quality intracranial aneurysms and vessels netwrok
-surface for CFD simulations using the Vacular Modeling Toolkit framework 
-(http://www.vmtk.org/).
+vmtk4aneurysms is a collection of modules providing tools to manipulate and
+morphologically characterize vascular models, with aneurysms or
+not (although the main initial purpose to develop this library was to study
+intracranial aneurysms). The main modules provide representations for vascular
+models and also an aneurysms sac.
 
-Aneurysms
+The library also provides tools to compute and manipulate fields defined on the
+surfaces, mainly hemodynamics related to blood flow in the vascular models and
+wall mechanical variables.  The conversion tools accepts conversion from
+OpenFOAM simulations.
 
-Also includes Python library of functions to calculate morphological and 
-hemodynamic parameters related to aneurysms geometry and hemodynamics using
-ParaView filters and VMTK.
-
-The library works with the paraview.simple module of ParaView. 
+It also accounts with a set of VMTK-like scripts using the Pypes module that
+may be useful, although some of them I developed for more specialized
+operations related to intracranial aneurysms. The same comment apply to the
+'apps' folder which accounts with Python scripts for pre- and post-processing
+of numerical simulations in OpenFOAM.
 
 ### How do I get set up? ###
 
-Use VMTK's Python library.
-You need to have a working installation of VMTK in your computer (I recommend
+The whole library is heavily dependent on the Visualization Toolkit (VTK), the
+Vascular Modeling Toolkit (VMTK). It also depends on MorphMan and other general
+Python libraries such as SciPy, NumPy, and Pandas.
+
+You need to have a working installation of VMTK in your computer. I recommend
 using the Python's Anaconda distribution, then create a new environment 
-with VMTK). Once done, include the scripts inside the "newScripts" directory
-in the site-packages of the lib dir in the environment location (typically
-"env_dir/lib/python3.x/site-packages/vmtk/").
-Do not forget to also include the script's name in the __all__ list of the
-"vmtkscripts.py" module.
+with VMTK. The MorphMan library can be installed in this environment then.
 
 ### Contribution guidelines ###
-
 
 ### Who do I talk to? ###
 
 Iago Lessa de Oliveira
-UNESP
-Ilha Solteira - SP
-Brazil
+iago.oliveira@unesp.br

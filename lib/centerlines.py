@@ -24,12 +24,8 @@ def ComputeOpenCenters(
     two lists: one with the inlet coordinates (tuple) and another with the
     outlets coordinates also as tuples of three components:
 
-    .. code::
-        Inlet coords:  [(xi, yi, zi)]
-        Outlet coords: [(xo1,yo1,zo1),
-                        (xo2,yo2,zo2),
-                        ...
-                        (xon,yon,zon)]
+    Inlet coords:  [(xi, yi, zi)]
+    Outlet coords: [(xo1,yo1,zo1), (xo2,yo2,zo2), ...  (xon,yon,zon)]
 
     for a model with a single inlet and n outlets. The inlet is defined as the
     open boundary with largest radius.

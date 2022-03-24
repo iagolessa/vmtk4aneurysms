@@ -303,20 +303,22 @@ class Surface():
         (2004) for intracranial aneurysms, if Kg and Km are the Gauss and mean
         curvature, we have:
 
-        .. table ::
-            =========================================
-            Kg   Km     Local Shape         Int Label
-            =========================================
-            > 0  > 0    Elliptical Convex   0
-            > 0  < 0    Elliptical Concave  1
-            > 0  = 0    Not possible        2
-            < 0  > 0    Hyperbolic Convex   3
-            < 0  < 0    Hyperbolic Concave  4
-            < 0  = 0    Hyperbolic          5
-            = 0  > 0    Cylidrical Convex   6
-            = 0  < 0    Cylidrical Concave  7
-            = 0  = 0    Planar              8
-            =========================================
+        .. table:: Local shape characterization
+           :widths: auto
+
+           === ==== ================== =========
+           Kg   Km  Local Shape        Int Label
+           === ==== ================== =========
+           > 0  > 0 Elliptical Convex  0
+           > 0  < 0 Elliptical Concave 1
+           > 0  = 0 Not possible       2
+           < 0  > 0 Hyperbolic Convex  3
+           < 0  < 0 Hyperbolic Concave 4
+           < 0  = 0 Hyperbolic         5
+           = 0  > 0 Cylidrical Convex  6
+           = 0  < 0 Cylidrical Concave 7
+           = 0  = 0 Planar             8
+           === ==== ================== =========
 
         The name of the generated arrays are: "Mean_Curvature",
         "Gauss_Curvature", and "Local_Shape_Type".

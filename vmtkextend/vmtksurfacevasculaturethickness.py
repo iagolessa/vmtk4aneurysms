@@ -943,11 +943,16 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         explained in the function WallTypeCharacterization of wallmotion.py,
         the three types of wall and the operation performed here for each are:
 
+        .. table:: Local wall type characterization
+            :widths: auto
+
+            =====   =============== =========
             Label   Wall Type       Operation
-            -----   ---------       ---------
+            =====   =============== =========
                 0   Normal wall     Nothing (default = 1)
-                1   Atherosclerotic Increase thickness (default factor = 1.20)
-                2   "Red" wall      Decrease thickness (default factor = 0.95)
+                1   Atherosclerotic Increase elasticity (default factor = 1.20)
+                2   "Red" wall      Decrease elasticity (default factor = 0.95)
+            =====   =============== =========
 
         The multiplying factors for the atherosclerotic and red wall must be
         provided at object instantiation, with default values given above.
