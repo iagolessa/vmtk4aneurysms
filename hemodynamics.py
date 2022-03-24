@@ -310,6 +310,46 @@ def Hemodynamics(
 
     return numpySurface.VTKObject
 
+def PressureTemporalStats(
+        foam_case: str,
+        t_peak_systole: float,
+        t_low_diastole: float,
+        density: float=_density,  # kg/m3
+        p_field_name: str="p",
+        patch: str=names.wallPatchName,
+        multi_region: bool=False,
+        region_name: str=''
+    )   -> names.polyDataType:
+    """Compute the pressure field temporal statistics.
+
+    Given an OpenFOAM simulation case with a pressure field varying over time,
+    compute its temporal statistics on a patch.
+    """
+
+    surface, fieldsOverTime = fvtk.GetPatchFieldOverTime(
+                                  foam_case,
+                                  p_field_name,
+                                  patch,
+                                  multi_region=multi_region,
+                                  region_name=region_name
+                              )
+
+    fieldOverTime = fieldsOverTime[p_field_name]
+
+    # Compute the WSS = density * wallShearComponent
+    pOverTime = {time: density*pField
+                 for time, pField in fieldOverTime.items()}
+
+    # Compute WSS time statistics
+    surface = fvtk.FieldTimeStats(
+                  surface,
+                  {"p": pOverTime},
+                  t_peak_systole,
+                  t_low_diastole
+              )
+
+    return surface
+
 def AneurysmStats(
         neck_surface: names.polyDataType,
         array_name: str,
