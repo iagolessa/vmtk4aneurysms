@@ -1,4 +1,9 @@
-"""Module defining the Aneurysm class."""
+"""Collection of tools to characterize cerebral aneurysms.
+
+The idea behind this library is to provide tools to manipulate and to model
+the surface of cerebral aneurysms on a patient-specific vasculature, with
+functions to compute its morphological parameters.
+"""
 
 import sys
 import vtk
@@ -18,25 +23,37 @@ from .lib import polydatageometry as geo
 _cellEntityIdsArrayName = "CellEntityIds"
 
 # Field names
-AneurysmNeckArrayName = 'AneurysmNeckContourArray'
-ParentArteryArrayName = 'ParentArteryContourArray'
 
+# Name of the field defined on a vascular surface that identifies the aneurysm
+# with zero values and one the rest of the surface. The value 0.5, hence,
+# identifies the aneurysm neck path (see 'NeckIsoValue')
+AneurysmNeckArrayName = 'AneurysmNeckContourArray'
 NeckIsoValue = 0.5
 
-def SelectAneurysm(surface: names.polyDataType) -> names.polyDataType:
+# Name of the field defined on a vascular surface that identifies the parent
+# artery with zero values and one the rest of the surface.
+ParentArteryArrayName = 'ParentArteryContourArray'
+
+def SelectAneurysm(
+        surface: names.polyDataType
+    )   -> names.polyDataType:
     """Compute array marking the aneurysm neck.
 
-    Given a vasculature with the an aneurysm, prompts the user to draw the
-    aneurysm neck on the surface. Th function then defines an array on the
-    surface with value 0 on the aneurysm and 1 out of the aneurysm .
+    Given a vasculature with an aneurysm, prompt the user to draw the aneurysm
+    neck on the surface. An array (field) is then defined on the surface with
+    value 0 on the aneurysm and 1 out of the aneurysm. Return a copy of the
+    vascular surface with 'AneurysmNeckContourArray' field defined on it.
 
-    Note: VMTK uses its length dimensions in millimeters. Since this function
-    is intended to operate on surfaces that were used in an OpenFOAM
-    simulation, it must be already in meters. So we scaled it to millimeters
-    here so the smoothing algorithm works as intended. Also, the smoothing
-    array script works better on good quality triangle surfaces, hence the
-    function operates on a remeshed surface with good quality triangles and map
-    the results back to the original surface.
+    .. warning::
+        VMTK uses its length dimensions in millimeters. Since this function is
+        intended to operate on surfaces that were used in an OpenFOAM
+        simulation, it must be already in meters. So we scaled it to
+        millimeters here so the smoothing algorithm works as intended.
+
+    .. warning::
+        The smoothing array script works better on good quality triangle
+        surfaces, hence the function operates on a remeshed surface with good
+        quality triangles and map the results back to the original surface.
     """
 
     # Keep reference to surface, because the region drawing script triangulates
@@ -87,7 +104,20 @@ def SelectAneurysm(surface: names.polyDataType) -> names.polyDataType:
     return surfaceProjection.GetOutput()
 
 def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
-    """Compute array masking the parent vessel region."""
+    """Compute array marking the aneurysm' parent artery.
+
+    Given a vasculature with an aneurysm, prompt the user to draw a contour
+    that marks the separation between the aneurysm's parent artery and the rest
+    of the vasculature. An array (field) is then defined on the surface with
+    value 0 on the parent artery and 1 out of it. Return a copy of the vascular
+    surface with 'ParentArteryContourArray' field defined on it.
+
+    .. warning::
+        The smoothing array script works better on good quality triangle
+        surfaces, hence, it would be good to remesh the surface prior to use
+        it.
+    """
+
     parentArteryDrawer = vmtkscripts.vmtkSurfaceRegionDrawing()
     parentArteryDrawer.Surface = surface
     parentArteryDrawer.InsideValue = 0.0
@@ -105,29 +135,76 @@ def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
     return smoother.Surface
 
 class Aneurysm:
-    """Representation for saccular intracranial aneurysms.
+    """Representation for saccular cerebral aneurysms.
 
-    Given a saccular aneurysm surface as a vtkPolyData object, creates a
-    representation of the aneurysm with its geometrical parameters. The  input
-    aneurysm surface must be open for correct computations. Note that the
-    calculations of aneurysm parameters performed here are intended for a plane
-    aneurysm neck. However, the computations will still occur for a generic
-    neck contour and be relatively correct.
+    Given a saccular aneurysm surface, i.e. delimited by its neck contour (be
+    it a plane neck or a 3D contour), as a vtkPolyData object, return a
+    computational representation of the aneurysm with its geometrical and
+    morphological parameters, listed below:
+
+    1D Size Metrics
+    ===============
+
+        - Maximum Diameter
+        - Maximum Normal Height
+        - Neck Diameter
+
+    3D Size Metrics
+    ===============
+
+        - Aneurysm Surface Area
+        - Aneurysm Volume
+        - Convex Hull Surface Area
+        - Convex Hull Volume
+        - Ostium Surface Area
+
+    2D Shape Metrics
+    ================
+
+        - Aspect Ratio
+        - Bottleneck Factor
+        - Conicity Parameter
+
+    3D Shape Indices
+    ================
+
+        - Ellipticity Index
+        - Non-sphericity Index
+        - Undulation Index
+        - Curvature-based indices: GAA, MAA, MLN, GLN
+
+    Note: the calculations of aneurysm parameters performed here were orignally
+    defined for a plane aneurysm neck, and based on the following works:
+
+        [1] Ma B, Harbaugh RE, Raghavan ML. Three-dimensional geometrical
+        characterization of cerebral aneurysms. Annals of Biomedical
+        Engineering.  2004;32(2):264–73.
+
+        [2] Raghavan ML, Ma B, Harbaugh RE. Quantified aneurysm shape and
+        rupture risk. Journal of Neurosurgery. 2005;102(2):355–62.
+
+    Nonetheless, the computations will still occur for a generic 3D neck
+    contour. In this case, the 'ostium surface normal' is defined as the
+    vector-averaged normal of the ostium surface, a triangulated surface
+    created by joining the points of the neck contour and its barycenter.
+
+    .. warning::
+        The  input aneurysm surface must be open for correct computations.
     """
-
 
     def __init__(self, surface, aneurysm_type='', status='', label=''):
         """Initiates aneurysm model.
 
-        Given the aneurysm surface and its characteristics, initiates aneurysm
-        model by computing its simplest size features: surface area, neck
-        surface area, and volume.
+        Given the aneurysm surface (vtkPolyData), its type, status, and a
+        label, initiates aneurysm model by computing simple size
+        features: surface area, ostium surface area, and volume.
 
         Arguments:
-            surface (vtkPolyData) -- the aneurysm surface
-            aneurysm_type (str) -- aneurysm type: terminal or lateral
-            status (str) -- if rupture or unruptured
-            label (str) -- an useful label
+        surface (vtkPolyData) -- the aneurysm surface
+        aneurysm_type (str) -- aneurysm type: bifurcation or lateral
+        (default '')
+        status (str) -- rupture or unruptured (default '')
+        label (str) -- an useful label (default '')
         """
         self.type = aneurysm_type
         self.label = label
@@ -138,7 +215,7 @@ class Aneurysm:
         self._ostium_surface = self._gen_ostium_surface()
         self._ostium_normal_vector = self._gen_ostium_normal_vector()
 
-        # Compute neck surface area
+        # Compute ostium surface area
         # Compute areas...
         self._surface_area = geo.Surface.Area(self._aneurysm_surface)
         self._ostium_area = geo.Surface.Area(self._ostium_surface)
@@ -159,12 +236,12 @@ class Aneurysm:
     def _cap_aneurysm(self):
         """Cap aneurysm neck with triangles.
 
-        Returns the aneurysm surface 'capped' with a surface covering the
+        Return the aneurysm surface 'capped', i.e. with a surface covering the
         neck region. The surface is created with the vtkvmtkCapPolyData()
-        filter and build this 'neck surface' by joining the neck vertices
-        with the contour barycenter sing triangles. The original aneurysm
+        filter and build this neck or ostium surface by joining the neck
+        vertices with its barycenter with triangles. The original aneurysm
         surface and the neck one are defined by a CellEntityIds array defined
-        on them, with zero values on the neck surface.
+        on them, with zero values on the ostium surface.
         """
 
         # TODO: I noticed that sometimes the cap
@@ -183,7 +260,7 @@ class Aneurysm:
 
         # Common attributes
         capper.SetCellEntityIdsArrayName(_cellEntityIdsArrayName)
-        capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
+        capper.SetCellEntityIdOffset(-1) # The ostium surface will be 0
         capper.Update()
 
         return capper.GetOutput()
@@ -197,9 +274,9 @@ class Aneurysm:
     def _aneurysm_convex_hull(self):
         """Compute convex hull of closed surface.
 
-        This function computes the convex hull set of an aneurysm surface
-        provided as a polyData set of VTK.  It uses internally the
-        scipy.spatial package.
+        Given an open surface, compute the convex hull set of a surface and
+        returns a triangulated surface representation of it.  It uses
+        internally the scipy.spatial package.
         """
 
         # Convert surface points to numpy array
@@ -248,7 +325,7 @@ class Aneurysm:
         return polyData
 
     def _neck_contour(self):
-        """Get boundary of aneurysm surface (== neck contour)"""
+        """Return boundary of aneurysm surface (== neck contour)"""
         boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
         boundaryExtractor.SetInputData(self._aneurysm_surface)
         boundaryExtractor.Update()
@@ -256,21 +333,15 @@ class Aneurysm:
         return boundaryExtractor.GetOutput()
 
     def _neck_barycenter(self):
-        """Computes and return the neck line barycenter as a Numpy array."""
+        """Return the neck contour barycenter as a Numpy array."""
 
         # Get neck contour
         neckContour = self._neck_contour()
 
         return geo.ContourBarycenter(neckContour)
 
-
     def _gen_ostium_surface(self):
-        """Generate aneurysm neck plane/surface.
-
-        Fill the ostium region with a surface, defined as the aneurysm neck
-        surface, or plane, if an algoithm to actually 'cut' the neck plane
-        was used.
-        """
+        """Generate aneurysm' ostium surface."""
 
         # Use thrshold filter to get neck plane
         # Return a vtkUnstructuredGrid -> needs conversion to vtkPolyData
@@ -302,16 +373,16 @@ class Aneurysm:
         return ostiumSmoother.Surface
 
     def _gen_ostium_normal_vector(self):
-        """Calculate the normal vector to the aneurysm neck surface/plane.
+        """Calculate the normal vector to the aneurysm ostium surface/plane.
 
-        The outwards normal unit vector to the neck surface is computed by
-        summing the normal vectors to each cell of the neck surface.
+        The outwards normal unit vector to the ostium surface is computed by
+        summing the normal vectors to each cell of the ostium surface.
         Rigorously, the neck plane vector should be computed with the actual
         neck *plane*, however, there are other ways to compute the aneurysm
         neck which is not based on a plane surface. In this scenario, it is
         robust enough to employ the approach used here because it provides a
-        'sense of normal direction' to the neck line, be it a 3D curved path
-        in space.
+        'sense of normal direction' to the neck line, be it a 3D curved path in
+        space.
 
         In any case, if an actual plane is passed, the function will work.
         """
@@ -346,11 +417,11 @@ class Aneurysm:
         return tuple(neckNormalsVector)
 
     def _max_normal_height_vector(self):
-        """Compute verctor with maximum normal height.
+        """Compute vector along the maximum normal height.
 
-        Function to compute the vector from the neck contour barycenter and the
-        fartest point on the aneurysm surface that have the maximum normal
-        distance from the neck plane.
+        Compute the vector from the neck contour barycenter and the fartest
+        point on the aneurysm surface that have the maximum normal distance
+        from the ostium surface normal.
         """
 
         vecNormal = -1*np.array(self._ostium_normal_vector)
@@ -384,16 +455,18 @@ class Aneurysm:
 
         return maxNHeightVector
 
-    # Compute 1D Size Indices
+    # 1D Size Indices
     def _compute_neck_diameter(self):
-        """Computes neck diameter.
+        """Return the neck diameter.
 
-        Compute neck diameter, defined as the hydraulic diameter of the neck
-        plane section:
+        Compute neck diameter, defined as the hydraulic diameter of the ostium
+        surface or plane:
 
-            Dn = 4*An/pn
+        .. math::
+            D_n = 4A_n/p_n
 
-        where An is the aneurysm neck section area and pn is its perimeter.
+        where :math:`A_n` is the ostium surface area and :math:`p_n` is its
+        perimeter.
         """
         ostiumPerimeter = geo.ContourPerimeter(self._neck_contour())
 
@@ -403,6 +476,7 @@ class Aneurysm:
         return const.four*self._ostium_area/ostiumPerimeter
 
     def _compute_max_normal_height(self):
+        """Return the maximum normal height."""
 
         vecMaxHeight = self._max_normal_height_vector()
         vecNormal = self._ostium_normal_vector
@@ -410,15 +484,14 @@ class Aneurysm:
         return abs(vtk.vtkMath.Dot(vecMaxHeight, vecNormal))
 
     def _compute_max_diameter(self):
-        """Finds the maximum diameter of parallel neck sections and its
-        location.
+        """Find the maximum diameter of aneurysm sections.
 
-        Computation of the maximum section diameter of the aneurysm, defined as
-        the maximum diameter of the aneurysm cross sections that are parallel
-        to the neck plane/surface, i.e. along the neck normal vector. Also
-        returns the bulge height, i.e. the distance between the neck center
-        and the location of the largest section, along a normal line to the
-        ostium surface.
+        Compute the diameter of the maximum section, defined as the maximum
+        diameter of the aneurysm cross sections that are parallel to the ostium
+        surface, i.e. along the ostium normal vector. Returns a tuple with the
+        maximum diameter and the bulge height, i.e. the distance between the
+        neck barycenter and the location of the largest section, along a normal
+        line to the ostium surface.
         """
 
         # Compute neck contour barycenter and normal vector
@@ -479,103 +552,114 @@ class Aneurysm:
         return maxDiameter, bulgeHeight
 
     # Public interface
-    def GetSurface(self):
+    def GetSurface(self) -> names.polyDataType:
+        """Return the aneurysm surface."""
         return self._aneurysm_surface
 
-    def GetHullSurface(self):
+    def GetHullSurface(self) -> names.polyDataType:
+        """Return the aneurysm' convex hull surface."""
         return self._hull_surface
 
-    def GetOstiumSurface(self):
+    def GetOstiumSurface(self) -> names.polyDataType:
+        """Return the aneurysm's ostium surface."""
         return self._ostium_surface
 
-    def GetAneurysmSurfaceArea(self):
+    def GetAneurysmSurfaceArea(self) -> float:
+        """Return the aneurysm surface area."""
         return self._surface_area
 
-    def GetOstiumArea(self):
+    def GetOstiumArea(self) -> float:
+        """Return the aneurysm ostium surface area."""
         return self._ostium_area
 
-    def GetAneurysmVolume(self):
+    def GetAneurysmVolume(self) -> float:
+        """Return the aneurysm enclosed volume."""
         return self._volume
 
-    def GetHullSurfaceArea(self):
+    def GetHullSurfaceArea(self) -> float:
+        """Return the aneurysm' convex hull surface area."""
         return self._hull_surface_area
 
-    def GetHullVolume(self):
+    def GetHullVolume(self) -> float:
+        """Return the aneurysm's convex hull volume."""
         return self._hull_volume
 
-    def GetNeckDiameter(self):
-        """Return aneurysm neck diameter.
+    def GetNeckDiameter(self) -> float:
+        """Return the aneurysm neck diameter.
 
         The neck diameter is defined as the the hydraulic diameter of the
         ostium surface:
 
-            Dn = 4*An/pn
+        .. math::
+            D_n = 4A_n/p_n
 
-        where An is the aneurysm ostium surface area and pn is its perimeter.
-        The ideal computation would be based on a plane ostium section, but
-        it will compute even for a curved ostium path.
+        where :math:`A_n` is the aneurysm ostium surface area, and :math:`p_n`
+        is its perimeter.  The ideal computation would be based on a plane
+        ostium section, but it also works ai 3D neck contour.
         """
 
         return self._neck_diameter
 
-    def GetMaximumNormalHeight(self):
+    def GetMaximumNormalHeight(self) -> float:
         """Return maximum normal height.
 
-        The maximum normal aneurysm height is defined as the
-        maximum distance between the neck barycenter and the aneurysm surface.
+        The maximum normal aneurysm height is defined as the maximum distance
+        between the neck barycenter and the aneurysm surface.
         """
 
         return self._max_normal_height
 
-    def GetMaximumDiameter(self):
-        """Return the maximum aneurysm diameter."""
+    def GetMaximumDiameter(self) -> float:
+        """Return the diameter of the largest section."""
 
         return self._max_diameter
 
     # 2D Shape indices
-    def GetAspectRatio(self):
+    def GetAspectRatio(self) -> float:
         """Return the aspect ratio.
 
-        Computes the aneurysm aspect ratio, defined as the ratio between the
-        maximum perpendicular height and the neck diameter.
+        The aspect ratio is defined as the ratio between the maximum
+        perpendicular height and the neck diameter.
         """
 
         return self._max_normal_height/self._neck_diameter
 
-    def GetBottleneckFactor(self):
-        """Return the non-sphericity index.
+    def GetBottleneckFactor(self) -> float:
+        """Return the bottleneck factor.
 
-        Computes the bottleneck factor, defined as the ratio between the
-        maximum diameter and the neck diameter. This index represents the level
-        to which the neck acts as a bottleneck to entry of blood during normal
-        physiological function and to coils during endovascular procedures.
+        The bottleneck factor is defined as the ratio between the maximum
+        diameter and the neck diameter. This index represents "the level to
+        which the neck acts as a bottleneck to entry of blood during normal
+        physiological function and to coils during endovascular procedures".
         """
 
         return self._max_diameter/self._neck_diameter
 
-    def GetConicityParameter(self):
+    def GetConicityParameter(self) -> float:
         """Return the conicity parameter.
 
         The conicity parameter was defined by Raghavan et al. (2005) as a shape
-        metric for saccular IAs and it measures how far is the 'bulge' of the
-        aneurysm, i.e. the section of largest section, from the aneurysm ostium
-        surface or neck surface. In the way it was defined, it can vary from
-        -0.5 (the bulge is at the dome) to 0.5 (bulge closer to neck).  CP =
-        0.0 occurs when the bulge is at the midway from neck to the maximum
+        metric for saccular cerebral aneurysms and measures how far is the
+        'bulge' of the aneurysm, i.e. the section of largest section, from the
+        aneurysm ostium surface. In the way it was defined, it can vary from
+        -0.5 (the bulge is at the dome) to 0.5 (bulge closer to neck); 0.0
+        indicates when the bulge is at the midway from neck to the maximum
         normal height.
         """
 
         return 0.5 - self._bulge_height/self._max_normal_height
 
     # 3D Shape indices
-    def GetNonSphericityIndex(self):
+    def GetNonSphericityIndex(self) -> float:
         """Return the non-sphericity index.
 
-        Computes the non-sphericity index of an aneurysm surface, given by:
+        The non-sphericity index of an aneurysm surface is defined as:
 
-            NSI = 1 - (18pi)^(1/3) * Va^(2/3)/Sa
+        .. math::
+            NSI = 1 - (18\pi)^{1/3}V^{2/3}_a/S_a
 
-        where Va and Sa are the volume and surface area of the aneurysm.
+        where :math:`V_a` and :math:`S_a` are the volume and surface area of
+        the aneurysm.
         """
         factor = (18*const.pi)**(1./3.)
 
@@ -584,15 +668,16 @@ class Aneurysm:
 
         return const.one - (factor/area)*(volume**(2./3.))
 
-    def GetEllipticityIndex(self):
-        """Return ellipticity index.
+    def GetEllipticityIndex(self) -> float:
+        """Return the ellipticity index.
 
-        Computes the ellipiticity index of an aneurysm surface, given by:
+        The ellipiticity index of an aneurysm surface is given by:
 
-            EI = 1 - (18pi)^(1/3) * Vch^(2/3)/Sch
+        .. math::
+            EI = 1 - (18\pi)^{1/3}V^{2/3}_{ch}/S_{ch}
 
-        where Vch and Sch are the volume and surface area of the aneurysm
-        convex hull.
+        where :math:`V_{ch}` and :math:`S_{ch}` are the volume and surface area
+        of the convex hull.
         """
 
         factor = (18*const.pi)**(1./3.)
@@ -602,31 +687,35 @@ class Aneurysm:
 
         return const.one - (factor/area)*(volume**(2./3.))
 
-    def GetUndulationIndex(self):
-        """Return undulation index.
+    def GetUndulationIndex(self) -> float:
+        """Return the undulation index.
 
-        Computes the undulation index of an aneurysm, defined as:
+        The undulation index of an aneurysm is defined as:
 
-            UI = 1 - Va/Vch
+        .. math::
+            UI = 1 - V_a/V_{ch}
 
-        where Va is the aneurysm volume and Vch the volume of its convex hull.
+        where :math:`V_a` is the aneurysm volume and :math:`V_{ch}` the volume
+        of its convex hull.
         """
         return 1.0 - self._volume/self._hull_volume
 
-    def GetCurvatureMetrics(self):
-        """Compute curvature metrics.
+    def GetCurvatureMetrics(self) -> dict:
+        """Compute the curvature-based metrics.
 
         Based on local mean and Gaussian curvatures, compute their
         area-averaged values (MAA and GAA, respectively) and their L2-norm (MLN
-        and GLN), as shown in
+        and GLN), as defined in
 
-            Ma et al. (2004).
-            Three-dimensional geometrical characterization
-            of cerebral aneurysms.
+        Ma et al. (2004).  Three-dimensional geometrical characterization
+        of cerebral aneurysms.
 
-        Return a dict with the metrics in the order (MAA, GAA, MLN, GLN).
-        Assumes that both curvature arrays are defined on the aneurysm surface
-        for a more accurate calculation avoiding border effects.
+        Return a dictionary with the metrics (keys MAA, GAA, MLN, and GLN).
+
+        .. warning::
+            Assumes that both curvature arrays, Gaussian and mean, are defined
+            on the aneurysm surface for a more accurate calculation, avoiding
+            border effects.
         """
         # Get arrays on the aneurysm surface
         nArrays = self._aneurysm_surface.GetCellData().GetNumberOfArrays()

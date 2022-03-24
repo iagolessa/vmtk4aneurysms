@@ -1,15 +1,8 @@
-"""Hemodynamics characterization of the flow in a vascular model.
+"""Collection of tools to characterize the hemodynamics of vascular models.
 
-Given an OpenFOAM\R simulation results of the flow in a vasculature, computes
-the hemodynamic characterization of the wall shear stress (WSS) vector. The
-main function provided by the module is the 'hemodynamics' function: given
-the FOAM case with the WSS field over time, it already computes all the
-parameters that are WSS dependent as arrays defined on the surface of the
-model.
-
-The module also provides the 'aneurysm_stats' function that computes the
-statistics of any of the fields calculated on the 'hemodynamics' over the
-aneurysm surface, if this is the case.
+Given the results of an OpenFOAM simulation of the flow in a vascular model,
+with an aneurysm or not, provide tools to the hemodynamic characterization of
+the wall shear stress (WSS) vector.
 """
 
 import os
@@ -43,10 +36,11 @@ def _wss_over_time(
     )   -> tuple:
     """Get surface object and the WSS vector field over time.
 
-    Given the OpenFOAM case with the WSS calculated at each time-step, extracts
-    the surface object (vtkPolyData) and the WSS vector field over time as a
-    Python dictionary with the time-steps as keys and an VTKArray as the
-    values. Returns a tuple with the surface object and the dictionary.
+    Given the OpenFOAM case with the wall shear component calculated at each
+    time-step, extracts the surface object (vtkPolyData) and the WSS vector
+    field over time as a Python dictionary with the time-steps as keys and an
+    VTKArray as the values. Returns a tuple with the surface object and the
+    dictionary.
 
     The function also requires as optional arguments the density and the name
     of the patch where the WSS is defined.
@@ -68,12 +62,14 @@ def _wss_over_time(
 
     return surface, wssVectorOverTime
 
-def _compute_gon(np_surface,
-                 temporal_wss,
-                 p_hat_array,
-                 q_hat_array,
-                 time_steps):
-    """Computes the Gradient Oscillatory Number (GON)."""
+def _compute_gon(
+        np_surface,
+        temporal_wss,
+        p_hat_array,
+        q_hat_array,
+        time_steps
+    ):
+    """Compute the Gradient Oscillatory Number (GON)."""
 
     setArray = np_surface.CellData.append
     delArray = np_surface.GetCellData().RemoveArray
@@ -148,7 +144,6 @@ def _compute_gon(np_surface,
     setArray(avgGVecArray, names.WSSSG)
     setArray(avgMagGVecArray, names.WSSSGmag)
 
-
 def Hemodynamics(
         foam_case: str,
         t_peak_systole: float,
@@ -161,14 +156,88 @@ def Hemodynamics(
         multi_region: bool=False,
         region_name: str=''
     )   -> names.polyDataType:
-    """Compute hemodynamics of WSS field.
+    """Compute WSS-derived hemodynamics of the flow in a vascular surface.
 
-    Based on the temporal statistics of the WSS field over a vascular and
-    aneurysm surface, compute the following parameters: oscillatory shear index
-    (OSI), relative residance time (RRT), WSS pulsatility index (WSSPI), the
-    time-averaged WSS gradient, TAWSSG, the average WSS direction vector, p,
-    and orthogonal, q, to p and the normal, n, to the surface. The triad (p, q,
-    n) is a suitable coordinate system defined on the vascular surface.
+    Given the path to an OpenFOAM case and the wall patch name, compute
+    temporal statistics of the wall shear stress (WSS) field:
+
+        - time-averaged WSS (TAWSS);
+        - peak-systole WSS (PSWSS);
+        - low-diastole WSS (LDWSS).
+
+    As also dependent parameters relevant for a complete hemodynamics
+    characterization and important in the context of cerebral aneurysms and
+    other vascular diseases:
+
+        - oscillatory shear index (OSI);
+        - relative residance time (RRT);
+        - WSS pulsatility index (WSSPI);
+        - WSS temporal gradient (WSSTG);
+        - transversal WSS (transWSS);
+        - time-averaged WSS gradient (TAWSSG);
+        - the average WSS direction vector, :math:`\\vec{p}`;
+        - the orthogonal vector to :math:`\\vec{p}` and the surface normal,
+          :math:`\\vec{n}`, :math:`\\vec{q}`.
+
+    The triad :math:`(\\vec{p},\\vec{q},\\vec{n}` forms a suitable coordinate
+    system defined on the vascular surface.
+
+    Optional parameters may also be computed by optional arguments:
+
+        - aneurysm formation indication (AFI);
+        - gradient oscillatory number (GON).
+
+    Arguments
+        - foam_case (str) -- path to the '.foam' file where the OpenFOAM case is;
+        - t_peak_systole (float) -- peak systole instant;
+        - t_low_diastole (float) -- low diastole instant;
+
+    Optional
+        - density (float) -- blood's assumed density (default 1056.0 kg/m3);
+        - field_name (str) -- name of the WSS field name (default
+          'wallShearComponent');
+        - patch (str) -- name of the wall patch (default 'wall');
+        - compute_gon (bool) -- to compute the GON (default False);
+        - compute_afi (bool) -- to compute the AFI (default False);
+
+    Return
+        - vtkPolyData of the 'patch' surface with the variables fields.
+
+    References
+    ==========
+
+        On the OSI, see:
+        [1] He X and Ku DN. Pulsatile Flow in the Human Left Coronary Artery
+        Bifurcation: Average Conditions. Journal of Biomechanical Engineering.
+        1996;118:74–82.
+
+        On the RRT, see:
+        [2] Himburg et al. Spatial comparison between wall shear stress
+        measures and porcine arterial endothelial permeability. American
+        Journal of Physiology Heart and Circulatory Physiology.
+        2004;286:1916–22.
+
+        On the WSSTG, see:
+        [3] Lee et al. Correlations among indicators of disturbed flow at the
+        normal carotid bifurcation. Journal of Biomechanical Engineering.
+        2009;131(6):1–7.
+
+        On the transWSS, see:
+        [4] Peiffer et al. Computation in the rabbit aorta of a new metric -
+        the transverse wall shear stress - to quantify the multidirectional
+        character of disturbed blood flow. Journal of Biomechanics.
+        2013;46(15):2651–8.
+
+        On the AFI, see:
+        [5] Mantha et al. Hemodynamics in a Cerebral Artery before and after
+        the Formation of an Aneurysm. American Journal of Neuroradiology.
+        2006;27(May):1113–8.
+
+        On the GON, see:
+        [6] Shimogonya et al. Can temporal fluctuation in spatial wall shear
+        stress gradient initiate a cerebral aneurysm? A proposed novel
+        hemodynamic index, the gradient oscillatory number (GON). Journal of
+        Biomechanics. 2009;42:550–4.
     """
     # Get WSS over time
     surface, temporalWss = _wss_over_time(
@@ -222,7 +291,6 @@ def Hemodynamics(
     storeArray(
         (names.WSSPI, (maxMagWSSArray - minMagWSSArray)/avgMagWSSArray)
     )
-
 
     OSIArray = 0.5*(1 - magAvgVecWSSArray/avgMagWSSArray)
     storeArray(
@@ -357,15 +425,19 @@ def AneurysmStats(
         n_percentile: float=99,
         neck_iso_value: float=aneu.NeckIsoValue
     )   -> dict:
-    """Compute statistics of array on aneurysm surface.
+    """Compute fields statistics over aneurysm surface.
 
-    Given a surface with the fields of hemodynamics variables defined on it,
-    computes the average, maximum, minimum, percetile (value passed as optional
-    by the user) and the area averaged over the aneurysm surface.  Assumes that
-    the surface also contain a binary array value that indicates the aneurysm
-    portion with 0 and 1 on the rest of the vasculature. The function uses this
-    array to clip the aneurysm portion. If this is not present on the surface,
-    the function prompts the user to delineate the aneurysm neck.
+    Given a surface with the fields of WSS hemodynamics variables defined on
+    it, computes the average, maximum, minimum, percetile (value passed as
+    optional by the user) and the surface-average over the aneurysm surface.
+    Return a dictionary with the statistics.
+
+    .. note::
+        Assumes that the surface also contain a field name 'neck_array_name'
+        that indicates the aneurysm portion with 0 and 1 on the rest of the
+        vasculature. The function uses this array to clip the aneurysm portion.
+        If this is not present on the surface, the function prompts the user to
+        delineate the aneurysm neck.
     """
 
     pointArrays = tools.GetPointArrays(neck_surface)
@@ -391,18 +463,20 @@ def AneurysmStats(
                n_percentile=n_percentile
            )
 
-def LsaAverage(neck_surface: names.polyDataType,
-               lowWSS: float,
-               neck_array_name: str = aneu.AneurysmNeckArrayName,
-               neck_iso_value: float = aneu.NeckIsoValue,
-               avgMagWSSArray: str = names.TAWSS):
-    """Computes the LSA based on the time-averaged WSS field.
+def LsaAverage(
+        neck_surface: names.polyDataType,
+        lowWSS: float,
+        neck_array_name: str=aneu.AneurysmNeckArrayName,
+        neck_iso_value: float=aneu.NeckIsoValue,
+        avgMagWSSArray: str=names.TAWSS
+    )   -> float:
+    """Computes the LSA based on the time-averaged WSS (TAWSS) field.
 
-    Calculates the LSA (low WSS area ratio) for aneurysms simulations performed
-    in OpenFOAM. Thi input is a sur- face with the time-averaged WSS over the
-    surface and an array defined on it indicating the aneurysm neck.  The
-    function then calculates the aneurysm surface area and the area where the
-    WSS is lower than a reference value provided by the user.
+    Calculates the LSA (low WSS area ratio) for aneurysms. The input is a
+    surface with the time-averaged WSS over the surface and an array defined on
+    it indicating the aneurysm neck.  The function then calculates the aneurysm
+    surface area and the area where the WSS is lower than a reference value
+    provided by the user.
     """
     try:
         # Try to read if file name is given
@@ -428,10 +502,15 @@ def LsaAverage(neck_surface: names.polyDataType,
 # contour in the same way as the aneurysm neck is beuild. So, I will assume in
 # this function that the surface is already cut to in- clude only the parent
 # artery portion and that includes
-def WssParentVessel(parent_artery_surface: names.polyDataType,
-                    parent_artery_array: str = aneu.ParentArteryArrayName,
-                    parent_artery_iso_value: float = aneu.NeckIsoValue,
-                    wss_field: str = names.TAWSS) -> float:
+# TODO: improve the WSS stats over the parent
+# artery by automatically computing a ring of the parent artery adjancent to
+# the aneurysm
+def WssParentVessel(
+        parent_artery_surface: names.polyDataType,
+        parent_artery_array: str = aneu.ParentArteryArrayName,
+        parent_artery_iso_value: float = aneu.NeckIsoValue,
+        wss_field: str = names.TAWSS
+    )   -> float:
     """Calculates the surface averaged WSS value over the parent artery."""
 
     try:
@@ -474,15 +553,24 @@ def WssSurfaceAverage(
         patch: str=names.wallPatchName,
         multi_region: bool=False,
         region_name: str=''
-    ):
+    )   -> dict:
     """Compute the surface-averaged WSS over time.
 
-    Function to compute surface integrals of WSS over an aneurysm or vessels
-    surface. It takes the Open- FOAM case file and an optional surface where it
-    is stored a field with the aneurysm neck line loaded as a ParaView PolyData
-    surface. If the surface is None, it computes the integral over the entire
-    sur- face. It is essential that the surface with the ne- ck array be the
-    same as the wall surface of the OpenFOAM case, i.e. they are the same mesh.
+    Given an OpenFOAM case file, compute surface integrals of WSS over an
+    aneurysm or vessels surface.  Return a dictionary with the time instants as
+    keys.
+
+    .. note::
+        Accepts as argument a surface derived form the simulations with a field
+        named 'neck_array_name' that indicates the aneurysm portion with 0 and
+        1 on the rest of the vasculature. The function uses this array to clip
+        the aneurysm portion.  If this surface is not passed, the function
+        computes the average over the whole surface patch.
+
+    .. warning::
+        It is essential that the 'neck_surface' with the 'neck_array_name' be
+        the same as the wall surface of the OpenFOAM case, i.e.  they are the
+        same mesh.
     """
     # Define condition to compute on aneurysm portion
     computeOnAneurysm = neck_surface is not None
@@ -547,17 +635,23 @@ def LsaInstant(
         patch: str=names.wallPatchName,
         multi_region: bool=False,
         region_name: str=''
-    )   -> list:
+    )   -> dict:
     """Compute the LSA over time.
 
-    Calculates the LSA (low WSS area ratio) for aneurysm simulations performed
-    in OpenFOAM. The input is a surface with the time-averaged WSS over the
-    surface an OpenFOAM case with the WSS field and a surface which contains
-    the array with the aneurysm neck iso line.  The function then calculates
-    the aneurysm surface area and the area where the WSS is lower than a
-    reference value provided by the user, for each instant in the cycles
-    simulated, returning a list with the LSA values over time, for the last
-    cycle.
+    Given an OpenFOAM case file, compute the instantaneous LSA of an aneurysm.
+    Return a dictionary with the time instants as keys.
+
+    .. note::
+        Accepts as argument a surface derived form the simulations with a field
+        named 'neck_array_name' that indicates the aneurysm portion with 0 and
+        1 on the rest of the vasculature. The function uses this array to clip
+        the aneurysm portion.  If this surface is not passed, the function
+        computes the average over the whole surface patch.
+
+    .. warning::
+        It is essential that the 'neck_surface' with the 'neck_array_name' be
+        the same as the wall surface of the OpenFOAM case, i.e.  they are the
+        same mesh.
     """
 
     # Check if neck_surface has aneurysm neck contour array
