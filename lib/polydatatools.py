@@ -101,21 +101,64 @@ def ReadUnsGrid(
 
     return readMesh.Mesh
 
-def ViewSurface(surface, array_name=None):
+def ViewVtkObject(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        field_name: str=None
+    ):
+    """View VTK objects (poly data or unstructured grid)."""
+
+    # Remove the one from the list
+    if field_name is not None and field_name not in GetPointArrays(vtk_object):
+
+        if field_name in GetCellArrays(vtk_object):
+
+            cellToPointFilter = vtk.vtkCellDataToPointData()
+            cellToPointFilter.SetInputData(vtk_object)
+            cellToPointFilter.PassCellDataOff()
+            cellToPointFilter.Update()
+
+            vtk_object = cellToPointFilter.GetOutput()
+
+        else:
+            raise ValueError("{} not in input VTK object.".format(field_name))
+
+    if type(vtk_object) == names.polyDataType:
+
+        viewer = vmtkscripts.vmtkSurfaceViewer()
+        viewer.Surface = vtk_object
+
+        if field_name != None:
+            viewer.ArrayName = field_name
+            viewer.DisplayCellData = 0
+            viewer.Legend = True
+
+        viewer.Execute()
+
+    elif type(vtk_object) == names.unstructuredGridType:
+
+        viewer = vmtkscripts.vmtkMeshViewer()
+        viewer.Mesh = vtk_object
+
+        if field_name != None:
+            viewer.ArrayName = field_name
+            viewer.Legend = True
+
+        viewer.Execute()
+
+    else:
+        raise ValueError("Unknown format.")
+
+def ViewSurface(
+        surface: names.polyDataType,
+        array_name: str=None
+    ):
     """View surface vtkPolyData objects.
 
     Arguments:
     surface -- the surface to be displayed.
     """
-    viewer = vmtkscripts.vmtkSurfaceViewer()
-    viewer.Surface = surface
 
-    if array_name != None:
-        viewer.ArrayName = array_name
-        viewer.DisplayCellData = 1
-        viewer.Legend = True
-
-    viewer.Execute()
+    ViewVtkObject(surface, array_name)
 
 def WriteSurface(surface: names.polyDataType,
                  file_name: str) -> None:
@@ -452,17 +495,49 @@ def CleanupArrays(surface):
     return surface
 
 
-def ExtractPortion(polydata, array_name, isovalue):
-    """Extract portion of vtkPolyData based on array."""
+def ExtractPortion(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        array_name,
+        isovalue
+    ):
+    """Extract portion of vtkPolyData based on array.
+
+    Given a VTK poly data or unstructured grid, extract the portion of it
+    marked by the value 'iso_value' of the field 'array_name'. Notte, it
+    extracts exctaly the regions with this value. To extract a region marked by
+    values above or below an isovalue, use ClipWithScalar.
+
+    .. warning::
+        array_name must be a cell-wise field defined on the surface.
+
+    .. warning::
+        Retun 'None' if the result is empty.
+    """
+
+    if array_name not in GetCellArrays(vtk_object):
+        raise ValueError("{} not in the object".format(array_name))
 
     threshold = vtk.vtkThreshold()
-    threshold.SetInputData(polydata)
+    threshold.SetInputData(vtk_object)
+    # 1 indicates cell values
     threshold.SetInputArrayToProcess(0, 0, 0, 1, array_name)
     threshold.ThresholdBetween(isovalue, isovalue)
     threshold.Update()
 
-    # Converts vtkUnstructuredGrid -> vtkPolyData
-    return UnsGridToPolyData(threshold.GetOutput())
+    # Converts vtkUnstructuredGrid -> vtkPolyData, if needed
+    # (vtkThreshold return an unstructured grid, by defautl)
+    if type(vtk_object) == names.polyDataType:
+         portion = UnsGridToPolyData(threshold.GetOutput())
+
+    else:
+         portion = threshold.GetOutput()
+
+    # Check if there is at least one cell
+    if portion.GetNumberOfCells() == 0:
+        return None
+
+    else:
+        return portion
 
 def ExtractConnectedRegion(regions, method, closest_point=None):
     """Extract the largest or closest to point patch of a disconnected domain.
