@@ -495,13 +495,13 @@ def CleanupArrays(
     )   -> Union[names.polyDataType, names.unstructuredGridType]:
     """Remove all point and/or cell arrays in a VTK object."""
 
-    for p_array in GetPointArrays(surface):
-        surface.GetPointData().RemoveArray(p_array)
+    for p_array in GetPointArrays(vtk_object):
+        vtk_object.GetPointData().RemoveArray(p_array)
 
-    for c_array in GetCellArrays(surface):
-        surface.GetCellData().RemoveArray(c_array)
+    for c_array in GetCellArrays(vtk_object):
+        vtk_object.GetCellData().RemoveArray(c_array)
 
-    return surface
+    return vtk_object
 
 
 def ExtractPortion(
@@ -526,10 +526,10 @@ def ExtractPortion(
     if array_name not in GetCellArrays(vtk_object):
         raise ValueError("{} not in the object".format(array_name))
 
-    if array_name in GetPointArrays(polydata):
+    if array_name in GetPointArrays(vtk_object):
         fieldAssociation = "pointField"
 
-    elif array_name in GetCellArrays(polydata):
+    elif array_name in GetCellArrays(vtk_object):
         fieldAssociation = "cellField"
 
     else:
