@@ -27,8 +27,8 @@ def AneurysmPulsatility(
 
     where "ld" indicates low diastole and "ps" indicates peak systole values,
     and V is the aneurysm sac volume. It uses the the lumen surface with the
-    peak systole and low diastole displacement field on the surface. 
-    
+    peak systole and low diastole displacement field on the surface.
+
     .. note::
         The input surface must alread have the aneurysm neck array, otherwise
         the function prompts the user to select the aneurysm neck contour.
@@ -198,3 +198,14 @@ def WallTypeClassification(
     )
 
     return hemodynamicSurfaceNumpy.VTKObject
+
+def DeformConfiguration(
+        ref_config_obj,
+        displ_field_name
+    ):
+    """Deform the undeformed configuration by a point field defined on it."""
+
+    return geo.WarpVtkObject(
+               ref_config_obj,
+               displ_field_name
+           )
