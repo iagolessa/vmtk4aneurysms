@@ -4,6 +4,7 @@ import os
 import sys
 import pandas as pd
 from typing import Union
+from copy import copy
 
 import vtk
 from vmtk import vtkvmtk
@@ -829,6 +830,88 @@ def vtkPolyDataToDataFrame(
 
     return pd.concat([pointsToDataFrame] + arraysOnTheSurface,
                      axis=1)
+
+def CellFieldToPointField(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        cell_field_name: str=None
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Convert a single cell field to a point field defined on a VTK object.
+
+    Given a VTK poly data or an unstructured grid, convert the
+    passed cell field name to a point field. If the field_name is
+    None, convert all cell fields to point fields.
+
+    .. note::
+        By default, it leaves the cell field on the object.
+    """
+    cellFields = GetCellArrays(vtk_object)
+
+    if cell_field_name is not None:
+        if cell_field_name not in cellFields:
+            raise ValueError(
+                      cell_field_name + " not found in object. Aborting."
+                  )
+
+        # To allow the behavior of a single field being interpolated,
+        # the fields that will be kept as cells fields only must be
+        # deleted after the operation, so keep a list with them
+        cellFieldsToKeep = copy(cellFields)
+        cellFieldsToKeep.remove(cell_field_name)
+
+    cellToPoint = vtk.vtkCellDataToPointData()
+    cellToPoint.SetInputData(vtk_object)
+    cellToPoint.SetPassCellData(True)
+    cellToPoint.Update()
+
+    vtk_object = cellToPoint.GetOutput()
+
+    if cell_field_name is not None:
+        # Now delete all the point fields in cellFieldsToKeep
+        for pfield in cellFieldsToKeep:
+            vtk_object.GetPointData().RemoveArray(pfield)
+
+    return vtk_object
+
+def PointFieldToCellField(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        point_field_name: str=None
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Convert a single point field to a cell field defined on a VTK object.
+
+    Given a VTK poly data or an unstructured grid, convert the
+    passed point field name to a cell field. If the field_name is
+    None, convert all point fields to cell fields.
+
+    .. note::
+        By default, it leaves the point field on the object.
+    """
+    pointFields = GetPointArrays(vtk_object)
+
+    if point_field_name is not None:
+        if point_field_name not in pointFields:
+            raise ValueError(
+                      point_field_name + " not found in object. Aborting."
+                  )
+
+        # To allow the behavior of a single field being interpolated,
+        # the fields that will be kept as cells fields only must be
+        # deleted after the operation, so keep a list with them
+        pointFieldsToKeep = copy(pointFields)
+        pointFieldsToKeep.remove(point_field_name)
+
+    pointToCell = vtk.vtkPointDataToCellData()
+    pointToCell.SetInputData(vtk_object)
+    pointToCell.SetPassPointData(True)
+    pointToCell.Update()
+
+    vtk_object = pointToCell.GetOutput()
+
+    if point_field_name is not None:
+        # Now delete all the cell fields in pointFieldsToKeep
+        for cfield in pointFieldsToKeep:
+            vtk_object.GetCellData().RemoveArray(cfield)
+
+    return vtk_object
 
 # This class was adapted from the 'vmtkcenterlines.py' script
 # distributed with VMTK in https://github.com/vmtk/vmtk
