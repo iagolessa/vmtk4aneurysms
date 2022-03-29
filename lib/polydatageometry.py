@@ -3,6 +3,7 @@
 import vtk
 import math
 import numpy as np
+from typing import Union
 
 from vmtk import vtkvmtk
 from numpy import multiply, zeros, where
@@ -194,29 +195,54 @@ def ContourIsClosed(
 
     return nVertices == nEdges
 
+def WarpVtkObject(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        field_name: str
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Warp (or deform) a VTK object with a vector field (cell or point)."""
+
+    # First check whether the field is on the object
+    # and convert it to point field if necessary
+    if field_name not in tools.GetPointArrays(vtk_object):
+
+        if field_name in tools.GetCellArrays(vtk_object):
+
+            # Convert field to point data
+            print(
+                "Found " + field_name + " in cell data. Converting to point field."
+            )
+
+            vtk_object = tools.CellFieldToPointField(
+                             vtk_object,
+                             field_name
+                         )
+
+        else:
+            raise ValueError(field_name + "not found in object.")
+
+    else:
+        pass
+
+    # Set active field
+    displData = vtk_object.GetPointData().GetArray(field_name)
+    vtk_object.GetPointData().SetActiveVectors(displData.GetName())
+
+    # Warp the surfaces at the two instants
+    warpObject = vtk.vtkWarpVector()
+    warpObject.SetInputData(vtk_object)
+    warpObject.SetScaleFactor(1.0)
+    warpObject.Update()
+
+    return warpObject.GetOutput()
+
 def WarpPolydata(
         polydata: names.polyDataType,
         field_name: str
     )   -> names.polyDataType:
     """Given a vtkPolyData with a field, warp it by the field."""
 
-    # Convert cell data to point data
-    cellToPointFilter = vtk.vtkCellDataToPointData()
-    cellToPointFilter.SetInputData(polydata)
-    cellToPointFilter.Update()
-
-    newPolydata = cellToPointFilter.GetOutput()
-
-    displData = newPolydata.GetPointData().GetArray(field_name)
-    newPolydata.GetPointData().SetActiveVectors(displData.GetName())
-
-    # Warp the surfaces at the two instants
-    warpPolydata = vtk.vtkWarpVector()
-    warpPolydata.SetInputData(newPolydata)
-    warpPolydata.SetScaleFactor(1.0)
-    warpPolydata.Update()
-
-    return warpPolydata.GetOutput()
+    # For backward compatibility
+    return WarpVtkObject(polydata, field_name)
 
 class Surface():
     """Computational model of a three-dimensional surface."""
