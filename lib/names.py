@@ -1,6 +1,7 @@
 """Definitions of names and other variables."""
 
 import vtk
+from vtk.numpy_interface import dataset_adapter as dsa
 
 # Attribute array names
 polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
@@ -9,8 +10,16 @@ multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 foamReaderType = vtk.vtkIOParallelPython.vtkPOpenFOAMReader
 
 planeType = vtk.vtkCommonDataModelPython.vtkPlane
+vtkArrayType = dsa.VTKArray
+
+# Field-type labels
+scalarFieldLabel = "scalarField"
+vectorFieldLabel = "vectorField"
+tensor2SymmFieldLabel = "tensor2SymmField"
+tensor2FieldLabel = "tensor2Field"
 
 # Field suffixes
+spaceDimensionality = 3 # 3D Euclidean space only, for now
 xAxisSufx = "X"
 yAxisSufx = "Y"
 zAxisSufx = "Z"

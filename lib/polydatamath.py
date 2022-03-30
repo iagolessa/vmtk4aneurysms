@@ -12,6 +12,65 @@ from . import names
 from . import polydatatools as tools
 from .polydatageometry import Surface
 
+
+def GetFieldType(
+        vtk_np_array: names.vtkArrayType
+    )   -> str:
+    """Return the field type (scalar, vector or tensor).
+
+    Given a field defined via the VTK's numpy adaptor, ie a NumPy-like array,
+    return the type of the field.
+
+    Raises NonImplementedError for fields of tensors of higher order or
+    temporal arrays. In this case, only scalars, vector, and tensor of
+    second-order are contemplated.
+
+    Returns
+    -------
+        str ('scalarField', 'vectorField',
+             'tensor2SymmField', 'tensor2Field')
+    """
+
+    if type(vtk_np_array) == dsa.VTKNoneArray:
+        raise ValueError("Detected None array. The array must not be empy.")
+
+    # Get whether scalar, vector or tensor
+    # being field a numpy array
+    npDimensions = vtk_np_array.ndim
+
+    if npDimensions == 1:
+        # Due to the nature of a numpy array
+        # in this case it will be a scalar field
+        fieldType = names.scalarFieldLabel
+
+    elif npDimensions == 2:
+        # Either vector of second order symmetric tensor
+
+        # get the axis 1 size of the numpy array
+        # since it is better to get the rank of
+        # the entity based on it
+        fieldDim = vtk_np_array.shape[-1]
+
+        if fieldDim == 3:
+            fieldType = names.vectorFieldLabel
+
+        elif fieldDim == 6:
+            # Second-order tensor
+            fieldType = names.tensor2SymmFieldLabel
+
+        else:
+            raise ValueError(
+                     "Unknown field type. Field dimensionality " + str(fieldDim) + "."
+                  )
+
+    elif npDimensions == 3:
+        fieldType = names.tensor2FieldLabel
+
+    else:
+        raise NotImplementedError("Field array has a higher dimensionality.")
+
+    return fieldType
+
 def NormL2(array, axis):
     """Compute L2-norm of an array along an axis."""
 
@@ -30,7 +89,13 @@ def SurfaceAverage(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType],
         array_name: str
     )   -> float:
-    """Compute area-averaged array over surface with first-order accuracy."""
+    """Compute area-averaged array over surface with first-order accuracy.
+
+    .. warning::
+        The computation requires scalar field only to be integrated. If a
+        vector or second-order symmstric tensors are passed, it first computes
+        the L2-norm of them. Higher-order tensor are still not supported.
+    """
 
     # Operate on copy of the vtk_object to be able to destroy all other
     # fields on the surface (improves performance when triangulating)
@@ -61,12 +126,22 @@ def SurfaceAverage(
     arrayOnObject = npVtkObject.GetCellData().GetArray(array_name)
 
     # Check type of field: vector or scalar
-    nComponents = arrayOnObject.shape[-1]
+    arrayType = GetFieldType(arrayOnObject)
 
-    if nComponents == 3 or nComponents == 6:
+    if arrayType == names.vectorFieldLabel or \
+       arrayType == names.tensor2SymmFieldLabel:
+        # Compute a simple L2 norm, even for second-order symm tensors
         arrayOnObject = NormL2(arrayOnObject, 1)
 
         npVtkObject.CellData.append(arrayOnObject, array_name)
+
+    elif arrayType == names.scalarFieldLabel:
+        pass
+
+    else:
+        raise NotImplementedError(
+                  "Array of type " + arrayType + ". Norm not implemented, yet."
+              )
 
     # back to VTK interface
     vtk_object = npVtkObject.VTKObject
