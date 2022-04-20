@@ -456,14 +456,16 @@ def ProjectCellArray(
 
 def ResampleFieldsToSurface(
         source_mesh: names.unstructuredGridType,
-        target_surface: names.polyDataType
+        target_surface: names.polyDataType,
+        field_names: Union[str, list]="all"
     )   -> names.polyDataType:
     """Resample fields of a vtkUnstructuredGrid into a surface contained in it.
 
     Given a volumetric mesh (vtkUnstructuredGrid) object with cell or point
-    fields defined on it, resample these fields to a surface (vtkPolyData)
+    fields defined on it, resample the passed fields to a surface (vtkPolyData)
     that is contained by the volumetric mesh. The resampling filter resamples
-    all fields to point fields.
+    all fields to point fields. If no list or string with the field names to
+    resample, resamples all the fields.
 
     .. warning ::
         This procedure may generate erroneous results for cell fields,
@@ -472,15 +474,53 @@ def ResampleFieldsToSurface(
         the resulting mesh.
     """
 
-    # Before resampling, convert all cell fields to point fields
+    # It is better for this procedure to convert all cell fields to point
+    # fields first
     cellToPointFilter = vtk.vtkCellDataToPointData()
     cellToPointFilter.SetInputData(source_mesh)
     cellToPointFilter.PassCellDataOff()
     cellToPointFilter.Update()
 
+    source_mesh = cellToPointFilter.GetOutput()
+
+    if field_names != "all":
+
+        # Check whether only one string or a list was passed
+        field_names = [field_names] \
+                      if type(field_names) is str \
+                      else field_names
+
+        # Leave only field_names in the source_mesh
+        pointArrays = GetPointArrays(source_mesh)
+
+        # Check whether the fields are on the source_mesh
+        fieldsInPointArrays = all(field_name in pointArrays
+                                  for field_name in field_names)
+
+        # If all the fields are on the mesh, remove them from the list
+        if fieldsInPointArrays:
+
+            for field_name in field_names:
+                pointArrays.remove(field_name)
+
+        else:
+            raise ValueError(
+                      "Some fields (or all) are not in input VTK object."
+                  )
+
+        # Now delete the arrays left in pointArrays
+        pointData = source_mesh.GetPointData()
+
+        for point_array in pointArrays:
+            pointData.RemoveArray(point_array)
+
+    # Finally, resample (wth only the field_names)
     resampleToMidSurface = vtk.vtkResampleWithDataSet()
-    resampleToMidSurface.SetSourceConnection(cellToPointFilter.GetOutputPort())
+    # resampleToMidSurface.SetSourceConnection(source_mesh.GetOutputPort())
+    resampleToMidSurface.SetSourceData(source_mesh)
     resampleToMidSurface.SetInputData(target_surface)
+    resampleToMidSurface.SetPassPointArrays(True)
+    resampleToMidSurface.SetPassCellArrays(True)
     resampleToMidSurface.Update()
 
     # Convert all fields back to cell data in new mesh
