@@ -27,6 +27,7 @@ zAxisSufx = "Z"
 avg = '_average'
 mag = '_magnitude'
 grad = '_gradient'
+ngrad = '_ngradient'
 sgrad = '_sgradient'
 min_ = '_minimum'
 max_ = '_maximum'

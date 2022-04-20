@@ -58,7 +58,8 @@ def SpatialGradient(
 
 def SurfaceGradient(
         surface: names.polyDataType,
-        field_name: str
+        field_name: str,
+        add_normal_gradient: bool=False
     )   -> names.polyDataType:
     """Compute surface gradient of field on a surface.
 
@@ -81,7 +82,7 @@ def SurfaceGradient(
 
     # GetArrays
     npSurface = dsa.WrapDataObject(surfaceWithGradient)
-    getArray = npSurface.GetCellData().GetArray
+    getArray  = npSurface.GetCellData().GetArray
 
     normalsArray  = getArray(names.normals)
     gradientArray = getArray(field_name + names.grad)
@@ -92,8 +93,16 @@ def SurfaceGradient(
     # Compute the surface gradient
     surfaceGrad = gradientArray - normalGradient*normalsArray
 
-    npSurface.CellData.append(surfaceGrad,
-                              field_name + names.sgrad)
+    npSurface.CellData.append(
+        surfaceGrad,
+        field_name + names.sgrad
+    )
+
+    if add_normal_gradient:
+        npSurface.CellData.append(
+            normalGradient,
+            field_name + names.ngrad
+        )
 
     # Clean up
     npSurface.GetCellData().RemoveArray(field_name + names.grad)
