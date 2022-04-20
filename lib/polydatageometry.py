@@ -26,21 +26,30 @@ def Distance(
     return math.sqrt(sqrDistance)
 
 def SpatialGradient(
-        surface: names.polyDataType,
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
         field_name: str
-    )   -> names.polyDataType:
-    """Compute gradient of field on a surface."""
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Compute gradient of cell or point field on a VTK object."""
 
+
+    # Create gradient filter
     gradient = vtk.vtkGradientFilter()
-    gradient.SetInputData(surface)
+    gradient.SetInputData(vtk_object)
 
-    # TODO: Make check of type of field
-    # scalar or vector
-    # 1 is the field type: means vector
-    gradient.SetInputScalars(1, field_name)
-    gradient.SetResultArrayName(field_name+names.grad)
+    # Get the field associations CELLS or POINTS
+    if field_name in tools.GetPointArrays(vtk_object):
+        # 0 -> POINT field
+        gradient.SetInputScalars(0, field_name)
+
+    elif field_name in tools.GetCellArrays(vtk_object):
+        # 1 -> CELL field
+        gradient.SetInputScalars(1, field_name)
+
+    else:
+        raise ValueError("{} not in input VTK object.".format(field_name))
+
+    gradient.SetResultArrayName(field_name + names.grad)
     gradient.ComputeDivergenceOff()
-    gradient.ComputeGradientOn()
     gradient.ComputeQCriterionOff()
     gradient.ComputeVorticityOff()
     gradient.Update()
