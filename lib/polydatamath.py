@@ -10,7 +10,7 @@ import vtk
 from vtk.numpy_interface import dataset_adapter as dsa
 from . import names
 from . import polydatatools as tools
-from .polydatageometry import Surface
+from . import polydatageometry as geo
 
 
 def GetFieldType(
@@ -154,7 +154,7 @@ def SurfaceAverage(
                          for id_ in range(vtk_object.GetNumberOfCells())]
                     )
 
-        return np.sum(arrayOnObject*cellAreas)/Surface.Area(vtk_object)
+        return np.sum(arrayOnObject*cellAreas)/geo.Surface.Area(vtk_object)
 
     elif type(vtk_object) == names.unstructuredGridType:
 
