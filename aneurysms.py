@@ -19,6 +19,7 @@ from .lib import names
 from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
+from .lib import polydatamath as pmath
 
 _cellEntityIdsArrayName = "CellEntityIds"
 
@@ -718,11 +719,7 @@ class Aneurysm:
             border effects.
         """
         # Get arrays on the aneurysm surface
-        nArrays = self._aneurysm_surface.GetCellData().GetNumberOfArrays()
-        aneurysmCellData = self._aneurysm_surface.GetCellData()
-
-        arrayNames = [aneurysmCellData.GetArray(array_id).GetName()
-                      for array_id in range(nArrays)]
+        arrayNames = tools.GetCellArrays(self._aneurysm_surface)
 
         curvatureArrays = {'Mean': 'Mean_Curvature',
                            'Gauss': 'Gauss_Curvature'}
@@ -746,45 +743,73 @@ class Aneurysm:
         else:
             curvatureSurface = self._aneurysm_surface
 
-        aneurysmCellData = curvatureSurface.GetCellData()
+        # Get surface area
+        surfaceArea = geo.Surface.Area(curvatureSurface)
 
-        # TODO: improve this patch with vtkIntegrateAttributes I don't know why
-        # the vtkIntegrateAttributes was not available in the python interface,
-        # so I had to improvise (this version was the most efficient that I got
-        # with pure python -- I tried others more numpythonic as well)
+        # Add the squares of Gauss and mean curvatures
+        npCurvSurface = dsa.WrapDataObject(curvatureSurface)
 
-        # Helper functions
-        getArea = lambda id_: curvatureSurface.GetCell(id_).ComputeArea()
-        getValue = lambda id_, array: aneurysmCellData.GetArray(array).GetValue(id_)
+        arrGaussCurv = npCurvSurface.CellData.GetArray(curvatureArrays["Gauss"])
+        arrMeanCurv  = npCurvSurface.CellData.GetArray(curvatureArrays["Mean"])
 
-        def GetCellCurvature(id_):
-            cellArea = getArea(id_)
-            GaussCurvature = getValue(id_, curvatureArrays.get('Gauss'))
-            MeanCurvature  = getValue(id_, curvatureArrays.get('Mean'))
+        nameSqrGaussCurv = "Squared_Gauss_Curvature"
+        nameSqrMeanCurv  = "Squared_Mean_Curvature"
 
-            return cellArea, MeanCurvature, GaussCurvature
+        npCurvSurface.CellData.append(
+            arrGaussCurv**2,
+            nameSqrGaussCurv
+        )
 
-        integralSquareGaussCurvature = 0.0
-        integralSquareMeanCurvature  = 0.0
-        integralGaussCurvature = 0.0
-        integralMeanCurvature  = 0.0
+        npCurvSurface.CellData.append(
+            arrMeanCurv**2,
+            nameSqrMeanCurv
+        )
 
-        cellIds = range(curvatureSurface.GetNumberOfCells())
+        curvatureSurface = npCurvSurface.VTKObject
 
-        # Map function to cell ids
-        for area, meanCurv, GaussCurv in map(GetCellCurvature, cellIds):
-            integralGaussCurvature += area*GaussCurv
-            integralMeanCurvature  += area*meanCurv
+        GAA = pmath.SurfaceAverage(
+                    curvatureSurface, 
+                    curvatureArrays["Gauss"]
+                )
 
-            integralSquareGaussCurvature += area*(GaussCurv**2)
-            integralSquareMeanCurvature  += area*(meanCurv**2)
+        MAA = pmath.SurfaceAverage(
+                    curvatureSurface, 
+                    curvatureArrays["Mean"]
+                )
 
-        # Compute L2-norm of Gauss and mean curvature (GLN and MLN)
-        # and their area averaged values (GAA and MAA)
-        MAA = integralMeanCurvature/self._surface_area
-        GAA = integralGaussCurvature/self._surface_area
+        surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface, 
+                                nameSqrGaussCurv
+                            )
+        surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface, 
+                                nameSqrMeanCurv
+                            )
 
-        MLN = np.sqrt(integralMeanCurvature)/(4.0*const.pi)
-        GLN = np.sqrt(integralGaussCurvature*self._surface_area)/(4.0*const.pi)
+        GLN = np.sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
+        MLN = np.sqrt(surfIntSqrMeanCurv)/(4*const.pi)
 
-        return {"MAA": MAA, "GAA": GAA, "MLN": MLN, "GLN": GLN}
+        # Computing the hyperbolic L2-norm
+        hyperbolicPatches = tools.ClipWithScalar(
+                                curvatureSurface, 
+                                curvatureArrays["Gauss"], 
+                                float(const.zero)
+                            )
+        hyperbolicArea    = geo.Surface.Area(hyperbolicPatches)
+
+        # Check if there is any hyperbolic areas
+        if hyperbolicArea > 0.0:
+            surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
+                                                        hyperbolicPatches, 
+                                                        nameSqrGaussCurv
+                                                    )
+
+            HGLN = np.sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
+        else:
+            HGLN = 0.0
+
+        return {"MAA": MAA, 
+                "GAA": GAA, 
+                "MLN": MLN, 
+                "GLN": GLN,
+                "HGLN": HGLN}
