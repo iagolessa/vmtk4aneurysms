@@ -97,6 +97,8 @@ def SurfaceAverage(
         the L2-norm of them. Higher-order tensor are still not supported.
     """
 
+    vtkObjectOriginalType = type(vtk_object)
+
     # Operate on copy of the vtk_object to be able to destroy all other
     # fields on the surface (improves performance when triangulating)
     vtk_object = tools.CopyVtkObject(vtk_object)
@@ -115,11 +117,15 @@ def SurfaceAverage(
 
     # Needs to triangulate the object to get the cell areas and volumes
     # This generic filter can oerate on both vtkPolyData or vtkUnstructuredGrid
+    # But it returns unstructuredGrid!
     triangleFilter = vtk.vtkDataSetTriangleFilter()
     triangleFilter.SetInputData(vtk_object)
     triangleFilter.Update()
 
-    vtk_object = triangleFilter.GetOutput()
+    # Dataset Triangle filter outputs a unstrcturedGrid, so convert it if
+    # vtk_object was a vtk_poly data originally
+    if vtkObjectOriginalType == names.polyDataType:
+        vtk_object = tools.UnsGridToPolyData(triangleFilter.GetOutput())
 
     # Use Numpy interface to compute field norm
     npVtkObject   = dsa.WrapDataObject(vtk_object)
