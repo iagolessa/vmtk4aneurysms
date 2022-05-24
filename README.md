@@ -1,4 +1,4 @@
-# README #
+# vmtk4aneurysms #
 
 ### What is this repository for? ###
 
@@ -14,9 +14,9 @@ related to fluid-solid interaction simulations with vascular models.
 Just make sure to have the Vascular Modeling Toolkit (VMTK) installed, as
 suggested in the official website. It also depends on the
 [MorphMan](https://github.com/KVSlab/morphMan) library for some surface
-manipulations Python libraries such as SciPy, NumPy, and Pandas. 
+manipulations Python libraries such as SciPy, NumPy, and Pandas.
 
 ### Who do I talk to? ###
 
 Iago Lessa de Oliveira
-iago.oliveira@unesp.br
+(iago.oliveira@unesp.br)
