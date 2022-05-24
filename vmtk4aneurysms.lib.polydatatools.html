@@ -1,0 +1,1523 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+          "DTD/xhtml1-strict.dtd">
+<html>
+  
+
+  <head>
+    
+    <title>vmtk4aneurysms.lib.polydatatools</title>
+    <meta name="generator" content="pydoctor 22.5.1"> 
+        
+    </meta>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1 maximum-scale=1" />
+    <link rel="stylesheet" type="text/css" href="bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="apidocs.css" />
+    <link rel="stylesheet" type="text/css" href="extra.css" />
+</head>
+
+  <body>
+
+    
+
+    <nav class="navbar navbar-default mainnavbar">
+      
+  
+  <div class="container-fluid">
+
+
+    <div class="navbar-header">
+      
+      <div class="navlinks">
+        <span class="navbar-brand">
+          <a href="https://github.com/iagolessa/vmtk4aneurysms" class="projecthome">vmtk4aneurysms</a> <a href="index.html">API Documentation</a>
+        </span>
+
+        <a href="moduleIndex.html">
+          Modules
+        </a>
+
+        <a href="classIndex.html">
+          Classes
+        </a>
+
+        <a href="nameIndex.html">
+          Names
+        </a>
+
+        <div id="search-box-container">
+          <div class="input-group">
+            <input id="search-box" type="search" name="search-query" placeholder="Search..." aria-label="Search" minlength="2" class="form-control" autocomplete="off" />
+            
+            <span class="input-group-btn">
+              <a style="display: none;" class="btn btn-default" id="search-clear-button" title="Clear" onclick="clearSearch()"><img src="fonts/x-circle.svg" alt="Clear" /></a>
+              <a class="btn btn-default" id="search-help-button" title="Help" onclick="toggleSearchHelpText()"><img src="fonts/info.svg" alt="Help" /></a>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+      <div id="search-results-container" style="display: none;">
+        
+        <div id="search-buttons">
+          <span class="label label-default" id="search-docstrings-button">
+          <label class="checkbox-inline">
+            <input type="checkbox" id="toggle-search-in-docstrings-checkbox" value="false" onclick="toggleSearchInDocstrings()">
+              search in docstrings
+            </input>
+          </label>
+          </span>
+          
+        </div>
+        
+        <noscript>
+            <h1>Cannot search: JavaScript is not supported/enabled in your browser.</h1>
+        </noscript>
+
+        <div class="hint" id="search-help-box">
+          <p class="rst-last">
+      
+            Search bar offers the following options:
+            <ul>   
+                <li>
+                  <strong>Term presence.</strong> The below example searches for documents that 
+                    must contain “foo”, might contain “bar” and must not contain “baz”: <code>+foo bar -baz</code>
+                </li> 
+
+                <li>
+                  <strong>Wildcards.</strong> The below example searches for documents with words beginning with “foo”: <code>foo*</code>
+                </li> 
+
+                <li>
+                  <strong>Search in specific fields.</strong> The following search matches all objects 
+                  in "twisted.mail" that matches “search”: <code>+qname:twisted.mail.* +search</code>
+
+                  <p>
+                    Possible fields: 'name', 'qname' (fully qualified name), 'docstring', and 'kind'.
+                    Last two fields are only applicable if "search in docstrings" is enabled.
+                  </p>
+                </li>
+
+                <li>
+                  <strong>Fuzzy matches.</strong> The following search matches all documents 
+                  that have a word within 1 edit distance of “foo”: <code>foo~1</code>
+                </li>
+            </ul>
+
+          </p>
+        </div>
+
+        <div id="search-status"> </div>
+
+        <div class="warning" id="search-warn-box" style="display: none;">
+          <p class="rst-last"><span id="search-warn"></span></p>
+        </div>
+
+        <table id="search-results">
+          <!-- Filled dynamically by JS -->
+        </table>
+        
+        <div style="margin-top: 8px;">
+          <p>Results provided by <a href="https://lunrjs.com">Lunr.js</a></p>
+        </div>
+      </div>
+
+    </div>
+
+
+  </div>
+</nav>
+    
+    <div class="container-fluid">
+
+      <!-- Side navigation -->
+      <div class="sidebarcontainer" style="display: none;">
+        
+        <div class="sidebar"><nav class="sidebar">
+  
+
+  <div>
+
+      <div class="thingTitle">
+        <span>Module</span>
+        <code class="thisobject"><a href="vmtk4aneurysms.lib.polydatatools.html" class="internal-link" title="This module">polydatatools</a></code> 
+      </div>
+      
+      <div>
+        
+
+        
+         
+
+        <div class="childrenKindTitle">Classes</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.polydatatools.PickPointSeedSelector.html" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.PickPointSeedSelector"><wbr></wbr>Pick<wbr></wbr>Point<wbr></wbr>Seed<wbr></wbr>Selector</a></code>
+            </div>
+        
+
+    </li>
+</ul>
+
+        <div class="childrenKindTitle">Functions</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#CellFieldToPointField" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.CellFieldToPointField"><wbr></wbr>Cell<wbr></wbr>Field<wbr></wbr>To<wbr></wbr>Point<wbr></wbr>Field</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#Cleaner" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.Cleaner"><wbr></wbr>Cleaner</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#CleanupArrays" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.CleanupArrays"><wbr></wbr>Cleanup<wbr></wbr>Arrays</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ClipWithPlane" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ClipWithPlane"><wbr></wbr>Clip<wbr></wbr>With<wbr></wbr>Plane</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ClipWithScalar" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ClipWithScalar"><wbr></wbr>Clip<wbr></wbr>With<wbr></wbr>Scalar</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ComputeSurfacesDistance" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ComputeSurfacesDistance"><wbr></wbr>Compute<wbr></wbr>Surfaces<wbr></wbr>Distance</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ContourCutWithPlane" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ContourCutWithPlane"><wbr></wbr>Contour<wbr></wbr>Cut<wbr></wbr>With<wbr></wbr>Plane</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#CopyVtkObject" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.CopyVtkObject"><wbr></wbr>Copy<wbr></wbr>Vtk<wbr></wbr>Object</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ExtractConnectedRegion" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ExtractConnectedRegion"><wbr></wbr>Extract<wbr></wbr>Connected<wbr></wbr>Region</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ExtractPortion" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ExtractPortion"><wbr></wbr>Extract<wbr></wbr>Portion</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#GetCellArrays" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.GetCellArrays"><wbr></wbr>Get<wbr></wbr>Cell<wbr></wbr>Arrays</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#GetPointArrays" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.GetPointArrays"><wbr></wbr>Get<wbr></wbr>Point<wbr></wbr>Arrays</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#PointFieldToCellField" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.PointFieldToCellField"><wbr></wbr>Point<wbr></wbr>Field<wbr></wbr>To<wbr></wbr>Cell<wbr></wbr>Field</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#PolyDataToUnsGrid" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.PolyDataToUnsGrid"><wbr></wbr>Poly<wbr></wbr>Data<wbr></wbr>To<wbr></wbr>Uns<wbr></wbr>Grid</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ProjectCellArray" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ProjectCellArray"><wbr></wbr>Project<wbr></wbr>Cell<wbr></wbr>Array</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ProjectPointArray" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ProjectPointArray"><wbr></wbr>Project<wbr></wbr>Point<wbr></wbr>Array</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ReadSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ReadSurface"><wbr></wbr>Read<wbr></wbr>Surface</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ReadUnsGrid" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ReadUnsGrid"><wbr></wbr>Read<wbr></wbr>Uns<wbr></wbr>Grid</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ResampleFieldsToSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ResampleFieldsToSurface"><wbr></wbr>Resample<wbr></wbr>Fields<wbr></wbr>To<wbr></wbr>Surface</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ScaleVtkObject" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ScaleVtkObject"><wbr></wbr>Scale<wbr></wbr>Vtk<wbr></wbr>Object</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#SelectSurfacePoint" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.SelectSurfacePoint"><wbr></wbr>Select<wbr></wbr>Surface<wbr></wbr>Point</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#SmoothSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.SmoothSurface"><wbr></wbr>Smooth<wbr></wbr>Surface</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#UnsGridToPolyData" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.UnsGridToPolyData"><wbr></wbr>Uns<wbr></wbr>Grid<wbr></wbr>To<wbr></wbr>Poly<wbr></wbr>Data</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ViewSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ViewSurface"><wbr></wbr>View<wbr></wbr>Surface</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ViewVtkObject" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ViewVtkObject"><wbr></wbr>View<wbr></wbr>Vtk<wbr></wbr>Object</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#vtkPolyDataToDataFrame" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.vtkPolyDataToDataFrame">vtk<wbr></wbr>Poly<wbr></wbr>Data<wbr></wbr>To<wbr></wbr>Data<wbr></wbr>Frame</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#WriteSpline" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.WriteSpline"><wbr></wbr>Write<wbr></wbr>Spline</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#WriteSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.WriteSurface"><wbr></wbr>Write<wbr></wbr>Surface</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#WriteUnsGrid" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.WriteUnsGrid"><wbr></wbr>Write<wbr></wbr>Uns<wbr></wbr>Grid</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_project_point_arrays_mesh_to_mesh" class="internal-link" title="vmtk4aneurysms.lib.polydatatools._project_point_arrays_mesh_to_mesh">_project<wbr></wbr>_point<wbr></wbr>_arrays<wbr></wbr>_mesh<wbr></wbr>_to<wbr></wbr>_mesh</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_project_point_arrays_surface_to_surface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools._project_point_arrays_surface_to_surface">_project<wbr></wbr>_point<wbr></wbr>_arrays<wbr></wbr>_surface<wbr></wbr>_to<wbr></wbr>_surface</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+         
+
+        
+         
+
+        
+         
+        
+      </div>
+  </div><div>
+
+      <div class="thingTitle">
+        <span>Package</span>
+        <code><a href="vmtk4aneurysms.lib.html" class="internal-link" title="The parent of this module">lib</a></code> 
+      </div>
+      
+      <div>
+        
+
+        <div class="childrenKindTitle">Modules</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.centerlines.html" class="internal-link" title="vmtk4aneurysms.lib.centerlines">centerlines</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.constants.html" class="internal-link" title="vmtk4aneurysms.lib.constants">constants</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.foamtovtk.html" class="internal-link" title="vmtk4aneurysms.lib.foamtovtk">foamtovtk</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.names.html" class="internal-link" title="vmtk4aneurysms.lib.names">names</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.polydatageometry.html" class="internal-link" title="vmtk4aneurysms.lib.polydatageometry">polydatageometry</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.polydatamath.html" class="internal-link" title="vmtk4aneurysms.lib.polydatamath">polydatamath</a></code>
+            </div>
+        
+
+    </li><li class=" thisobject">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.polydatatools.html" class="internal-link" title="vmtk4aneurysms.lib.polydatatools">polydatatools</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+        
+
+        
+         
+
+        
+         
+
+        
+         
+
+        
+         
+        
+      </div>
+  </div>
+
+</nav>
+        </div>
+        <div id="collapseSideBar">
+          <a class="btn btn-link" onclick="toggleSideBarCollapse()" title="Toggle Sidebar Collapse">
+          </a>
+        </div> 
+        <script src="sidebartoggle.js" type="text/javascript"></script>
+       
+      </div>
+
+      <div id="main" class="">
+        
+
+        
+
+        <div class="page-header">
+          <h1 class="module"><code><code><a href="index.html" class="internal-link">vmtk4aneurysms</a></code><wbr></wbr>.<code><a href="vmtk4aneurysms.lib.html" class="internal-link" title="vmtk4aneurysms.lib">lib</a></code><wbr></wbr>.<code><a href="vmtk4aneurysms.lib.polydatatools.html" class="internal-link" title="vmtk4aneurysms.lib.polydatatools">polydatatools</a></code></code></h1>
+          <div id="showPrivate">
+            <button class="btn btn-link" onclick="togglePrivate()">Toggle Private API</button>
+          </div>
+        </div>
+
+        <div class="categoryHeader">
+          module documentation
+        </div>
+
+        <div class="extrasDocstring">
+          
+          <p></p>
+        </div>
+
+        <div class="moduleDocstring">
+          <div><p>Collection of tools to manipulate and operate on VTK objetcs.</p>
+</div>
+        </div>
+
+        <div id="splitTables">
+          <table class="children sortable" id="id13">
+  
+  
+  <tr class="class">
+    
+    <td>Class</td>
+    <td><code><a href="vmtk4aneurysms.lib.polydatatools.PickPointSeedSelector.html" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.PickPointSeedSelector"><wbr></wbr>Pick<wbr></wbr>Point<wbr></wbr>Seed<wbr></wbr>Selector</a></code></td>
+    <td>Select point on a surface.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#CellFieldToPointField" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.CellFieldToPointField"><wbr></wbr>Cell<wbr></wbr>Field<wbr></wbr>To<wbr></wbr>Point<wbr></wbr>Field</a></code></td>
+    <td>Convert a single cell field to a point field defined on a VTK object.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#Cleaner" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.Cleaner"><wbr></wbr>Cleaner</a></code></td>
+    <td>Polydata cleaner.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#CleanupArrays" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.CleanupArrays"><wbr></wbr>Cleanup<wbr></wbr>Arrays</a></code></td>
+    <td>Remove all point and/or cell arrays in a VTK object.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ClipWithPlane" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ClipWithPlane"><wbr></wbr>Clip<wbr></wbr>With<wbr></wbr>Plane</a></code></td>
+    <td>Clip a surface with a plane defined with a point and its normal.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ClipWithScalar" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ClipWithScalar"><wbr></wbr>Clip<wbr></wbr>With<wbr></wbr>Scalar</a></code></td>
+    <td>Clip a vtkPolyData or vtkUnstructuredGrid with scalar field.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ComputeSurfacesDistance" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ComputeSurfacesDistance"><wbr></wbr>Compute<wbr></wbr>Surfaces<wbr></wbr>Distance</a></code></td>
+    <td>Compute point-wise distance between two surfaces.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ContourCutWithPlane" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ContourCutWithPlane"><wbr></wbr>Contour<wbr></wbr>Cut<wbr></wbr>With<wbr></wbr>Plane</a></code></td>
+    <td>Cuts a surface with a plane, returning the cut contour.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#CopyVtkObject" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.CopyVtkObject"><wbr></wbr>Copy<wbr></wbr>Vtk<wbr></wbr>Object</a></code></td>
+    <td>Returns a copy of the passed vtkPolyData or vtkUnstructuredGrid.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ExtractConnectedRegion" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ExtractConnectedRegion"><wbr></wbr>Extract<wbr></wbr>Connected<wbr></wbr>Region</a></code></td>
+    <td>Extract the largest or closest to point patch of a disconnected domain.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ExtractPortion" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ExtractPortion"><wbr></wbr>Extract<wbr></wbr>Portion</a></code></td>
+    <td>Extract portion of vtkPolyData based on array value.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#GetCellArrays" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.GetCellArrays"><wbr></wbr>Get<wbr></wbr>Cell<wbr></wbr>Arrays</a></code></td>
+    <td>Return the names of CELL arrays in a VTK object.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#GetPointArrays" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.GetPointArrays"><wbr></wbr>Get<wbr></wbr>Point<wbr></wbr>Arrays</a></code></td>
+    <td>Return the names of POINT arrays in a VTK object.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#PointFieldToCellField" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.PointFieldToCellField"><wbr></wbr>Point<wbr></wbr>Field<wbr></wbr>To<wbr></wbr>Cell<wbr></wbr>Field</a></code></td>
+    <td>Convert a single point field to a cell field defined on a VTK object.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#PolyDataToUnsGrid" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.PolyDataToUnsGrid"><wbr></wbr>Poly<wbr></wbr>Data<wbr></wbr>To<wbr></wbr>Uns<wbr></wbr>Grid</a></code></td>
+    <td>Convert a vtkPolyData to a vtkUnstructuredGrid.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ProjectCellArray" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ProjectCellArray"><wbr></wbr>Project<wbr></wbr>Cell<wbr></wbr>Array</a></code></td>
+    <td>Project a cell field from a reference VTK polydata into another one.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ProjectPointArray" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ProjectPointArray"><wbr></wbr>Project<wbr></wbr>Point<wbr></wbr>Array</a></code></td>
+    <td>Project a point field from a reference VTK object into another one.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ReadSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ReadSurface"><wbr></wbr>Read<wbr></wbr>Surface</a></code></td>
+    <td>Read surface file name to VTK object.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ReadUnsGrid" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ReadUnsGrid"><wbr></wbr>Read<wbr></wbr>Uns<wbr></wbr>Grid</a></code></td>
+    <td>Read mesh file name to VTK object.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ResampleFieldsToSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ResampleFieldsToSurface"><wbr></wbr>Resample<wbr></wbr>Fields<wbr></wbr>To<wbr></wbr>Surface</a></code></td>
+    <td>Resample fields of a vtkUnstructuredGrid into a surface contained in it.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ScaleVtkObject" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ScaleVtkObject"><wbr></wbr>Scale<wbr></wbr>Vtk<wbr></wbr>Object</a></code></td>
+    <td>Scale a VTK object by a scale factor.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#SelectSurfacePoint" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.SelectSurfacePoint"><wbr></wbr>Select<wbr></wbr>Surface<wbr></wbr>Point</a></code></td>
+    <td>Enable selection of point on a surface.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#SmoothSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.SmoothSurface"><wbr></wbr>Smooth<wbr></wbr>Surface</a></code></td>
+    <td>Smooth surface based on Taubin's algorithm.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#UnsGridToPolyData" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.UnsGridToPolyData"><wbr></wbr>Uns<wbr></wbr>Grid<wbr></wbr>To<wbr></wbr>Poly<wbr></wbr>Data</a></code></td>
+    <td>Convert a vtkUnstructuredGrid to vtkPolyData.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ViewSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ViewSurface"><wbr></wbr>View<wbr></wbr>Surface</a></code></td>
+    <td>View surface vtkPolyData objects.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#ViewVtkObject" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.ViewVtkObject"><wbr></wbr>View<wbr></wbr>Vtk<wbr></wbr>Object</a></code></td>
+    <td>View VTK objects (poly data or unstructured grid).</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#vtkPolyDataToDataFrame" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.vtkPolyDataToDataFrame">vtk<wbr></wbr>Poly<wbr></wbr>Data<wbr></wbr>To<wbr></wbr>Data<wbr></wbr>Frame</a></code></td>
+    <td>Convert a vtkPolyData with cell arrays to Pandas DataFrame.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#WriteSpline" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.WriteSpline"><wbr></wbr>Write<wbr></wbr>Spline</a></code></td>
+    <td>Write spline from a set of points and tangents.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#WriteSurface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.WriteSurface"><wbr></wbr>Write<wbr></wbr>Surface</a></code></td>
+    <td>Write vtkPolyData to file.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#WriteUnsGrid" class="internal-link" title="vmtk4aneurysms.lib.polydatatools.WriteUnsGrid"><wbr></wbr>Write<wbr></wbr>Uns<wbr></wbr>Grid</a></code></td>
+    <td>Write a vtkUnstructuredGrid to .vtk file.</td>
+  </tr><tr class="function private">
+    
+    <td>Function</td>
+    <td><code><a href="#_project_point_arrays_mesh_to_mesh" class="internal-link" title="vmtk4aneurysms.lib.polydatatools._project_point_arrays_mesh_to_mesh">_project<wbr></wbr>_point<wbr></wbr>_arrays<wbr></wbr>_mesh<wbr></wbr>_to<wbr></wbr>_mesh</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="function private">
+    
+    <td>Function</td>
+    <td><code><a href="#_project_point_arrays_surface_to_surface" class="internal-link" title="vmtk4aneurysms.lib.polydatatools._project_point_arrays_surface_to_surface">_project<wbr></wbr>_point<wbr></wbr>_arrays<wbr></wbr>_surface<wbr></wbr>_to<wbr></wbr>_surface</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr>
+</table>
+          
+
+            
+        </div>
+
+        <div id="childList">
+          <div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.CellFieldToPointField">
+    
+  </a>
+  <a name="CellFieldToPointField">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">CellFieldToPointField</span>(vtk_object, cell_field_name=<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Convert a single cell field to a point field defined on a VTK object.</p>
+<p>Given a VTK poly data or an unstructured grid, convert the
+passed cell field name to a point field. If the field_name is
+None, convert all cell fields to point fields.</p>
+<div class="rst-admonition note">
+<p class="rst-first rst-admonition-title">Note</p>
+<p class="rst-last">By default, it leaves the cell field on the object.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">cell<wbr></wbr>_field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.Cleaner">
+    
+  </a>
+  <a name="Cleaner">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">Cleaner</span>(surface):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Polydata cleaner.</p>
+</div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.CleanupArrays">
+    
+  </a>
+  <a name="CleanupArrays">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">CleanupArrays</span>(vtk_object):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Remove all point and/or cell arrays in a VTK object.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ClipWithPlane">
+    
+  </a>
+  <a name="ClipWithPlane">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ClipWithPlane</span>(surface, plane_center, plane_normal, inside_out=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Clip a surface with a plane defined with a point and its normal.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">plane<wbr></wbr>_center:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#tuple" class="intersphinx-link">tuple</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">plane<wbr></wbr>_normal:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#tuple" class="intersphinx-link">tuple</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">inside<wbr></wbr>_out:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ClipWithScalar">
+    
+  </a>
+  <a name="ClipWithScalar">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ClipWithScalar</span>(vtk_object, array_name, value, inside_out=<a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Clip a vtkPolyData or vtkUnstructuredGrid with scalar field.</p>
+<p>Provided a vtk object of type vtkPolyData or vtkUnstructuredGrid, a point
+scalar array and a 'value' of this array, clip the object portion that
+have the condition 'scalar_array &lt; value'. If inside out is 'False', than
+the oposite will be output.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">value:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">inside<wbr></wbr>_out</span></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ComputeSurfacesDistance">
+    
+  </a>
+  <a name="ComputeSurfacesDistance">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ComputeSurfacesDistance</span>(isurface, rsurface, array_name=<span class="rst-variable-quote">'</span><span class="rst-variable-string">DistanceArray</span><span class="rst-variable-quote">'</span>, signed_array=<a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute point-wise distance between two surfaces.</p>
+<p>Compute distance between a reference surface, rsurface, and an input
+surface, isurface. Return a copy of isurface with the distance array
+defined on it.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">isurface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">rsurface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">signed<wbr></wbr>_array:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ContourCutWithPlane">
+    
+  </a>
+  <a name="ContourCutWithPlane">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ContourCutWithPlane</span>(surface, plane_center, plane_normal):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Cuts a surface with a plane, returning the cut contour.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">plane<wbr></wbr>_center:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#tuple" class="intersphinx-link">tuple</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">plane<wbr></wbr>_normal:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#tuple" class="intersphinx-link">tuple</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.CopyVtkObject">
+    
+  </a>
+  <a name="CopyVtkObject">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">CopyVtkObject</span>(vtk_object):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Returns a copy of the passed vtkPolyData or vtkUnstructuredGrid.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ExtractConnectedRegion">
+    
+  </a>
+  <a name="ExtractConnectedRegion">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ExtractConnectedRegion</span>(regions, method, closest_point=<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Extract the largest or closest to point patch of a disconnected domain.</p>
+<p>Given a disconnected surface, extract a portion of the surface by choosing
+the largest patch or the one closest to a point.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">regions:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">method:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">closest<wbr></wbr>_point:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#tuple" class="intersphinx-link">tuple</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ExtractPortion">
+    
+  </a>
+  <a name="ExtractPortion">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ExtractPortion</span>(vtk_object, array_name, isovalue):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Extract portion of vtkPolyData based on array value.</p>
+<p>Given a VTK poly data or unstructured grid, extract the portion of it
+marked by the value 'iso_value' of the field 'array_name'. Notte, it
+extracts exctaly the regions with this value. To extract a region marked by
+values above or below an isovalue, use ClipWithScalar.</p>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">array_name must be a cell-wise field defined on the surface.</p>
+</div>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">Retun 'None' if the result is empty.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">isovalue:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.GetCellArrays">
+    
+  </a>
+  <a name="GetCellArrays">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">GetCellArrays</span>(vtk_object):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Return the names of CELL arrays in a VTK object.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.GetPointArrays">
+    
+  </a>
+  <a name="GetPointArrays">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">GetPointArrays</span>(vtk_object):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Return the names of POINT arrays in a VTK object.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.PointFieldToCellField">
+    
+  </a>
+  <a name="PointFieldToCellField">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">PointFieldToCellField</span>(vtk_object, point_field_name=<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Convert a single point field to a cell field defined on a VTK object.</p>
+<p>Given a VTK poly data or an unstructured grid, convert the
+passed point field name to a cell field. If the field_name is
+None, convert all point fields to cell fields.</p>
+<div class="rst-admonition note">
+<p class="rst-first rst-admonition-title">Note</p>
+<p class="rst-last">By default, it leaves the point field on the object.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">point<wbr></wbr>_field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.PolyDataToUnsGrid">
+    
+  </a>
+  <a name="PolyDataToUnsGrid">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">PolyDataToUnsGrid</span>(surface):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Convert a vtkPolyData to a vtkUnstructuredGrid.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ProjectCellArray">
+    
+  </a>
+  <a name="ProjectCellArray">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ProjectCellArray</span>(surface, ref_surface, field_name):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Project a cell field from a reference VTK polydata into another one.</p>
+<p>Given a vtkPolyData, project a cell field named 'field_name' from a
+reference VTK surface to the original object. Returns a copy of the
+original input surface.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">ref<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ProjectPointArray">
+    
+  </a>
+  <a name="ProjectPointArray">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ProjectPointArray</span>(vtk_object, ref_vtk_object, field_name):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Project a point field from a reference VTK object into another one.</p>
+<p>Given a vtkPolyData or a vtkUnstructuredGrid, project a point field named
+'field_name' from a reference VTK object (vtkPolyData or
+vtkUnstructuredGrid) to original object. Returns a copy of the original
+input vtk_object (with the same type).</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">ref<wbr></wbr>_vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ReadSurface">
+    
+  </a>
+  <a name="ReadSurface">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ReadSurface</span>(file_name):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Read surface file name to VTK object.</p>
+<p>Arguments:
+file_name -- complete path with file name</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">file<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ReadUnsGrid">
+    
+  </a>
+  <a name="ReadUnsGrid">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ReadUnsGrid</span>(mesh_file_name):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Read mesh file name to VTK object.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">mesh<wbr></wbr>_file<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ResampleFieldsToSurface">
+    
+  </a>
+  <a name="ResampleFieldsToSurface">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ResampleFieldsToSurface</span>(source_mesh, target_surface, field_names=<span class="rst-variable-quote">'</span><span class="rst-variable-string">all</span><span class="rst-variable-quote">'</span>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Resample fields of a vtkUnstructuredGrid into a surface contained in it.</p>
+<p>Given a volumetric mesh (vtkUnstructuredGrid) object with cell or point
+fields defined on it, resample the passed fields to a surface (vtkPolyData)
+that is contained by the volumetric mesh. The resampling filter resamples
+all fields to point fields. If no list or string with the field names to
+resample, resamples all the fields.</p>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">This procedure may generate erroneous results for cell fields,
+particularly. Therefore, it first converts all cell fields to point
+fields, resamples, and then convert all fields to cell fields again in
+the resulting mesh.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">source<wbr></wbr>_mesh:</span><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">target<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_names:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ScaleVtkObject">
+    
+  </a>
+  <a name="ScaleVtkObject">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ScaleVtkObject</span>(vtk_object, scale_factor):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Scale a VTK object by a scale factor.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">scale<wbr></wbr>_factor:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.SelectSurfacePoint">
+    
+  </a>
+  <a name="SelectSurfacePoint">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">SelectSurfacePoint</span>(surface):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Enable selection of point on a surface.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#tuple" class="intersphinx-link">tuple</a>, <wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.SmoothSurface">
+    
+  </a>
+  <a name="SmoothSurface">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">SmoothSurface</span>(surface):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Smooth surface based on Taubin's algorithm.</p>
+</div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.UnsGridToPolyData">
+    
+  </a>
+  <a name="UnsGridToPolyData">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">UnsGridToPolyData</span>(mesh):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Convert a vtkUnstructuredGrid to vtkPolyData.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">mesh:</span><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ViewSurface">
+    
+  </a>
+  <a name="ViewSurface">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ViewSurface</span>(surface, array_name=<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>View surface vtkPolyData objects.</p>
+<p>Arguments:
+surface -- the surface to be displayed.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.ViewVtkObject">
+    
+  </a>
+  <a name="ViewVtkObject">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">ViewVtkObject</span>(vtk_object, field_name=<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>View VTK objects (poly data or unstructured grid).</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">vtk<wbr></wbr>_object:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr>names.polyDataType, <wbr></wbr>names.unstructuredGridType]</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.vtkPolyDataToDataFrame">
+    
+  </a>
+  <a name="vtkPolyDataToDataFrame">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">vtkPolyDataToDataFrame</span>(polydata):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Convert a vtkPolyData with cell arrays to Pandas DataFrame.</p>
+<p>Given a vtkPolyData object containing cell arrays of any kind (scalars,
+vectors, etc), convert it to a Pandas DataFrame structure after converting
+the cell centers, where the cell data are defined, to points.</p>
+<p>Returns a Panda's DataFrame objects with the columns the cell centers and
+the fields (separated by component, if necessary). The index column is the
+cell index id.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">polydata:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>pd.core.frame.DataFrame</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.WriteSpline">
+    
+  </a>
+  <a name="WriteSpline">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">WriteSpline</span>(points, tangents, file_name):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Write spline from a set of points and tangents.</p>
+<p>Given a set of points and its tangents at each point, writes to VTP file
+the spline formed by the points set.</p>
+</div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.WriteSurface">
+    
+  </a>
+  <a name="WriteSurface">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">WriteSurface</span>(surface, file_name):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Write vtkPolyData to file.</p>
+<p>Arguments:
+surface -- surface vtkPolyData object
+file_name -- output file name with full path</p>
+<p>Optional arguments:
+mode -- mode to write file (ASCII or binary, default binary)</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">file<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools.WriteUnsGrid">
+    
+  </a>
+  <a name="WriteUnsGrid">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">WriteUnsGrid</span>(grid, file_name):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Write a vtkUnstructuredGrid to .vtk file.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">grid:</span><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">file<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction private">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools._project_point_arrays_mesh_to_mesh">
+    
+  </a>
+  <a name="_project_point_arrays_mesh_to_mesh">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_project_point_arrays_mesh_to_mesh</span>(mesh, ref_mesh):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p class="undocumented">Undocumented</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">mesh:</span><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">ref<wbr></wbr>_mesh:</span><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.unstructuredGridType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction private">
+  
+  
+  <a name="vmtk4aneurysms.lib.polydatatools._project_point_arrays_surface_to_surface">
+    
+  </a>
+  <a name="_project_point_arrays_surface_to_surface">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_project_point_arrays_surface_to_surface</span>(surface, ref_surface):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p class="undocumented">Undocumented</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">ref<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div>
+        </div>
+      
+      </div>
+    </div>
+
+    <footer class="navbar navbar-default">
+
+  
+  <div class="container">
+    <a href="index.html">API Documentation</a> for <a href="https://github.com/iagolessa/vmtk4aneurysms" class="projecthome">vmtk4aneurysms</a>,
+  generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
+    22.5.1 at 2022-05-24 13:30:33.
+  </div>
+
+  <!-- Search related scripts needs to be loaded at the end of HTML 
+    parsing not to introduce overhead and display HTML data asap -->
+  <script src="ajax.js" type="text/javascript"></script>
+  <script src="searchlib.js" type="text/javascript"></script>
+  <script src="search.js" type="text/javascript"></script>
+
+</footer>
+  
+    <script src="pydoctor.js" type="text/javascript"></script>
+
+  </body>
+</html>

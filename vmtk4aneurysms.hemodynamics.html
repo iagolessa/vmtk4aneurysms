@@ -1,0 +1,856 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+          "DTD/xhtml1-strict.dtd">
+<html>
+  
+
+  <head>
+    
+    <title>vmtk4aneurysms.hemodynamics</title>
+    <meta name="generator" content="pydoctor 22.5.1"> 
+        
+    </meta>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1 maximum-scale=1" />
+    <link rel="stylesheet" type="text/css" href="bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="apidocs.css" />
+    <link rel="stylesheet" type="text/css" href="extra.css" />
+</head>
+
+  <body>
+
+    
+
+    <nav class="navbar navbar-default mainnavbar">
+      
+  
+  <div class="container-fluid">
+
+
+    <div class="navbar-header">
+      
+      <div class="navlinks">
+        <span class="navbar-brand">
+          <a href="https://github.com/iagolessa/vmtk4aneurysms" class="projecthome">vmtk4aneurysms</a> <a href="index.html">API Documentation</a>
+        </span>
+
+        <a href="moduleIndex.html">
+          Modules
+        </a>
+
+        <a href="classIndex.html">
+          Classes
+        </a>
+
+        <a href="nameIndex.html">
+          Names
+        </a>
+
+        <div id="search-box-container">
+          <div class="input-group">
+            <input id="search-box" type="search" name="search-query" placeholder="Search..." aria-label="Search" minlength="2" class="form-control" autocomplete="off" />
+            
+            <span class="input-group-btn">
+              <a style="display: none;" class="btn btn-default" id="search-clear-button" title="Clear" onclick="clearSearch()"><img src="fonts/x-circle.svg" alt="Clear" /></a>
+              <a class="btn btn-default" id="search-help-button" title="Help" onclick="toggleSearchHelpText()"><img src="fonts/info.svg" alt="Help" /></a>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+      <div id="search-results-container" style="display: none;">
+        
+        <div id="search-buttons">
+          <span class="label label-default" id="search-docstrings-button">
+          <label class="checkbox-inline">
+            <input type="checkbox" id="toggle-search-in-docstrings-checkbox" value="false" onclick="toggleSearchInDocstrings()">
+              search in docstrings
+            </input>
+          </label>
+          </span>
+          
+        </div>
+        
+        <noscript>
+            <h1>Cannot search: JavaScript is not supported/enabled in your browser.</h1>
+        </noscript>
+
+        <div class="hint" id="search-help-box">
+          <p class="rst-last">
+      
+            Search bar offers the following options:
+            <ul>   
+                <li>
+                  <strong>Term presence.</strong> The below example searches for documents that 
+                    must contain “foo”, might contain “bar” and must not contain “baz”: <code>+foo bar -baz</code>
+                </li> 
+
+                <li>
+                  <strong>Wildcards.</strong> The below example searches for documents with words beginning with “foo”: <code>foo*</code>
+                </li> 
+
+                <li>
+                  <strong>Search in specific fields.</strong> The following search matches all objects 
+                  in "twisted.mail" that matches “search”: <code>+qname:twisted.mail.* +search</code>
+
+                  <p>
+                    Possible fields: 'name', 'qname' (fully qualified name), 'docstring', and 'kind'.
+                    Last two fields are only applicable if "search in docstrings" is enabled.
+                  </p>
+                </li>
+
+                <li>
+                  <strong>Fuzzy matches.</strong> The following search matches all documents 
+                  that have a word within 1 edit distance of “foo”: <code>foo~1</code>
+                </li>
+            </ul>
+
+          </p>
+        </div>
+
+        <div id="search-status"> </div>
+
+        <div class="warning" id="search-warn-box" style="display: none;">
+          <p class="rst-last"><span id="search-warn"></span></p>
+        </div>
+
+        <table id="search-results">
+          <!-- Filled dynamically by JS -->
+        </table>
+        
+        <div style="margin-top: 8px;">
+          <p>Results provided by <a href="https://lunrjs.com">Lunr.js</a></p>
+        </div>
+      </div>
+
+    </div>
+
+
+  </div>
+</nav>
+    
+    <div class="container-fluid">
+
+      <!-- Side navigation -->
+      <div class="sidebarcontainer" style="display: none;">
+        
+        <div class="sidebar"><nav class="sidebar">
+  
+
+  <div>
+
+      <div class="thingTitle">
+        <span>Module</span>
+        <code class="thisobject"><a href="vmtk4aneurysms.hemodynamics.html" class="internal-link" title="This module">hemodynamics</a></code> 
+      </div>
+      
+      <div>
+        
+
+        
+         
+
+        
+        
+
+        <div class="childrenKindTitle">Functions</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#AneurysmStats" class="internal-link" title="vmtk4aneurysms.hemodynamics.AneurysmStats"><wbr></wbr>Aneurysm<wbr></wbr>Stats</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#Hemodynamics" class="internal-link" title="vmtk4aneurysms.hemodynamics.Hemodynamics"><wbr></wbr>Hemodynamics</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#LsaAverage" class="internal-link" title="vmtk4aneurysms.hemodynamics.LsaAverage"><wbr></wbr>Lsa<wbr></wbr>Average</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#LsaInstant" class="internal-link" title="vmtk4aneurysms.hemodynamics.LsaInstant"><wbr></wbr>Lsa<wbr></wbr>Instant</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#PressureTemporalStats" class="internal-link" title="vmtk4aneurysms.hemodynamics.PressureTemporalStats"><wbr></wbr>Pressure<wbr></wbr>Temporal<wbr></wbr>Stats</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#WssParentVessel" class="internal-link" title="vmtk4aneurysms.hemodynamics.WssParentVessel"><wbr></wbr>Wss<wbr></wbr>Parent<wbr></wbr>Vessel</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#WssSurfaceAverage" class="internal-link" title="vmtk4aneurysms.hemodynamics.WssSurfaceAverage"><wbr></wbr>Wss<wbr></wbr>Surface<wbr></wbr>Average</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_compute_gon" class="internal-link" title="vmtk4aneurysms.hemodynamics._compute_gon">_compute<wbr></wbr>_gon</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_wss_over_time" class="internal-link" title="vmtk4aneurysms.hemodynamics._wss_over_time">_wss<wbr></wbr>_over<wbr></wbr>_time</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+         
+
+        <div class="childrenKindTitle">Variables</div>
+        <ul>
+    
+    <li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_density" class="internal-link" title="vmtk4aneurysms.hemodynamics._density">_density</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+         
+        
+      </div>
+  </div><div>
+
+      <div class="thingTitle">
+        <span>Package</span>
+        <code><a href="index.html" class="internal-link" title="The parent of this module">vmtk4aneurysms</a></code> 
+      </div>
+      
+      <div>
+        
+
+        <div class="childrenKindTitle">Modules</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.html" class="internal-link" title="vmtk4aneurysms.lib">lib</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.vmtkextend.html" class="internal-link" title="vmtk4aneurysms.vmtkextend">vmtkextend</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.aneurysms.html" class="internal-link" title="vmtk4aneurysms.aneurysms">aneurysms</a></code>
+            </div>
+        
+
+    </li><li class=" thisobject">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.hemodynamics.html" class="internal-link" title="vmtk4aneurysms.hemodynamics">hemodynamics</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.vascular_operations.html" class="internal-link" title="vmtk4aneurysms.vascular_operations">vascular<wbr></wbr>_operations</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.vasculature.html" class="internal-link" title="vmtk4aneurysms.vasculature">vasculature</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.wallmotion.html" class="internal-link" title="vmtk4aneurysms.wallmotion">wallmotion</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+        
+
+        
+         
+
+        
+         
+
+        
+         
+
+        
+         
+        
+      </div>
+  </div>
+
+</nav>
+        </div>
+        <div id="collapseSideBar">
+          <a class="btn btn-link" onclick="toggleSideBarCollapse()" title="Toggle Sidebar Collapse">
+          </a>
+        </div> 
+        <script src="sidebartoggle.js" type="text/javascript"></script>
+       
+      </div>
+
+      <div id="main" class="">
+        
+
+        
+
+        <div class="page-header">
+          <h1 class="module"><code><code><a href="index.html" class="internal-link">vmtk4aneurysms</a></code><wbr></wbr>.<code><a href="vmtk4aneurysms.hemodynamics.html" class="internal-link" title="vmtk4aneurysms.hemodynamics">hemodynamics</a></code></code></h1>
+          <div id="showPrivate">
+            <button class="btn btn-link" onclick="togglePrivate()">Toggle Private API</button>
+          </div>
+        </div>
+
+        <div class="categoryHeader">
+          module documentation
+        </div>
+
+        <div class="extrasDocstring">
+          
+          <p></p>
+        </div>
+
+        <div class="moduleDocstring">
+          <div><p>Collection of tools to characterize the hemodynamics of vascular models.</p>
+<p>Given the results of an OpenFOAM simulation of the flow in a vascular model,
+with an aneurysm or not, provide tools to the hemodynamic characterization of
+the wall shear stress (WSS) vector.</p>
+</div>
+        </div>
+
+        <div id="splitTables">
+          <table class="children sortable" id="id4">
+  
+  
+  <tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#AneurysmStats" class="internal-link" title="vmtk4aneurysms.hemodynamics.AneurysmStats"><wbr></wbr>Aneurysm<wbr></wbr>Stats</a></code></td>
+    <td>Compute fields statistics over aneurysm surface.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#Hemodynamics" class="internal-link" title="vmtk4aneurysms.hemodynamics.Hemodynamics"><wbr></wbr>Hemodynamics</a></code></td>
+    <td>Compute WSS-derived hemodynamics of the flow in a vascular surface.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#LsaAverage" class="internal-link" title="vmtk4aneurysms.hemodynamics.LsaAverage"><wbr></wbr>Lsa<wbr></wbr>Average</a></code></td>
+    <td>Computes the LSA based on the time-averaged WSS (TAWSS) field.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#LsaInstant" class="internal-link" title="vmtk4aneurysms.hemodynamics.LsaInstant"><wbr></wbr>Lsa<wbr></wbr>Instant</a></code></td>
+    <td>Compute the LSA over time.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#PressureTemporalStats" class="internal-link" title="vmtk4aneurysms.hemodynamics.PressureTemporalStats"><wbr></wbr>Pressure<wbr></wbr>Temporal<wbr></wbr>Stats</a></code></td>
+    <td>Compute the pressure field temporal statistics.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#WssParentVessel" class="internal-link" title="vmtk4aneurysms.hemodynamics.WssParentVessel"><wbr></wbr>Wss<wbr></wbr>Parent<wbr></wbr>Vessel</a></code></td>
+    <td>Calculates the surface averaged WSS value over the parent artery.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#WssSurfaceAverage" class="internal-link" title="vmtk4aneurysms.hemodynamics.WssSurfaceAverage"><wbr></wbr>Wss<wbr></wbr>Surface<wbr></wbr>Average</a></code></td>
+    <td>Compute the surface-averaged WSS over time.</td>
+  </tr><tr class="function private">
+    
+    <td>Function</td>
+    <td><code><a href="#_compute_gon" class="internal-link" title="vmtk4aneurysms.hemodynamics._compute_gon">_compute<wbr></wbr>_gon</a></code></td>
+    <td>Compute the Gradient Oscillatory Number (GON).</td>
+  </tr><tr class="function private">
+    
+    <td>Function</td>
+    <td><code><a href="#_wss_over_time" class="internal-link" title="vmtk4aneurysms.hemodynamics._wss_over_time">_wss<wbr></wbr>_over<wbr></wbr>_time</a></code></td>
+    <td>Get surface object and the WSS vector field over time.</td>
+  </tr><tr class="variable private">
+    
+    <td>Variable</td>
+    <td><code><a href="#_density" class="internal-link" title="vmtk4aneurysms.hemodynamics._density">_density</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr>
+</table>
+          
+
+            
+        </div>
+
+        <div id="childList">
+          <div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics.AneurysmStats">
+    
+  </a>
+  <a name="AneurysmStats">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">AneurysmStats</span>(neck_surface, array_name, neck_array_name=<a href="vmtk4aneurysms.aneurysms.html#AneurysmNeckArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.AneurysmNeckArrayName">aneu.AneurysmNeckArrayName</a>, n_percentile=99, neck_iso_value=<a href="vmtk4aneurysms.aneurysms.html#NeckIsoValue" class="internal-link" title="vmtk4aneurysms.aneurysms.NeckIsoValue">aneu.NeckIsoValue</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute fields statistics over aneurysm surface.</p>
+<p>Given a surface with the fields of WSS hemodynamics variables defined on
+it, computes the average, maximum, minimum, percetile (value passed as
+optional by the user) and the surface-average over the aneurysm surface.
+Return a dictionary with the statistics.</p>
+<div class="rst-admonition note">
+<p class="rst-first rst-admonition-title">Note</p>
+<p class="rst-last">Assumes that the surface also contain a field name 'neck_array_name'
+that indicates the aneurysm portion with 0 and 1 on the rest of the
+vasculature. The function uses this array to clip the aneurysm portion.
+If this is not present on the surface, the function prompts the user to
+delineate the aneurysm neck.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">n<wbr></wbr>_percentile:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_iso<wbr></wbr>_value:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/stdtypes.html#dict" class="intersphinx-link">dict</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics.Hemodynamics">
+    
+  </a>
+  <a name="Hemodynamics">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">Hemodynamics</span>(foam_case, t_peak_systole, t_low_diastole, density=<a href="#_density" class="internal-link" title="vmtk4aneurysms.hemodynamics._density">_density</a>, field_name=<a href="vmtk4aneurysms.lib.names.html#foamWSS" class="internal-link" title="vmtk4aneurysms.lib.names.foamWSS">names.foamWSS</a>, patch=<a href="vmtk4aneurysms.lib.names.html#wallPatchName" class="internal-link" title="vmtk4aneurysms.lib.names.wallPatchName">names.wallPatchName</a>, compute_gon=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, compute_afi=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, multi_region=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, region_name=<span class="rst-variable-quote">'</span><span class="rst-variable-string"></span><span class="rst-variable-quote">'</span>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute WSS-derived hemodynamics of the flow in a vascular surface.</p>
+<p>Given the path to an OpenFOAM case and the wall patch name, compute
+temporal statistics of the wall shear stress (WSS) field:</p>
+<blockquote>
+<ul class="rst-simple">
+<li>time-averaged WSS (TAWSS);</li>
+<li>peak-systole WSS (PSWSS);</li>
+<li>low-diastole WSS (LDWSS).</li>
+</ul>
+</blockquote>
+<p>As also dependent parameters relevant for a complete hemodynamics
+characterization and important in the context of cerebral aneurysms and
+other vascular diseases:</p>
+<blockquote>
+<ul class="rst-simple">
+<li>oscillatory shear index (OSI);</li>
+<li>relative residance time (RRT);</li>
+<li>WSS pulsatility index (WSSPI);</li>
+<li>WSS temporal gradient (WSSTG);</li>
+<li>transversal WSS (transWSS);</li>
+<li>time-averaged WSS gradient (TAWSSG);</li>
+<li>the average WSS direction vector, <span class="rst-formula"><span class="embellished"><sup><span class="smallsymbol">→</span></sup><span class="base"><i>p</i></span></span></span>;</li>
+<li>the orthogonal vector to <span class="rst-formula"><span class="embellished"><sup><span class="smallsymbol">→</span></sup><span class="base"><i>p</i></span></span></span> and the surface normal,
+<span class="rst-formula"><span class="embellished"><sup><span class="smallsymbol">→</span></sup><span class="base"><i>n</i></span></span></span>, <span class="rst-formula"><span class="embellished"><sup><span class="smallsymbol">→</span></sup><span class="base"><i>q</i></span></span></span>.</li>
+</ul>
+</blockquote>
+<p>The triad <span class="rst-formula">(<span class="embellished"><sup><span class="smallsymbol">→</span></sup><span class="base"><i>p</i></span></span>, <span class="embellished"><sup><span class="smallsymbol">→</span></sup><span class="base"><i>q</i></span></span>, <span class="embellished"><sup><span class="smallsymbol">→</span></sup><span class="base"><i>n</i></span></span></span> forms a suitable coordinate
+system defined on the vascular surface.</p>
+<p>Optional parameters may also be computed by optional arguments:</p>
+<blockquote>
+<ul class="rst-simple">
+<li>aneurysm formation indication (AFI);</li>
+<li>gradient oscillatory number (GON).</li>
+</ul>
+</blockquote>
+<dl class="rst-docutils">
+<dt>Arguments</dt>
+<dd><ul class="rst-first rst-last rst-simple">
+<li>foam_case (str) -- path to the '.foam' file where the OpenFOAM case is;</li>
+<li>t_peak_systole (float) -- peak systole instant;</li>
+<li>t_low_diastole (float) -- low diastole instant;</li>
+</ul>
+</dd>
+<dt>Optional</dt>
+<dd><ul class="rst-first rst-last rst-simple">
+<li>density (float) -- blood's assumed density (default 1056.0 kg/m3);</li>
+<li>field_name (str) -- name of the WSS field name (default
+'wallShearComponent');</li>
+<li>patch (str) -- name of the wall patch (default 'wall');</li>
+<li>compute_gon (bool) -- to compute the GON (default False);</li>
+<li>compute_afi (bool) -- to compute the AFI (default False);</li>
+</ul>
+</dd>
+<dt>Return</dt>
+<dd><ul class="rst-first rst-last rst-simple">
+<li>vtkPolyData of the 'patch' surface with the variables fields.</li>
+</ul>
+</dd>
+</dl>
+<div class="rst-section" id="rst-references">
+<h2 class="heading">References</h2>
+<blockquote>
+<p>On the OSI, see:
+[1] He X and Ku DN. Pulsatile Flow in the Human Left Coronary Artery
+Bifurcation: Average Conditions. Journal of Biomechanical Engineering.
+1996;118:74–82.</p>
+<p>On the RRT, see:
+[2] Himburg et al. Spatial comparison between wall shear stress
+measures and porcine arterial endothelial permeability. American
+Journal of Physiology Heart and Circulatory Physiology.
+2004;286:1916–22.</p>
+<p>On the WSSTG, see:
+[3] Lee et al. Correlations among indicators of disturbed flow at the
+normal carotid bifurcation. Journal of Biomechanical Engineering.
+2009;131(6):1–7.</p>
+<p>On the transWSS, see:
+[4] Peiffer et al. Computation in the rabbit aorta of a new metric -
+the transverse wall shear stress - to quantify the multidirectional
+character of disturbed blood flow. Journal of Biomechanics.
+2013;46(15):2651–8.</p>
+<p>On the AFI, see:
+[5] Mantha et al. Hemodynamics in a Cerebral Artery before and after
+the Formation of an Aneurysm. American Journal of Neuroradiology.
+2006;27(May):1113–8.</p>
+<p>On the GON, see:
+[6] Shimogonya et al. Can temporal fluctuation in spatial wall shear
+stress gradient initiate a cerebral aneurysm? A proposed novel
+hemodynamic index, the gradient oscillatory number (GON). Journal of
+Biomechanics. 2009;42:550–4.</p>
+</blockquote>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">foam<wbr></wbr>_case:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">t<wbr></wbr>_peak<wbr></wbr>_systole:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">t<wbr></wbr>_low<wbr></wbr>_diastole:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">density:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">patch:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">compute<wbr></wbr>_gon:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">compute<wbr></wbr>_afi:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">multi<wbr></wbr>_region:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">region<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics.LsaAverage">
+    
+  </a>
+  <a name="LsaAverage">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">LsaAverage</span>(neck_surface, lowWSS, neck_array_name=<a href="vmtk4aneurysms.aneurysms.html#AneurysmNeckArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.AneurysmNeckArrayName">aneu.AneurysmNeckArrayName</a>, neck_iso_value=<a href="vmtk4aneurysms.aneurysms.html#NeckIsoValue" class="internal-link" title="vmtk4aneurysms.aneurysms.NeckIsoValue">aneu.NeckIsoValue</a>, avgMagWSSArray=<a href="vmtk4aneurysms.lib.names.html#TAWSS" class="internal-link" title="vmtk4aneurysms.lib.names.TAWSS">names.TAWSS</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Computes the LSA based on the time-averaged WSS (TAWSS) field.</p>
+<p>Calculates the LSA (low WSS area ratio) for aneurysms. The input is a
+surface with the time-averaged WSS over the surface and an array defined on
+it indicating the aneurysm neck.  The function then calculates the aneurysm
+surface area and the area where the WSS is lower than a reference value
+provided by the user.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">low<wbr></wbr>WSS:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_iso<wbr></wbr>_value:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">avg<wbr></wbr>Mag<wbr></wbr>WSSArray:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics.LsaInstant">
+    
+  </a>
+  <a name="LsaInstant">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">LsaInstant</span>(foam_case, neck_surface, low_wss, neck_array_name=<a href="vmtk4aneurysms.aneurysms.html#AneurysmNeckArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.AneurysmNeckArrayName">aneu.AneurysmNeckArrayName</a>, neck_iso_value=<a href="vmtk4aneurysms.aneurysms.html#NeckIsoValue" class="internal-link" title="vmtk4aneurysms.aneurysms.NeckIsoValue">aneu.NeckIsoValue</a>, density=<a href="#_density" class="internal-link" title="vmtk4aneurysms.hemodynamics._density">_density</a>, field_name=<a href="vmtk4aneurysms.lib.names.html#foamWSS" class="internal-link" title="vmtk4aneurysms.lib.names.foamWSS">names.foamWSS</a>, patch=<a href="vmtk4aneurysms.lib.names.html#wallPatchName" class="internal-link" title="vmtk4aneurysms.lib.names.wallPatchName">names.wallPatchName</a>, multi_region=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, region_name=<span class="rst-variable-quote">'</span><span class="rst-variable-string"></span><span class="rst-variable-quote">'</span>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute the LSA over time.</p>
+<p>Given an OpenFOAM case file, compute the instantaneous LSA of an aneurysm.
+Return a dictionary with the time instants as keys.</p>
+<div class="rst-admonition note">
+<p class="rst-first rst-admonition-title">Note</p>
+<p class="rst-last">Accepts as argument a surface derived form the simulations with a field
+named 'neck_array_name' that indicates the aneurysm portion with 0 and
+1 on the rest of the vasculature. The function uses this array to clip
+the aneurysm portion.  If this surface is not passed, the function
+computes the average over the whole surface patch.</p>
+</div>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">It is essential that the 'neck_surface' with the 'neck_array_name' be
+the same as the wall surface of the OpenFOAM case, i.e.  they are the
+same mesh.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">foam<wbr></wbr>_case:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">low<wbr></wbr>_wss:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_iso<wbr></wbr>_value:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">density:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">patch:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">multi<wbr></wbr>_region:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">region<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/stdtypes.html#dict" class="intersphinx-link">dict</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics.PressureTemporalStats">
+    
+  </a>
+  <a name="PressureTemporalStats">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">PressureTemporalStats</span>(foam_case, t_peak_systole, t_low_diastole, density=<a href="#_density" class="internal-link" title="vmtk4aneurysms.hemodynamics._density">_density</a>, p_field_name=<span class="rst-variable-quote">'</span><span class="rst-variable-string">p</span><span class="rst-variable-quote">'</span>, patch=<a href="vmtk4aneurysms.lib.names.html#wallPatchName" class="internal-link" title="vmtk4aneurysms.lib.names.wallPatchName">names.wallPatchName</a>, multi_region=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, region_name=<span class="rst-variable-quote">'</span><span class="rst-variable-string"></span><span class="rst-variable-quote">'</span>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute the pressure field temporal statistics.</p>
+<p>Given an OpenFOAM simulation case with a pressure field varying over time,
+compute its temporal statistics on a patch.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">foam<wbr></wbr>_case:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">t<wbr></wbr>_peak<wbr></wbr>_systole:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">t<wbr></wbr>_low<wbr></wbr>_diastole:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">density:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">p<wbr></wbr>_field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">patch:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">multi<wbr></wbr>_region:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">region<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics.WssParentVessel">
+    
+  </a>
+  <a name="WssParentVessel">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">WssParentVessel</span>(parent_artery_surface, parent_artery_array=<a href="vmtk4aneurysms.aneurysms.html#ParentArteryArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.ParentArteryArrayName">aneu.ParentArteryArrayName</a>, parent_artery_iso_value=<a href="vmtk4aneurysms.aneurysms.html#NeckIsoValue" class="internal-link" title="vmtk4aneurysms.aneurysms.NeckIsoValue">aneu.NeckIsoValue</a>, wss_field=<a href="vmtk4aneurysms.lib.names.html#TAWSS" class="internal-link" title="vmtk4aneurysms.lib.names.TAWSS">names.TAWSS</a>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Calculates the surface averaged WSS value over the parent artery.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">parent<wbr></wbr>_artery<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">parent<wbr></wbr>_artery<wbr></wbr>_array:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">parent<wbr></wbr>_artery<wbr></wbr>_iso<wbr></wbr>_value:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">wss<wbr></wbr>_field:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics.WssSurfaceAverage">
+    
+  </a>
+  <a name="WssSurfaceAverage">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">WssSurfaceAverage</span>(foam_case, neck_surface=<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, neck_array_name=<a href="vmtk4aneurysms.aneurysms.html#AneurysmNeckArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.AneurysmNeckArrayName">aneu.AneurysmNeckArrayName</a>, neck_iso_value=<a href="vmtk4aneurysms.aneurysms.html#NeckIsoValue" class="internal-link" title="vmtk4aneurysms.aneurysms.NeckIsoValue">aneu.NeckIsoValue</a>, density=<a href="#_density" class="internal-link" title="vmtk4aneurysms.hemodynamics._density">_density</a>, field_name=<a href="vmtk4aneurysms.lib.names.html#foamWSS" class="internal-link" title="vmtk4aneurysms.lib.names.foamWSS">names.foamWSS</a>, patch=<a href="vmtk4aneurysms.lib.names.html#wallPatchName" class="internal-link" title="vmtk4aneurysms.lib.names.wallPatchName">names.wallPatchName</a>, multi_region=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, region_name=<span class="rst-variable-quote">'</span><span class="rst-variable-string"></span><span class="rst-variable-quote">'</span>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute the surface-averaged WSS over time.</p>
+<p>Given an OpenFOAM case file, compute surface integrals of WSS over an
+aneurysm or vessels surface.  Return a dictionary with the time instants as
+keys.</p>
+<div class="rst-admonition note">
+<p class="rst-first rst-admonition-title">Note</p>
+<p class="rst-last">Accepts as argument a surface derived form the simulations with a field
+named 'neck_array_name' that indicates the aneurysm portion with 0 and
+1 on the rest of the vasculature. The function uses this array to clip
+the aneurysm portion.  If this surface is not passed, the function
+computes the average over the whole surface patch.</p>
+</div>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">It is essential that the 'neck_surface' with the 'neck_array_name' be
+the same as the wall surface of the OpenFOAM case, i.e.  they are the
+same mesh.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">foam<wbr></wbr>_case:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_array<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">neck<wbr></wbr>_iso<wbr></wbr>_value:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">density:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">patch:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">multi<wbr></wbr>_region:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">region<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/stdtypes.html#dict" class="intersphinx-link">dict</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction private">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics._compute_gon">
+    
+  </a>
+  <a name="_compute_gon">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_compute_gon</span>(np_surface, temporal_wss, p_hat_array, q_hat_array, time_steps):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute the Gradient Oscillatory Number (GON).</p>
+</div>
+  </div>
+</div><div class="basefunction private">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics._wss_over_time">
+    
+  </a>
+  <a name="_wss_over_time">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_wss_over_time</span>(foam_case, density=<a href="#_density" class="internal-link" title="vmtk4aneurysms.hemodynamics._density">_density</a>, field_name=<a href="vmtk4aneurysms.lib.names.html#foamWSS" class="internal-link" title="vmtk4aneurysms.lib.names.foamWSS">names.foamWSS</a>, patch=<a href="vmtk4aneurysms.lib.names.html#wallPatchName" class="internal-link" title="vmtk4aneurysms.lib.names.wallPatchName">names.wallPatchName</a>, multi_region=<a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, region_name=<span class="rst-variable-quote">'</span><span class="rst-variable-string"></span><span class="rst-variable-quote">'</span>):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Get surface object and the WSS vector field over time.</p>
+<p>Given the OpenFOAM case with the wall shear component calculated at each
+time-step, extracts the surface object (vtkPolyData) and the WSS vector
+field over time as a Python dictionary with the time-steps as keys and an
+VTKArray as the values. Returns a tuple with the surface object and the
+dictionary.</p>
+<p>The function also requires as optional arguments the density and the name
+of the patch where the WSS is defined.</p>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">foam<wbr></wbr>_case:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">density:</span><code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">field<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">patch:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">multi<wbr></wbr>_region:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">region<wbr></wbr>_name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code><a href="https://docs.python.org/3/library/stdtypes.html#tuple" class="intersphinx-link">tuple</a></code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basevariable private">
+  
+  
+  <a name="vmtk4aneurysms.hemodynamics._density">
+    
+  </a>
+  <a name="_density">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">_density</span>: <code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code> =
+    
+  </div>
+  <div class="functionBody">
+    
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div>
+        </div>
+      
+      </div>
+    </div>
+
+    <footer class="navbar navbar-default">
+
+  
+  <div class="container">
+    <a href="index.html">API Documentation</a> for <a href="https://github.com/iagolessa/vmtk4aneurysms" class="projecthome">vmtk4aneurysms</a>,
+  generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
+    22.5.1 at 2022-05-24 13:30:33.
+  </div>
+
+  <!-- Search related scripts needs to be loaded at the end of HTML 
+    parsing not to introduce overhead and display HTML data asap -->
+  <script src="ajax.js" type="text/javascript"></script>
+  <script src="searchlib.js" type="text/javascript"></script>
+  <script src="search.js" type="text/javascript"></script>
+
+</footer>
+  
+    <script src="pydoctor.js" type="text/javascript"></script>
+
+  </body>
+</html>

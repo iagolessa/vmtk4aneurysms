@@ -1,0 +1,613 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+          "DTD/xhtml1-strict.dtd">
+<html>
+  
+
+  <head>
+    
+    <title>vmtk4aneurysms.aneurysms</title>
+    <meta name="generator" content="pydoctor 22.5.1"> 
+        
+    </meta>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1 maximum-scale=1" />
+    <link rel="stylesheet" type="text/css" href="bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="apidocs.css" />
+    <link rel="stylesheet" type="text/css" href="extra.css" />
+</head>
+
+  <body>
+
+    
+
+    <nav class="navbar navbar-default mainnavbar">
+      
+  
+  <div class="container-fluid">
+
+
+    <div class="navbar-header">
+      
+      <div class="navlinks">
+        <span class="navbar-brand">
+          <a href="https://github.com/iagolessa/vmtk4aneurysms" class="projecthome">vmtk4aneurysms</a> <a href="index.html">API Documentation</a>
+        </span>
+
+        <a href="moduleIndex.html">
+          Modules
+        </a>
+
+        <a href="classIndex.html">
+          Classes
+        </a>
+
+        <a href="nameIndex.html">
+          Names
+        </a>
+
+        <div id="search-box-container">
+          <div class="input-group">
+            <input id="search-box" type="search" name="search-query" placeholder="Search..." aria-label="Search" minlength="2" class="form-control" autocomplete="off" />
+            
+            <span class="input-group-btn">
+              <a style="display: none;" class="btn btn-default" id="search-clear-button" title="Clear" onclick="clearSearch()"><img src="fonts/x-circle.svg" alt="Clear" /></a>
+              <a class="btn btn-default" id="search-help-button" title="Help" onclick="toggleSearchHelpText()"><img src="fonts/info.svg" alt="Help" /></a>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+      <div id="search-results-container" style="display: none;">
+        
+        <div id="search-buttons">
+          <span class="label label-default" id="search-docstrings-button">
+          <label class="checkbox-inline">
+            <input type="checkbox" id="toggle-search-in-docstrings-checkbox" value="false" onclick="toggleSearchInDocstrings()">
+              search in docstrings
+            </input>
+          </label>
+          </span>
+          
+        </div>
+        
+        <noscript>
+            <h1>Cannot search: JavaScript is not supported/enabled in your browser.</h1>
+        </noscript>
+
+        <div class="hint" id="search-help-box">
+          <p class="rst-last">
+      
+            Search bar offers the following options:
+            <ul>   
+                <li>
+                  <strong>Term presence.</strong> The below example searches for documents that 
+                    must contain “foo”, might contain “bar” and must not contain “baz”: <code>+foo bar -baz</code>
+                </li> 
+
+                <li>
+                  <strong>Wildcards.</strong> The below example searches for documents with words beginning with “foo”: <code>foo*</code>
+                </li> 
+
+                <li>
+                  <strong>Search in specific fields.</strong> The following search matches all objects 
+                  in "twisted.mail" that matches “search”: <code>+qname:twisted.mail.* +search</code>
+
+                  <p>
+                    Possible fields: 'name', 'qname' (fully qualified name), 'docstring', and 'kind'.
+                    Last two fields are only applicable if "search in docstrings" is enabled.
+                  </p>
+                </li>
+
+                <li>
+                  <strong>Fuzzy matches.</strong> The following search matches all documents 
+                  that have a word within 1 edit distance of “foo”: <code>foo~1</code>
+                </li>
+            </ul>
+
+          </p>
+        </div>
+
+        <div id="search-status"> </div>
+
+        <div class="warning" id="search-warn-box" style="display: none;">
+          <p class="rst-last"><span id="search-warn"></span></p>
+        </div>
+
+        <table id="search-results">
+          <!-- Filled dynamically by JS -->
+        </table>
+        
+        <div style="margin-top: 8px;">
+          <p>Results provided by <a href="https://lunrjs.com">Lunr.js</a></p>
+        </div>
+      </div>
+
+    </div>
+
+
+  </div>
+</nav>
+    
+    <div class="container-fluid">
+
+      <!-- Side navigation -->
+      <div class="sidebarcontainer" style="display: none;">
+        
+        <div class="sidebar"><nav class="sidebar">
+  
+
+  <div>
+
+      <div class="thingTitle">
+        <span>Module</span>
+        <code class="thisobject"><a href="vmtk4aneurysms.aneurysms.html" class="internal-link" title="This module">aneurysms</a></code> 
+      </div>
+      
+      <div>
+        
+
+        
+         
+
+        <div class="childrenKindTitle">Classes</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.aneurysms.Aneurysm.html" class="internal-link" title="vmtk4aneurysms.aneurysms.Aneurysm"><wbr></wbr>Aneurysm</a></code>
+            </div>
+        
+
+    </li>
+</ul>
+
+        <div class="childrenKindTitle">Functions</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#SelectAneurysm" class="internal-link" title="vmtk4aneurysms.aneurysms.SelectAneurysm"><wbr></wbr>Select<wbr></wbr>Aneurysm</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#SelectParentArtery" class="internal-link" title="vmtk4aneurysms.aneurysms.SelectParentArtery"><wbr></wbr>Select<wbr></wbr>Parent<wbr></wbr>Artery</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+         
+
+        <div class="childrenKindTitle">Variables</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#AneurysmNeckArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.AneurysmNeckArrayName"><wbr></wbr>Aneurysm<wbr></wbr>Neck<wbr></wbr>Array<wbr></wbr>Name</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#NeckIsoValue" class="internal-link" title="vmtk4aneurysms.aneurysms.NeckIsoValue"><wbr></wbr>Neck<wbr></wbr>Iso<wbr></wbr>Value</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ParentArteryArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.ParentArteryArrayName"><wbr></wbr>Parent<wbr></wbr>Artery<wbr></wbr>Array<wbr></wbr>Name</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_cellEntityIdsArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms._cellEntityIdsArrayName">_cell<wbr></wbr>Entity<wbr></wbr>Ids<wbr></wbr>Array<wbr></wbr>Name</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+         
+        
+      </div>
+  </div><div>
+
+      <div class="thingTitle">
+        <span>Package</span>
+        <code><a href="index.html" class="internal-link" title="The parent of this module">vmtk4aneurysms</a></code> 
+      </div>
+      
+      <div>
+        
+
+        <div class="childrenKindTitle">Modules</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.lib.html" class="internal-link" title="vmtk4aneurysms.lib">lib</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.vmtkextend.html" class="internal-link" title="vmtk4aneurysms.vmtkextend">vmtkextend</a></code>
+            </div>
+        
+
+    </li><li class=" thisobject">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.aneurysms.html" class="internal-link" title="vmtk4aneurysms.aneurysms">aneurysms</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.hemodynamics.html" class="internal-link" title="vmtk4aneurysms.hemodynamics">hemodynamics</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.vascular_operations.html" class="internal-link" title="vmtk4aneurysms.vascular_operations">vascular<wbr></wbr>_operations</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.vasculature.html" class="internal-link" title="vmtk4aneurysms.vasculature">vasculature</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="vmtk4aneurysms.wallmotion.html" class="internal-link" title="vmtk4aneurysms.wallmotion">wallmotion</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+        
+
+        
+         
+
+        
+         
+
+        
+         
+
+        
+         
+        
+      </div>
+  </div>
+
+</nav>
+        </div>
+        <div id="collapseSideBar">
+          <a class="btn btn-link" onclick="toggleSideBarCollapse()" title="Toggle Sidebar Collapse">
+          </a>
+        </div> 
+        <script src="sidebartoggle.js" type="text/javascript"></script>
+       
+      </div>
+
+      <div id="main" class="">
+        
+
+        
+
+        <div class="page-header">
+          <h1 class="module"><code><code><a href="index.html" class="internal-link">vmtk4aneurysms</a></code><wbr></wbr>.<code><a href="vmtk4aneurysms.aneurysms.html" class="internal-link" title="vmtk4aneurysms.aneurysms">aneurysms</a></code></code></h1>
+          <div id="showPrivate">
+            <button class="btn btn-link" onclick="togglePrivate()">Toggle Private API</button>
+          </div>
+        </div>
+
+        <div class="categoryHeader">
+          module documentation
+        </div>
+
+        <div class="extrasDocstring">
+          
+          <p></p>
+        </div>
+
+        <div class="moduleDocstring">
+          <div><p>Collection of tools to characterize cerebral aneurysms.</p>
+<p>The idea behind this library is to provide tools to manipulate and to model
+the surface of cerebral aneurysms on a patient-specific vasculature, with
+functions to compute its morphological parameters.</p>
+</div>
+        </div>
+
+        <div id="splitTables">
+          <table class="children sortable" id="id2">
+  
+  
+  <tr class="class">
+    
+    <td>Class</td>
+    <td><code><a href="vmtk4aneurysms.aneurysms.Aneurysm.html" class="internal-link" title="vmtk4aneurysms.aneurysms.Aneurysm"><wbr></wbr>Aneurysm</a></code></td>
+    <td>Representation for saccular cerebral aneurysms.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#SelectAneurysm" class="internal-link" title="vmtk4aneurysms.aneurysms.SelectAneurysm"><wbr></wbr>Select<wbr></wbr>Aneurysm</a></code></td>
+    <td>Compute array marking the aneurysm neck.</td>
+  </tr><tr class="function">
+    
+    <td>Function</td>
+    <td><code><a href="#SelectParentArtery" class="internal-link" title="vmtk4aneurysms.aneurysms.SelectParentArtery"><wbr></wbr>Select<wbr></wbr>Parent<wbr></wbr>Artery</a></code></td>
+    <td>Compute array marking the aneurysm' parent artery.</td>
+  </tr><tr class="variable">
+    
+    <td>Variable</td>
+    <td><code><a href="#AneurysmNeckArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.AneurysmNeckArrayName"><wbr></wbr>Aneurysm<wbr></wbr>Neck<wbr></wbr>Array<wbr></wbr>Name</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="variable">
+    
+    <td>Variable</td>
+    <td><code><a href="#NeckIsoValue" class="internal-link" title="vmtk4aneurysms.aneurysms.NeckIsoValue"><wbr></wbr>Neck<wbr></wbr>Iso<wbr></wbr>Value</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="variable">
+    
+    <td>Variable</td>
+    <td><code><a href="#ParentArteryArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms.ParentArteryArrayName"><wbr></wbr>Parent<wbr></wbr>Artery<wbr></wbr>Array<wbr></wbr>Name</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="variable private">
+    
+    <td>Variable</td>
+    <td><code><a href="#_cellEntityIdsArrayName" class="internal-link" title="vmtk4aneurysms.aneurysms._cellEntityIdsArrayName">_cell<wbr></wbr>Entity<wbr></wbr>Ids<wbr></wbr>Array<wbr></wbr>Name</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr>
+</table>
+          
+
+            
+        </div>
+
+        <div id="childList">
+          <div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.aneurysms.SelectAneurysm">
+    
+  </a>
+  <a name="SelectAneurysm">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">SelectAneurysm</span>(surface):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute array marking the aneurysm neck.</p>
+<p>Given a vasculature with an aneurysm, prompt the user to draw the aneurysm
+neck on the surface. An array (field) is then defined on the surface with
+value 0 on the aneurysm and 1 out of the aneurysm. Return a copy of the
+vascular surface with 'AneurysmNeckContourArray' field defined on it.</p>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">VMTK uses its length dimensions in millimeters. Since this function is
+intended to operate on surfaces that were used in an OpenFOAM
+simulation, it must be already in meters. So we scaled it to
+millimeters here so the smoothing algorithm works as intended.</p>
+</div>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">The smoothing array script works better on good quality triangle
+surfaces, hence the function operates on a remeshed surface with good
+quality triangles and map the results back to the original surface.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basefunction">
+  
+  
+  <a name="vmtk4aneurysms.aneurysms.SelectParentArtery">
+    
+  </a>
+  <a name="SelectParentArtery">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">SelectParentArtery</span>(surface):
+    
+  </div>
+  <div class="docstring functionBody">
+    
+    
+    <div><p>Compute array marking the aneurysm' parent artery.</p>
+<p>Given a vasculature with an aneurysm, prompt the user to draw a contour
+that marks the separation between the aneurysm's parent artery and the rest
+of the vasculature. An array (field) is then defined on the surface with
+value 0 on the parent artery and 1 out of it. Return a copy of the vascular
+surface with 'ParentArteryContourArray' field defined on it.</p>
+<div class="rst-admonition warning">
+<p class="rst-first rst-admonition-title">Warning</p>
+<p class="rst-last">The smoothing array script works better on good quality triangle
+surfaces, hence, it would be good to remesh the surface prior to use
+it.</p>
+</div>
+<table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">surface:</span><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>names.polyDataType</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+  </div>
+</div><div class="basevariable">
+  
+  
+  <a name="vmtk4aneurysms.aneurysms.AneurysmNeckArrayName">
+    
+  </a>
+  <a name="AneurysmNeckArrayName">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">AneurysmNeckArrayName</span>: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code> =
+    
+  </div>
+  <div class="functionBody">
+    
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="basevariable">
+  
+  
+  <a name="vmtk4aneurysms.aneurysms.NeckIsoValue">
+    
+  </a>
+  <a name="NeckIsoValue">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">NeckIsoValue</span>: <code><a href="https://docs.python.org/3/library/functions.html#float" class="intersphinx-link">float</a></code> =
+    
+  </div>
+  <div class="functionBody">
+    
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="basevariable">
+  
+  
+  <a name="vmtk4aneurysms.aneurysms.ParentArteryArrayName">
+    
+  </a>
+  <a name="ParentArteryArrayName">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">ParentArteryArrayName</span>: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code> =
+    
+  </div>
+  <div class="functionBody">
+    
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="basevariable private">
+  
+  
+  <a name="vmtk4aneurysms.aneurysms._cellEntityIdsArrayName">
+    
+  </a>
+  <a name="_cellEntityIdsArrayName">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">_cellEntityIdsArrayName</span>: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code> =
+    
+  </div>
+  <div class="functionBody">
+    
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div>
+        </div>
+      
+      </div>
+    </div>
+
+    <footer class="navbar navbar-default">
+
+  
+  <div class="container">
+    <a href="index.html">API Documentation</a> for <a href="https://github.com/iagolessa/vmtk4aneurysms" class="projecthome">vmtk4aneurysms</a>,
+  generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
+    22.5.1 at 2022-05-24 13:30:33.
+  </div>
+
+  <!-- Search related scripts needs to be loaded at the end of HTML 
+    parsing not to introduce overhead and display HTML data asap -->
+  <script src="ajax.js" type="text/javascript"></script>
+  <script src="searchlib.js" type="text/javascript"></script>
+  <script src="search.js" type="text/javascript"></script>
+
+</footer>
+  
+    <script src="pydoctor.js" type="text/javascript"></script>
+
+  </body>
+</html>
