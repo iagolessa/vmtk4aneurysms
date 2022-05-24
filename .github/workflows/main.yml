@@ -1,0 +1,40 @@
+name: apidocs
+on:
+- push
+
+jobs:
+  deploy:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@master
+    - name: Set up Python 3.5
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.5
+
+    - name: Install requirements for documentation generation
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        python -m pip install docutils pydoctor
+
+    - name: Generate API documentation with pydoctor
+      run: |
+
+        # Run pydoctor build
+        pydoctor \
+            --project-name=vmtk4aneurysms \
+            --project-url=https://github.com/iagolessa/vmtk4aneurysms \
+            --make-html \
+            --html-output=./apidocs \
+            --project-base-dir="$(pwd)" \
+            --docformat=restructuredtext \
+            --intersphinx=https://docs.python.org/3/objects.inv \
+            ./(packagedirectory)
+
+    - name: Push API documentation to Github Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./apidocs
+        commit_message: "Generate API documentation"
