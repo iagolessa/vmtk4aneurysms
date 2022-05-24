@@ -657,12 +657,9 @@ def ClipWithScalar(
     # have to activate like an 'error' handler in the filter).
 
     if array_name not in pointArrays and array_name in cellArrays:
-        # Convert cell to point
-        pointdata = vtk.vtkCellDataToPointData()
-        pointdata.SetInputData(vtk_object)
-        pointdata.Update()
 
-        vtk_object = pointdata.GetOutput()
+        # Convert cell to point
+        vtk_object = CellFieldToPointField(vtk_object, array_name)
 
     elif array_name not in pointArrays and array_name not in cellArrays:
         raise ValueError("Cannot find " + array_name + "on the object.")
@@ -673,7 +670,7 @@ def ClipWithScalar(
     # Change active array
     vtk_object.GetPointData().SetActiveScalars(array_name)
 
-    # Clip the aneurysm surface in the lowWSSValue ang gets portion smaller
+    # Clip the object ang gets portion smaller
     # than it (ClipDataSet returns a unstructured grid)
     clipper = vtk.vtkClipDataSet()
     clipper.SetInputData(vtk_object)

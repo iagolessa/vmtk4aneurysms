@@ -181,7 +181,7 @@ def SurfaceAverage(
               )
 
 def SurfaceFieldStatistics(
-        surface: names.polyDataType,
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
         field_name: str,
         n_percentile: float=99
     )   -> dict:
@@ -197,48 +197,62 @@ def SurfaceFieldStatistics(
     computation of the stats.
     """
 
-    # if type(surface) != names.polyDataType:
+    # if type(vtk_object) != names.polyDataType:
     #     raise TypeError("Need vtkPolyData surface, not {}.". format(
-    #                 type(surface)
+    #                 type(vtk_object)
     #              )
     #           )
 
-    if surface.GetNumberOfCells() == 0:
-        raise ValueError("The surface passed has no cells!")
+    if vtk_object.GetNumberOfCells() == 0:
+        raise ValueError("The object passed has no cells!")
 
-    pointArrays = tools.GetPointArrays(surface)
-    cellArrays  = tools.GetCellArrays(surface)
+    pointArrays = tools.GetPointArrays(vtk_object)
+    cellArrays  = tools.GetCellArrays(vtk_object)
 
-    fieldInSurface = field_name in pointArrays or field_name in cellArrays
+    isPointField = field_name in pointArrays
+    isCellField  = field_name in cellArrays
 
-    # Check if arrays are on surface
+    fieldInSurface = isPointField or isCellField
+
+    # Check if arrays are on vtk_object
     if not fieldInSurface:
         raise ValueError(
-                  "{} field not found in the surface.".format(field_name)
+                  "{} field not found in the VTK object.".format(field_name)
               )
 
-    if field_name in pointArrays:
-        pointToCell = vtk.vtkPointDataToCellData()
-        pointToCell.SetInputData(surface)
-        pointToCell.PassPointDataOff()
-        pointToCell.Update()
+    if isPointField and not isCellField:
+        # Convert to cell field
+        vtk_object = tools.PointFieldToCellField(
+                      vtk_object,
+                      field_name
+                  )
 
-        surface = pointToCell.GetOutput()
-
-    # Get Array
-    npSurface = dsa.WrapDataObject(surface)
-
-    fieldOnSurface = npSurface.GetCellData().GetArray(field_name)
+    # Use Numpy interface to compute field norm
+    npVtkObject    = dsa.WrapDataObject(vtk_object)
+    fieldOnSurface = npVtkObject.GetCellData().GetArray(field_name)
 
     # Check type of field: vector or scalar
-    nComponents = fieldOnSurface.shape[-1]
+    arrayType = GetFieldType(fieldOnSurface)
 
-    if nComponents == 3 or nComponents == 6:
+    if arrayType == names.vectorFieldLabel or \
+       arrayType == names.tensor2SymmFieldLabel:
+
+        # Compute a simple L2 norm, even for second-order symm tensors
         fieldOnSurface = NormL2(fieldOnSurface, 1)
 
+        npVtkObject.CellData.append(fieldOnSurface, field_name)
+
+    elif arrayType == names.scalarFieldLabel:
+        pass
+
+    else:
+        raise NotImplementedError(
+                  "Array of type " + arrayType + ". Norm not implemented, yet."
+              )
+
     # Compute statistics
-    return {"surf_avg": SurfaceAverage(surface, field_name),
-            "average": np.average(fieldOnSurface),
+    return {"surf_avg": SurfaceAverage(vtk_object, field_name),
+            "average": np.average(fieldOnSurface), # mean with wieghts = 1
             "maximum": np.max(fieldOnSurface),
             "minimum": np.min(fieldOnSurface),
             "percentil"+str(n_percentile): np.percentile(
