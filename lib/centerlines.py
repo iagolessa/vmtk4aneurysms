@@ -78,6 +78,8 @@ def ComputeOpenCenters(
 
     return inletCenters, outletCenters
 
+# Code of this functions was based on the vmtkcenterlines.py script of the
+# VMTK library: https://github.com/vmtk/vmtk
 def GenerateCenterlines(
         surface: names.polyDataType,
         source_points: list = None,
