@@ -7,7 +7,7 @@ import argparse
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
-from vmtk4aneurysms.vmtkextend import customscripts
+from vmtk4aneurysms.pypescripts import v4aScripts
 
 import vmtk4aneurysms.lib.polydatatools as tools
 import vmtk4aneurysms.wallmotion as wm
@@ -172,7 +172,7 @@ def updateElasticity(
         elasticty: str
     )   -> vtk.vtkCommonDataModelPython.vtkPolyData:
 
-    updateElasticity = customscripts.vmtkSurfaceAneurysmElasticity()
+    updateElasticity = v4aScripts.vmtkSurfaceAneurysmElasticity()
     updateElasticity.Surface = surface
     updateElasticity.ElasticityArrayName = elasticity
 
@@ -208,7 +208,7 @@ else:
 
 # Update thickness array
 print("Updating the thickness", end="\n")
-updateThickness = customscripts.vmtkSurfaceVasculatureThickness()
+updateThickness = v4aScripts.vmtkSurfaceVasculatureThickness()
 updateThickness.Surface = vascularSurface
 
 updateThickness.OnlyUpdateThickness         = True

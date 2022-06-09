@@ -13,7 +13,7 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
-from .vmtkextend import customscripts
+from .pypescripts import v4aScripts
 
 class Branch():
     """Branch segment representation."""
@@ -203,7 +203,7 @@ class Vasculature:
             print("Extracting aneurysm surface.")
 
             if self._manual_aneurysm:
-                extractAneurysm = customscripts.vmtkExtractAneurysm()
+                extractAneurysm = v4aScripts.vmtkExtractAneurysm()
                 extractAneurysm.Surface = self._surface_model.GetSurfaceObject()
                 extractAneurysm.Execute()
 
@@ -373,7 +373,7 @@ class Vasculature:
     def ComputeWallThicknessArray(self):
         """Add thickness array to the vascular surface."""
 
-        vasculatureThickness = customscripts.vmtkSurfaceVasculatureThickness()
+        vasculatureThickness = v4aScripts.vmtkSurfaceVasculatureThickness()
         vasculatureThickness.Surface = self._surface_model.GetSurfaceObject()
         vasculatureThickness.Centerlines = self._centerlines
         vasculatureThickness.Aneurysm = self._with_aneurysm

@@ -84,7 +84,7 @@ import sys
 from pathlib import Path
 from vmtk import vmtkscripts
 
-from vmtk4aneurysms.vmtkextend import customscripts
+from vmtk4aneurysms.pypescripts import v4aScripts
 import vmtk4aneurysms.lib.polydatatools as tools
 import vmtk4aneurysms.lib.foamtovtk as fvtk
 
@@ -185,7 +185,7 @@ if not sectionsFile:
     wallSurface = tools.ScaleVtkObject(wallSurface, scaleMeterToMM)
 
     # Compute the sections surface
-    computeSections = customscripts.vmtkSurfaceVasculatureSections()
+    computeSections = v4aScripts.vmtkSurfaceVasculatureSections()
     computeSections.Surface = wallSurface
     computeSections.Remesh  = True
     computeSections.ClipBefore = False

@@ -6,7 +6,7 @@ import argparse
 import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
-from vmtk4aneurysms.vmtkextend import customscripts
+from vmtk4aneurysms.pypescripts import v4aScripts
 
 import vmtk4aneurysms.lib.polydatatools as tools
 import vmtk4aneurysms.wallmotion as wm
@@ -167,7 +167,7 @@ def computeElasticity(
         aneurysmProperties = (aneurysmConst["ruptured"][constant_name],
                               aneurysmConst["unruptured"][constant_name])
 
-    calcElasticity = customscripts.vmtkSurfaceAneurysmElasticity()
+    calcElasticity = v4aScripts.vmtkSurfaceAneurysmElasticity()
     calcElasticity.Surface = surface
     calcElasticity.NumberOfAneurysms = n_aneurysms
     calcElasticity.ElasticityArrayName = constant_name
@@ -222,7 +222,7 @@ if not updateThickness:
     # Update thickness array
     print("Computing thickness", end="\n")
 
-    computeThickness = customscripts.vmtkSurfaceVasculatureThickness()
+    computeThickness = v4aScripts.vmtkSurfaceVasculatureThickness()
     computeThickness.Surface     = vascularSurface
     computeThickness.Centerlines = centerlines
     computeThickness.Aneurysm    = True
@@ -262,7 +262,7 @@ if not updateThickness:
 else:
     # Only update thickness field
     if thicknessArrayName in tools.GetPointArrays(vascularSurface):
-        updateThickness = customscripts.vmtkSurfaceVasculatureThickness()
+        updateThickness = v4aScripts.vmtkSurfaceVasculatureThickness()
         updateThickness.Surface = vascularSurface
         updateThickness.Aneurysm = True
         updateThickness.NumberOfAneurysms = nAneurysms
