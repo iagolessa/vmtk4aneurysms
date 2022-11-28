@@ -27,6 +27,18 @@ from . import names
 from . import polydatatools as tools
 from . import polydatageometry as geo
 
+_fixedPointTypes = {
+    'UnstableFocus':
+        {'id': -2},
+    'UnstableNode':
+        {'id': -1},
+    'Saddle':
+        {'id': 0},
+    'StableNode':
+        {'id': 1},
+    'StableFocus' :
+        {'id': 2}
+}
 
 def GetFieldType(
         vtk_np_array: names.vtkArrayType
@@ -283,3 +295,56 @@ def HadamardDot(np_array1, np_array2):
     """
     # Seems that multiply is faster than a*b
     return np.multiply(np_array1, np_array2).sum(axis=1)
+
+
+def CharacterizeFixedPoint(
+        eigenvalues: np.ndarray
+    )   -> int:
+    """Characterized the nature of a fixed point by its eigenvalues."""
+
+    # If there is a single complex value in the array
+    # that was computed with numpy.linalg.eig, the whole
+    # array will be complex, hence we have to evaluate
+    # whether all of them are real by their imaginary part
+    allReal = np.all(np.imag(eigenvalues) == 0.0)
+
+    if allReal:
+
+        if np.all(eigenvalues > 0.0):
+            return _fixedPointTypes["UnstableNode"]["id"]
+
+        elif np.all(eigenvalues < 0.0):
+            return _fixedPointTypes["StableNode"]["id"]
+
+        else:
+            return _fixedPointTypes["Saddle"]["id"]
+
+    else:
+        # In case there is a single complex value,
+        # the type of fixed point will be dictated
+        # by the real value
+
+        # if the eigenvalues are in a numpy array, numpy
+        # will assume that the array has only complex type
+        # So to identify the real eigenvalue, we have
+        # to identify the element with zero imaginary part
+
+        # Get the complex eigenvalue
+        isComplex = np.array(
+                        [imag != 0.0
+                         for imag in np.imag(eigenvalues)]
+                     )
+
+        # Get the real part of the complex eigenvalues
+        realPart = np.real(
+                         np.extract(
+                             isComplex,
+                             eigenvalues
+                         )
+                     )[0] # there should be two
+
+        if realPart > 0.0:
+            return _fixedPointTypes["UnstableFocus"]["id"]
+
+        else:
+            return _fixedPointTypes["StableFocus"]["id"]

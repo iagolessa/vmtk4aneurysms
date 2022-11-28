@@ -19,6 +19,7 @@ import vtk
 import math
 import numpy as np
 from typing import Union
+from itertools import combinations
 
 from vmtk import vtkvmtk
 from numpy import array, multiply, zeros, where
@@ -27,6 +28,7 @@ from vtk.numpy_interface import dataset_adapter as dsa
 from . import names
 from . import constants as const
 from . import polydatatools as tools
+from . import polydatamath as pmath
 
 def ComputeCellBarycenter(
         cell: vtk.vtkTriangle
@@ -336,6 +338,162 @@ def WarpPolydata(
 
     # For backward compatibility
     return WarpVtkObject(polydata, field_name)
+
+# TODO: I have to optimized this combination
+def _vec_even_bi_combination(values: list) -> list:
+
+    # Make the combinations
+    fieldVecComb = list(
+                        combinations(
+                            values, 2
+                        )
+                    )
+
+    # Change order to the combination be the same as the theorem (even):
+    # (tau_i,tau_j), (tau_j,tau_k), (tau_k,tau_i)
+    # TODO: there might be a better and more elegant way to do this
+    return [fieldVecComb[0],
+            fieldVecComb[2],
+            list(reversed(fieldVecComb[1]))]
+
+# This function is the bottleneck, but this per-cell version was much more
+# efficient combined with list comprehension below then to computing everything
+# in a single function
+def _get_cell_Poincare_matrices(
+        tri_surface: names.polyDataType,
+        vector_field_name: str,
+        cell_id: int
+    )   -> int:
+    """Given the three IDs of the cell vertices, compute the determinant of the
+    Poincaré matrices.
+
+    The vector field must be a point field and the cell normal array must also
+    be present. The surface must be comprised of triangles."
+    """
+    nCellPoints = tri_surface.GetCell(cell_id).GetNumberOfPoints()
+    vectorField = tri_surface.GetPointData().GetArray(vector_field_name)
+
+    cellNormal = list(
+                    tri_surface.GetCellData().GetArray(
+                        names.normals
+                    ).GetTuple(cell_id)
+                 )
+
+    # Get the cell connectivity ids as list
+    cellConnecIds = [tri_surface.GetCell(cell_id).GetPointIds().GetId(idx)
+                     for idx in range(nCellPoints)]
+
+    # Get the vector field in each vertice of the cell
+    vecInCellVertices = map(
+                            lambda idx: list(vectorField.GetTuple(idx)),
+                            cellConnecIds
+                        )
+
+    # Make the combinations
+    fieldVecComb = _vec_even_bi_combination(vecInCellVertices)
+
+    # Add the cell normal to build the matrices
+    cellMatrices = [list(lst) + [cellNormal]
+                    for lst in fieldVecComb]
+
+    return cellMatrices
+
+def ComputeSurfaceVectorFixedPoints(
+        surface: names.polyDataType,
+        vec_field_name: str
+    )   -> names.polyDataType:
+    """Compute and characterize the fixed points of a surface vector field.
+
+    Finds the fixed points by using the method used by:
+
+        V. Mazzi et al., “A Eulerian method to analyze wall shear stress fixed
+        points and manifolds in cardiovascular flows,” Biomechanics and
+        Modeling in Mechanobiology, vol. 19, no. 5, pp. 1403–1423, Oct. 2020,
+        doi: 10.1007/s10237-019-01278-3.
+    """
+    # Compue normals field
+    if names.normals not in tools.GetCellArrays(surface):
+        surface = Surface.Normals(surface)
+
+    # Compute the gradient of the WSS too to be used later in the
+    # characterization of the fixed points
+    gradFieldName = vec_field_name + names.grad
+
+    surface = SpatialGradient(
+                  surface,
+                  vec_field_name
+              )
+
+    # The theorem to compute the Poincaré index is valid for simplicial
+    # surfaces ie for triangulated surfaces.  triangulate the surface first
+    triagulation = vtk.vtkTriangleFilter()
+    triagulation.SetInputData(surface)
+    triagulation.Update()
+
+    triSurface = triagulation.GetOutput()
+
+    # get magnitude of WSS and convert it to point field
+    triSurface = tools.CellFieldToPointField(
+                    triSurface,
+                    vec_field_name
+                )
+
+    PoincareDets = np.linalg.det(
+                       [_get_cell_Poincare_matrices(
+                           triSurface,
+                           vec_field_name,
+                           cell_id
+                        ) for cell_id in range(triSurface.GetNumberOfCells())]
+                   )
+
+    # Compute sign of the dets and sum along axis
+    # The fixed points are located where the sume is either 3 or -3
+    sumDeterminants = np.sign(PoincareDets).sum(axis=1).astype(int)
+
+    isFixedPoint = [val == -3 or val == 3
+                    for val in sumDeterminants]
+
+    PoincareIndex = np.where(
+                        isFixedPoint,
+                        sumDeterminants,
+                        0
+                    )
+
+    # Now lets locate the cell ids with PoincareIndex != 0
+    fixedPointCellIds = PoincareIndex.nonzero()[0]
+
+    # Create different field defined on the fixed points
+    npTriSurface = dsa.WrapDataObject(triSurface)
+    gradField = npTriSurface.CellData.GetArray(gradFieldName)
+
+    # Coordinates of points
+    fpCoords = np.array(
+                    [ComputeCellBarycenter(triSurface.GetCell(cellId))
+                     for cellId in fixedPointCellIds]
+                )
+
+    # Poincare indices
+    fpGradWssField = gradField[fixedPointCellIds]
+    fpPoincareIndices = PoincareIndex[fixedPointCellIds]
+    fpEigenValues = np.linalg.eig(fpGradWssField)[0]
+
+    fpTypes = np.array(
+                    [pmath.CharacterizeFixedPoint(eigenvalue)
+                     for eigenvalue in fpEigenValues]
+                )
+
+    fpEigenVectors = np.real(np.linalg.eig(fpGradWssField)[1])
+
+    fixedPointsData = tools.BuildPolyDataPoints(
+                            fpCoords,
+                            {"Poincareindex": fpPoincareIndices,
+                             "EigenvectorsDir1": fpEigenVectors[:,:,0],
+                             "EigenvectorsDir2": fpEigenVectors[:,:,1],
+                             "EigenvectorsDir3": fpEigenVectors[:,:,2],
+                             "FixedPointType": fpTypes}
+                        )
+
+    return fixedPointsData
 
 class Surface():
     """Computational model of a three-dimensional surface."""
