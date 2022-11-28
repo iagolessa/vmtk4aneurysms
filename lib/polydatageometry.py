@@ -71,6 +71,57 @@ def SpatialGradient(
 
     return gradient.GetOutput()
 
+def Divergence(
+        vtk_object: Union[names.polyDataType, names.unstructuredGridType],
+        field_name: str
+    )   -> Union[names.polyDataType, names.unstructuredGridType]:
+    """Compute the divergence of cell or point field on a VTK object."""
+
+    divWssFieldName  = field_name + names.div
+    gradWssFieldName = field_name + names.grad
+
+    # Create gradient filter
+    gradient = vtk.vtkGradientFilter()
+    gradient.SetInputData(vtk_object)
+
+    # Get the field associations CELLS or POINTS
+    if field_name in tools.GetPointArrays(vtk_object):
+        # 0 -> POINT field
+        gradient.SetInputScalars(0, field_name)
+
+        # Set flag so later in the function we know the
+        # type of field to be removed
+        isPointField = True
+
+    elif field_name in tools.GetCellArrays(vtk_object):
+        # 1 -> CELL field
+        gradient.SetInputScalars(1, field_name)
+        isPointField = False
+
+    else:
+        raise ValueError("{} not in input VTK object.".format(field_name))
+
+    gradient.SetResultArrayName(gradWssFieldName)
+    gradient.SetDivergenceArrayName(divWssFieldName)
+
+    # Grad needs to be computed too apparently
+    gradient.ComputeDivergenceOn()
+    gradient.ComputeGradientOn()
+    gradient.ComputeQCriterionOff()
+    gradient.ComputeVorticityOff()
+    gradient.Update()
+
+    divSurface = gradient.GetOutput()
+
+    # Delete gradient field
+    if isPointField:
+        divSurface.GetPointData().RemoveArray(gradWssFieldName)
+
+    else:
+        divSurface.GetCellData().RemoveArray(gradWssFieldName)
+
+    return divSurface
+
 def SurfaceGradient(
         surface: names.polyDataType,
         field_name: str,
