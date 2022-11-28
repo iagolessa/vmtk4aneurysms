@@ -393,6 +393,88 @@ def Hemodynamics(
 
     return numpySurface.VTKObject
 
+def NearWallTransportFeatures(
+        vasc_surface: names.polyDataType,
+        wss_field_name: str
+    )   -> tuple:
+    """Characterize the near wall transport adjacent to a vascular wall.
+
+    The wall shear vector is a proxy of the blood flow velocity field near the
+    luminal wall of the vessel or aneurysm, as explained in several works, for
+    example:
+
+        A. Arzani, A. M. Gambaruto, G. Chen, and S. C. Shadden, “Lagrangian
+        wall shear stress structures and near-wall transport in
+        high-Schmidt-number aneurysmal flows,” Journal of Fluid Mechanics, vol.
+        790, pp. 158–172, 2016, doi: 10.1017/jfm.2016.6.
+
+    Based on this fact, this function implements the two steps to characterize
+    the near wall transport in a vascular wall, be it of a healthy wall or an
+    intracranial aneurysm for example, proposed in the paper:
+
+        V. Mazzi et al., “A Eulerian method to analyze wall shear stress fixed
+        points and manifolds in cardiovascular flows,” Biomechanics and
+        Modeling in Mechanobiology, vol. 19, no. 5, pp. 1403–1423, Oct. 2020,
+        doi: 10.1007/s10237-019-01278-3.
+
+    Specifically,
+
+    (1) computation of the divergence of the normalized WSS vectorial field to
+    identify the topological skeleton of that field; and
+    (2) locate and characterize the fixed points of the field.
+
+    Arguments
+        - vasc_surface (polyDataType) -- the discretized vascular surface;
+        - wss_field_name (str) -- the name of the WSS vector field defined on the surface;
+
+    Return
+        - A tuple with the same input surface but with the divergence field
+          added to it and a polyData with the fixed points.
+    """
+
+    # Field names defined in this function
+    normWssFieldName = wss_field_name + names.norm
+
+    # Get surface as numpy data
+    npSurface = dsa.WrapDataObject(vasc_surface)
+
+    # Get WSS vector field
+    vecWssField = npSurface.CellData.GetArray(wss_field_name)
+
+    # Compute the normalized vectors
+    # For the WSS particularly, use the reversed direction
+    # because in OpenFOAM, the WSS was computed as it acts on the
+    # fluid flow domain
+    normVecWssField = -vecWssField/pmath.NormL2(vecWssField, 1)
+
+    npSurface.CellData.append(
+        normVecWssField,
+        normWssFieldName
+    )
+
+    # Correct the orientation of the WSS vector for
+    # the near-wall flow analysis specifically
+    npSurface.CellData.append(
+        -vecWssField,
+        wss_field_name
+    )
+
+    # Add the divergence field
+    # This surface is the one that must be returned
+    divSurface = geo.Divergence(
+                     npSurface.VTKObject,
+                     normWssFieldName
+                 )
+
+    # Second part: identify the fixed-points with the
+    # computation of the Poincaré index
+    fixedPointsData = geo.ComputeSurfaceVectorFixedPoints(
+                            divSurface,
+                            wss_field_name
+                        )
+
+    return (divSurface, fixedPointsData)
+
 def PressureTemporalStats(
         foam_case: str,
         t_peak_systole: float,
