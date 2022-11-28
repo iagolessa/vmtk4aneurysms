@@ -21,12 +21,21 @@ import numpy as np
 from typing import Union
 
 from vmtk import vtkvmtk
-from numpy import multiply, zeros, where
+from numpy import array, multiply, zeros, where
 from vtk.numpy_interface import dataset_adapter as dsa
 
 from . import names
 from . import constants as const
 from . import polydatatools as tools
+
+def ComputeCellBarycenter(
+        cell: vtk.vtkTriangle
+    )   -> array:
+
+    return array(
+               [cell.GetPoints().GetPoint(idx)
+                for idx in range(cell.GetNumberOfPoints())]
+           ).mean(axis=0)
 
 def Distance(
         point1: tuple,

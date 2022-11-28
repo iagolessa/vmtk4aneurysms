@@ -20,6 +20,7 @@ import sys
 import pandas as pd
 from typing import Union
 from copy import copy
+from numpy import ndarray
 
 import vtk
 from vmtk import vtkvmtk
@@ -248,6 +249,36 @@ def WriteSpline(points, tangents, file_name):
     spline.GetPointData().SetVectors(pointDataArray)
 
     WriteSurface(spline, file_name)
+
+def BuildPolyDataPoints(
+        point_coords: Union[ndarray, list],
+        point_fields: dict
+    )   -> names.polyDataType:
+    """Build VTK Polydata composed of points and fields.
+
+    Pass the points coordinates as a list or numpy array and
+    a dicttionary with its keys the field names and values
+    the field arrays.
+    """
+
+    points = vtk.vtkPoints()
+
+    for point in point_coords:
+        points.InsertNextPoint(point)
+
+    pointsData = vtk.vtkPolyData()
+    pointsData.SetPoints(points)
+
+    # Add point fields to polydata
+    npPointsData = dsa.WrapDataObject(pointsData)
+
+    for pfield_name, pfield in point_fields.items():
+        npPointsData.PointData.append(
+            pfield,
+            pfield_name
+        )
+
+    return npPointsData.VTKObject
 
 def SmoothSurface(surface):
     """Smooth surface based on Taubin's algorithm."""
