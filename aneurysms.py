@@ -30,11 +30,11 @@ from vmtk import vmtkscripts
 from scipy.spatial import ConvexHull
 
 # Local modules
-from .lib import names
-from .lib import constants as const
-from .lib import polydatatools as tools
-from .lib import polydatageometry as geo
-from .lib import polydatamath as pmath
+from lib import names
+from lib import constants as const
+from lib import polydatatools as tools
+from lib import polydatageometry as geo
+from lib import polydatamath as pmath
 
 _cellEntityIdsArrayName = "CellEntityIds"
 
