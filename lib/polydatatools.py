@@ -599,8 +599,8 @@ def ExtractPortion(
     """Extract portion of vtkPolyData based on array value.
 
     Given a VTK poly data or unstructured grid, extract the portion of it
-    marked by the value 'iso_value' of the field 'array_name'. Notte, it
-    extracts exctaly the regions with this value. To extract a region marked by
+    marked by the value 'iso_value' of the field 'array_name'. Note that it
+    extracts exactly the regions with this value. To extract a region marked by
     values above or below an isovalue, use ClipWithScalar.
 
     .. warning::
@@ -610,7 +610,8 @@ def ExtractPortion(
         Retun 'None' if the result is empty.
     """
 
-    if array_name not in GetCellArrays(vtk_object):
+    if array_name not in GetCellArrays(vtk_object) and \
+       array_name not in GetPointArrays(vtk_object):
         raise ValueError("{} not in the object".format(array_name))
 
     if array_name in GetPointArrays(vtk_object):
