@@ -17,7 +17,7 @@
 
 import vtk
 import numpy as np
-from morphman import extract_single_line
+from morphman.manipulate_curvature import extract_single_line
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts

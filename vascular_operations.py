@@ -23,7 +23,8 @@ vasculature.
 import sys
 import vtk
 import numpy as np
-import morphman as mp
+import morphman.common as mplib
+from morphman.manipulate_curvature import extract_single_line
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -179,7 +180,7 @@ def _set_portion_in_cl_patch(
                               )
 
     # Extract patch
-    patch = mp.extract_single_line(patch_centerline, patch_id)
+    patch = extract_single_line(patch_centerline, patch_id)
 
     tubeFunction = vtkvmtk.vtkvmtkPolyBallLine()
     tubeFunction.SetInput(patch)
@@ -262,7 +263,7 @@ def HealthyVesselReconstruction(
     centerlines   = cl.GenerateCenterlines(vascular_surface)
 
     # Smooth the Voronoi diagram
-    smoothedVoronoi = mp.smooth_voronoi_diagram(
+    smoothedVoronoi = mplib.voronoi_operations.smooth_voronoi_diagram(
                           voronoi,
                           centerlines,
                           0.25 # Smoothing factor, recommended by Ms. Piccinelli
@@ -302,7 +303,7 @@ def HealthyVesselReconstruction(
     # Extract patch centerlines
     isSiphon = not aneurysmInBifurcation
 
-    patchCenterlines = mp.create_parent_artery_patches(
+    patchCenterlines = mplib.vessel_reconstruction_tools.create_parent_artery_patches(
                             centerlines,
                             clippingPoints,
                             siphon=isSiphon,
@@ -311,7 +312,7 @@ def HealthyVesselReconstruction(
 
 
     # 2) Interpolate patch centerlines using splines
-    parentCenterlines = mp.interpolate_patch_centerlines(
+    parentCenterlines = mplib.vessel_reconstruction_tools.interpolate_patch_centerlines(
                             patchCenterlines,
                             centerlines,
                             additionalPoint=None,
@@ -340,30 +341,23 @@ def HealthyVesselReconstruction(
                          int(const.one)
                      )
 
-    if aneurysmInBifurcation:
-        # As required by Morphman, also pass the clipping points as a Numpy
-        # array
-        clipPointsArray = np.array([clippingPoints.GetPoint(i)
-                                    for i in range(clippingPoints.GetNumberOfPoints())])
+    # As required by Morphman, also pass the clipping points as a Numpy
+    # array
+    clipPointsArray = np.array([clippingPoints.GetPoint(i)
+                                for i in range(clippingPoints.GetNumberOfPoints())])
 
-        # 4) Interpolate Voronoi diagram along interpolated centerline
-        newVoronoi = mp.interpolate_voronoi_diagram(
-                        parentCenterlines,
-                        patchCenterlines,
-                        clippedVoronoi,
-                        [clippingPoints, clipPointsArray],
-                        bif=[],
-                        cylinder_factor=1.0
-                    )
+    # 4) Interpolate Voronoi diagram along interpolated centerline
+    newVoronoi = mplib.vessel_reconstruction_tools.interpolate_voronoi_diagram(
+                    parentCenterlines,
+                    patchCenterlines,
+                    clippedVoronoi,
+                    [clippingPoints, clipPointsArray],
+                    bif=[],
+                    cylinder_factor=1.0
+                )
 
-        # 5) Compute parent surface from new Voronoi
-        parentSurface = cl.ComputeVoronoiEnvelope(newVoronoi)
-
-    # TODO: implement the lateral case
-    else:
-        raise NotImplementedError(
-                  "Lateral aneurysm reconstruction not implemented, yet."
-              )
+    # 5) Compute parent surface from new Voronoi
+    parentSurface = cl.ComputeVoronoiEnvelope(newVoronoi)
 
     return parentSurface
 
@@ -438,16 +432,16 @@ def _bifurcation_aneurysm_influence_region(
                            )
 
         # Then clip the parent centerline
-        line = mp.extract_single_line(clWithoutAneurysm, cl_id)
+        line = extract_single_line(clWithoutAneurysm, cl_id)
 
-        loc = mp.get_vtk_point_locator(line)
+        loc = mplib.vtk_wrapper.get_vtk_point_locator(line)
 
         #Find closest points to clipping on parent centerline
         dauId = loc.FindClosestPoint(dauClippingPoint)
         bifId = loc.FindClosestPoint(bifClippingPoint)
 
         lines.append(
-            mp.extract_single_line(
+            extract_single_line(
                 line,
                 0,
                 start_id=bifId,
@@ -455,7 +449,7 @@ def _bifurcation_aneurysm_influence_region(
             )
         )
 
-    aneurysmInceptionClPortion = mp.vtk_merge_polydata(lines)
+    aneurysmInceptionClPortion = mplib.vtk_wrapper.vtk_merge_polydata(lines)
 
     return cl.ComputeTubeSurface(aneurysmInceptionClPortion)
 
@@ -510,14 +504,14 @@ def _lateral_aneurysm_influence_region(
                           )
 
     # Clip centerline portion of the forward centerline
-    line = mp.extract_single_line(forwardCenterline, 0)
-    loc  = mp.get_vtk_point_locator(line)
+    line = extract_single_line(forwardCenterline, 0)
+    loc  = mplib.vtk_wrapper.get_vtk_point_locator(line)
 
     #Find closest points to clipping on parent centerline
     upstreamId   = loc.FindClosestPoint(upstreamClipPoint)
     downstreamId = loc.FindClosestPoint(downstreamClipPoint)
 
-    aneurysmInceptionClPortion =  mp.extract_single_line(
+    aneurysmInceptionClPortion =  extract_single_line(
                                         line,
                                         0,
                                         start_id=upstreamId,
