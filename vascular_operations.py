@@ -241,6 +241,15 @@ def HealthyVesselReconstruction(
     'hypothetical healthy' vessel of a vascular model with an intracranial
     aneurysm.
 
+    .. warning::
+        It is important to "reduce" the vascular surface to only the region
+        where the aneurysm is, ie clip the surface so only the parent vessel
+        and the daughter branches are left.
+
+    .. warning::
+        Try to select, or pass, a dome point that lies on the farthest location
+        form the neck and that is centered to the neck.
+
     Arguments
     vascular_surface (vtkPolyData) -- the vascular surface model clipped at the
     inlet and two outlets (if a bifurcation aneurysm) or one outlet (if a
@@ -819,6 +828,22 @@ def AneurysmNeckPlane(
     optional argument 'min_variable'.
 
     It returns the clipped aneurysm surface from the original vasculature.
+
+    .. warning::
+        The parent vessel surface can be computed with the
+        HealthyVesselReconstruction function also provided with this module. If
+        the parent vessel is not provided, this function uses the vascular
+        surface itself to perform the procedure (tube function reconstruction),
+        which may impair the results.
+
+    .. warning::
+        Better results are expected if you "reduce" the vascular surface to
+        only the region where the aneurysm is, ie clip the surface so only the
+        parent vessel and the daughter branches are left.
+
+    .. warning::
+        Try to select, or pass, a dome point that lies on the farthest location
+        form the neck and that is centered to the neck.
 
     Arguments
     ---------
