@@ -799,15 +799,38 @@ def _search_neck_plane(
 
     return neckPlane
 
-
-def _extract_aneurysmal_regions(
+def _extract_aneurysm_inception_region(
         vascular_surface: names.polyDataType,
         aneurysm_type: str,
+        aneurysm_point: tuple=None
+    )   -> names.polyDataType:
+
+    aneurysmPoint = tools.SelectSurfacePoint(vascular_surface) \
+                    if aneurysm_point is None \
+                    else aneurysm_point
+
+    aneurysmInBifurcation = _is_bifurcation_aneurysm(aneurysm_type)
+
+    if aneurysmInBifurcation:
+        aneurysmInceptionPortion = _bifurcation_aneurysm_influence_region(
+                                       vascular_surface,
+                                       aneurysmPoint
+                                   )
+
+    else:
+        aneurysmInceptionPortion = _lateral_aneurysm_influence_region(
+                                       vascular_surface,
+                                       aneurysmPoint
+                                   )
+
+    return aneurysmInceptionPortion
+
+def _extract_aneurysmal_region(
+        vascular_surface: names.polyDataType,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        aneurysm_point: tuple=None,
         aneurysmal_region_array: str=_initialAneurysmArrayName
-    )   -> tuple:
+    )   -> names.polyDataType:
     """Marks the aneurysmal region with an array and extract the vessel portion
     where the aneurysm grew.
 
@@ -817,13 +840,8 @@ def _extract_aneurysmal_regions(
     the vascular model where the aneurysm grew.
     """
 
-    # Clean up any arrays on the surface
-    vascular_surface = tools.Cleaner(vascular_surface)
-    vascular_surface = tools.CleanupArrays(vascular_surface)
-
     # 1) Compute vasculature's Voronoi
     vascularVoronoi = cl.ComputeVoronoiDiagram(vascular_surface)
-
 
     # 2) Compute parent vasculature centerline tube
     if parent_vascular_centerline is None and \
@@ -846,7 +864,6 @@ def _extract_aneurysmal_regions(
 
     parentTubeSurface = cl.ComputeTubeSurface(parentCenterlines)
 
-
     # 3) Aneurysm Voronoi isolation
     aneurysmVoronoi   = _clip_aneurysm_Voronoi(
                             vascularVoronoi,
@@ -855,28 +872,7 @@ def _extract_aneurysmal_regions(
 
     aneurysmEnvelope  = cl.ComputeVoronoiEnvelope(aneurysmVoronoi)
 
-
-    # 4) Extraction aneurysmal-inception region
-    aneurysmPoint = tools.SelectSurfacePoint(vascular_surface) \
-                    if aneurysm_point is None \
-                    else aneurysm_point
-
-    aneurysmInBifurcation = _is_bifurcation_aneurysm(aneurysm_type)
-
-    if aneurysmInBifurcation:
-        aneurysmInceptionPortion = _bifurcation_aneurysm_influence_region(
-                                       vascular_surface,
-                                       aneurysmPoint
-                                   )
-
-    else:
-        aneurysmInceptionPortion = _lateral_aneurysm_influence_region(
-                                       vascular_surface,
-                                       aneurysmPoint
-                                   )
-
-
-    # 5) Aneurysmal surface isolation
+    # 4) Aneurysmal surface isolation
     aneurysmalSurface = _mark_aneurysmal_region(
                             vascular_surface,
                             aneurysmEnvelope,
@@ -884,7 +880,7 @@ def _extract_aneurysmal_regions(
                             result_clip_array=aneurysmal_region_array
                         )
 
-    return aneurysmalSurface, aneurysmInceptionPortion
+    return aneurysmalSurface
 
 def MarkAneurysmalRegion(
         vascular_surface: names.polyDataType,
@@ -943,17 +939,19 @@ def MarkAneurysmalRegion(
     marking the aneurysmal region contour.
     """
 
+    # Clean up any arrays on the surface
+    vascular_surface = tools.Cleaner(vascular_surface)
+    vascular_surface = tools.CleanupArrays(vascular_surface)
+
     # Perform first five steps of Piccinelli's procedure, returning the
     # vascular surface marked with the aneurysmal region via an array and the
     # vascular rerion where the aneurysm has grown
-    aneurysmalSurface, _ = _extract_aneurysmal_regions(
-                               vascular_surface,
-                               aneurysm_type,
-                               parent_vascular_surface,
-                               parent_vascular_centerline,
-                               aneurysm_point,
-                               aneurysmal_region_array
-                           )
+    aneurysmalSurface = _extract_aneurysmal_region(
+                            vascular_surface,
+                            parent_vascular_surface=parent_vascular_surface,
+                            parent_vascular_centerline=parent_vascular_centerline,
+                            aneurysmal_region_array=aneurysmal_region_array
+                        )
 
     return aneurysmalSurface
 
@@ -1020,18 +1018,20 @@ def ComputeAneurysmNeckPlane(
     its normal vector
     """
 
+    # Clean up any arrays on the surface
+    vascular_surface = tools.Cleaner(vascular_surface)
+    vascular_surface = tools.CleanupArrays(vascular_surface)
+
     # Perform first five steps of Piccinelli's procedure, returning the
     # vascular surface marked with the aneurysmal region via an array and the
     # vascular rerion where the aneurysm has grown
-    aneurysmalSurface, aneurysmInceptionPortion = _extract_aneurysmal_regions(
-                                                      vascular_surface,
-                                                      aneurysm_type,
-                                                      parent_vascular_surface,
-                                                      parent_vascular_centerline,
-                                                      aneurysm_point,
-                                                      _initialAneurysmArrayName
-                                                  )
-    # Rest of the procedure
+    aneurysmalSurface = _extract_aneurysmal_region(
+                            vascular_surface,
+                            parent_vascular_surface=parent_vascular_surface,
+                            parent_vascular_centerline=parent_vascular_centerline,
+                            aneurysmal_region_array=_initialAneurysmArrayName
+                        )
+
     clippedAneurysmalSurface = tools.ClipWithScalar(
                                    aneurysmalSurface,
                                    _initialAneurysmArrayName,
@@ -1048,6 +1048,12 @@ def ComputeAneurysmNeckPlane(
         _initialAneurysmArrayName
     )
 
+    # Get the portion where the aneurysm grew
+    aneurysmInceptionPortion = _extract_aneurysm_inception_region(
+                                   vascular_surface,
+                                   aneurysm_type,
+                                   aneurysm_point=aneurysm_point
+                               )
 
     # The authors of the study used the distance to the clipped tube
     # surface to compute the sac centerline. I am currently using
@@ -1062,7 +1068,7 @@ def ComputeAneurysmNeckPlane(
                         )
 
 
-    # 6) Create sac centerline
+    # Create sac centerline
     barycenters, normals = _sac_centerline(
                                 aneurysmalSurface,
                                 tubeToAneurysmDistance
@@ -1073,7 +1079,7 @@ def ComputeAneurysmNeckPlane(
     )
 
 
-    # 7) Search neck plane
+    # Search neck plane
     neckPlane = _search_neck_plane(
                     aneurysmalSurface,
                     barycenters,
