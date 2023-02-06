@@ -39,7 +39,8 @@ from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
 _dimensions = int(const.three)
-_clipInitialAneurysmArrayName = "ClipInitialAneurysmArray"
+_initialAneurysmArrayName = "AneurysmalRegionArray"
+AneurysmalRegionArrayName = _initialAneurysmArrayName
 
 def _bifurcation_aneurysm_clipping_points(
         vascular_surface: names.polyDataType,
@@ -559,17 +560,18 @@ def _clip_aneurysm_Voronoi(
 
     return tools.Cleaner(aneurysmVoronoi)
 
-def _clip_initial_aneurysm(
+def _mark_aneurysmal_region(
         surface_model: names.polyDataType,
         aneurysm_envelope: names.polyDataType,
         parent_tube: names.polyDataType,
-        result_clip_array: str = _clipInitialAneurysmArrayName
+        result_clip_array: str = _initialAneurysmArrayName
     )   -> names.polyDataType:
-    """Clip initial aneurysm surface from the original vascular model.
+    """Compute the aneurysmal region surface from the original vascular model.
 
     Compute distance between the aneurysm envelope and parent vasculature tube
-    function from the original vascular surface model. Clip the surface at the
-    zero value of the difference between these two fields.
+    function from the original vascular surface model. Mark the surface with a
+    field such that its zero value is the difference between those two fields.
+    This represents an approximation of the aneurysm neck contour.
 
     Arguments:
         surface_model --  the original vascular surface
@@ -596,33 +598,21 @@ def _clip_initial_aneurysm(
                                )
 
     # Compute difference between the arrays
-    clippingArray = vmtkscripts.vmtkSurfaceArrayOperation()
-    clippingArray.Surface         = modelSurfaceWithDistance
-    clippingArray.Operation       = 'subtract'
-    clippingArray.InputArrayName  = envelopeToModelArray
-    clippingArray.Input2ArrayName = tubeToModelArray
-    clippingArray.ResultArrayName = result_clip_array
-    clippingArray.Execute()
+    markedAneurysmalRegion = vmtkscripts.vmtkSurfaceArrayOperation()
+    markedAneurysmalRegion.Surface         = modelSurfaceWithDistance
+    markedAneurysmalRegion.Operation       = 'subtract'
+    markedAneurysmalRegion.InputArrayName  = envelopeToModelArray
+    markedAneurysmalRegion.Input2ArrayName = tubeToModelArray
+    markedAneurysmalRegion.ResultArrayName = result_clip_array
+    markedAneurysmalRegion.Execute()
 
-    clippedAneurysm = tools.ClipWithScalar(
-                          clippingArray.Surface,
-                          clippingArray.ResultArrayName,
-                          const.zero,
-                          inside_out=False
-                      )
+    aneurysmalSurface = markedAneurysmalRegion.Surface
 
-    aneurysm = tools.ExtractConnectedRegion(
-                   clippedAneurysm,
-                   'largest'
-               )
+    # Remove unnecessary fields
+    aneurysmalSurface.GetPointData().RemoveArray(tubeToModelArray)
+    aneurysmalSurface.GetPointData().RemoveArray(envelopeToModelArray)
 
-    # Remove fields
-    aneurysm.GetPointData().RemoveArray(tubeToModelArray)
-    aneurysm.GetPointData().RemoveArray(envelopeToModelArray)
-    aneurysm.GetPointData().RemoveArray(result_clip_array)
-
-    return tools.Cleaner(aneurysm)
-
+    return aneurysmalSurface
 
 def _sac_centerline(
         aneurysm_sac: names.polyDataType,
@@ -810,76 +800,26 @@ def _search_neck_plane(
     return neckPlane
 
 
-def AneurysmNeckPlane(
+def _extract_aneurysmal_regions(
         vascular_surface: names.polyDataType,
         aneurysm_type: str,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        min_variable: str="area",
-        aneurysm_point: tuple=None
-    )   -> names.polyDataType:
-    """Search the aneurysm neck plane and clip the aneurysm.
+        aneurysm_point: tuple=None,
+        aneurysmal_region_array: str=_initialAneurysmArrayName
+    )   -> tuple:
+    """Marks the aneurysmal region with an array and extract the vessel portion
+    where the aneurysm grew.
 
-    Procedure based on Piccinelli's pipeline, which is based on the surface
-    model with the aneurysm and its parent vasculature reconstruction. The
-    single difference is the variable which the algorithm minimizes to search
-    for the neck plane: the default is the neck perimeter, whereas in the
-    default procedure is the neck section area; this can be controlled by the
-    optional argument 'min_variable'.
-
-    It returns the clipped aneurysm surface from the original vasculature.
-
-    .. warning::
-        The parent vessel surface can be computed with the
-        HealthyVesselReconstruction function also provided with this module. If
-        the parent vessel is not provided, this function uses the vascular
-        surface itself to perform the procedure (tube function reconstruction),
-        which may impair the results.
-
-    .. warning::
-        Better results are expected if you "reduce" the vascular surface to
-        only the region where the aneurysm is, ie clip the surface so only the
-        parent vessel and the daughter branches are left.
-
-    .. warning::
-        Try to select, or pass, a dome point that lies on the farthest location
-        form the neck and that is centered to the neck.
-
-    Arguments
-    ---------
-    vascular_surface (names.polyDataType) -- the original vasculature surface
-    with the aneurysm
-
-    aneurysm_type (str) -- the aneurysm type, bifurcation or lateral
-
-    Optional
-    parent_vascular_surface (names.polyDataType, default: None) --
-    reconstructed parent vasculature
-
-    parent_vascular_centerline (names.polyDataType, default: None) -- instead
-    of the parent (hypothetically healthy) vascular surface, its centerline can
-    be passed
-
-    min_variable (str, 'area' or 'perimeter', default: 'area') -- the varible
-    by which the neck will be searched
-
-    aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
-    aneurysm identification.  If none, the user is prompted to select it.
-
-    Return
-    aneurysm_surface (names.polyDataType) -- returns the aneurysm clipped at
-    the neck plane
+    Based on the five first steps of Piccinelli's procedure, this function
+    marks the vascular model passed with an array whose zero value marks the
+    contour of the aneurysmal region. It also returns the surface portion of
+    the vascular model where the aneurysm grew.
     """
 
     # Clean up any arrays on the surface
     vascular_surface = tools.Cleaner(vascular_surface)
     vascular_surface = tools.CleanupArrays(vascular_surface)
-
-    # The authors of the study used the distance to the clipped tube
-    # surface to compute the sac centerline. I am currently using
-    # the same array used to clip the aneurysmal region
-    tubeToAneurysmDistance = "ClippedTubeToAneurysmDistanceArray"
-
 
     # 1) Compute vasculature's Voronoi
     vascularVoronoi = cl.ComputeVoronoiDiagram(vascular_surface)
@@ -937,14 +877,185 @@ def AneurysmNeckPlane(
 
 
     # 5) Aneurysmal surface isolation
-    aneurysmalSurface = _clip_initial_aneurysm(
+    aneurysmalSurface = _mark_aneurysmal_region(
                             vascular_surface,
                             aneurysmEnvelope,
-                            parentTubeSurface
+                            parentTubeSurface,
+                            result_clip_array=aneurysmal_region_array
                         )
 
+    return aneurysmalSurface, aneurysmInceptionPortion
+
+def MarkAneurysmalRegion(
+        vascular_surface: names.polyDataType,
+        aneurysm_type: str,
+        parent_vascular_surface: names.polyDataType=None,
+        parent_vascular_centerline: names.polyDataType=None,
+        aneurysm_point: tuple=None,
+        aneurysmal_region_array: str=AneurysmalRegionArrayName
+    )   -> names.polyDataType:
+    """Marks the aneurysmal region with an array.
+
+    Based on the five first steps of Piccinelli's procedure, this function
+    marks the vascular model passed with an array whose zero value marks the
+    contour of the aneurysmal region. This may be used for an initial
+    approximation of the aneurysm surface itself.
+
+    .. warning::
+        The parent vessel surface can be computed with the
+        HealthyVesselReconstruction function also provided with this module. If
+        the parent vessel is not provided, this function uses the vascular
+        surface itself to perform the procedure (tube function reconstruction),
+        which may impair the results.
+
+    .. warning::
+        Better results are expected if you "reduce" the vascular surface to
+        only the region where the aneurysm is, ie clip the surface so only the
+        parent vessel and the daughter branches are left.
+
+    .. warning::
+        Try to select, or pass, a dome point that lies on the farthest location
+        form the neck and that is centered to the neck.
+
+    Arguments
+    ---------
+    vascular_surface (names.polyDataType) -- the original vasculature surface
+    with the aneurysm
+
+    aneurysm_type (str) -- the aneurysm type, bifurcation or lateral
+
+    Optional
+    parent_vascular_surface (names.polyDataType, default: None) --
+    reconstructed parent vasculature
+
+    parent_vascular_centerline (names.polyDataType, default: None) -- instead
+    of the parent (hypothetically healthy) vascular surface, its centerline can
+    be passed
+
+    aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
+    aneurysm identification.  If none, the user is prompted to select it.
+
+    aneurysmal_region_array (str) -- name of the array defined on the surface
+    to mark the aneurysm
+
+    Return
+    surface (vtkPolyData) -- vascular surface with an array defined on it
+    marking the aneurysmal region contour.
+    """
+
+    # Perform first five steps of Piccinelli's procedure, returning the
+    # vascular surface marked with the aneurysmal region via an array and the
+    # vascular rerion where the aneurysm has grown
+    aneurysmalSurface, _ = _extract_aneurysmal_regions(
+                               vascular_surface,
+                               aneurysm_type,
+                               parent_vascular_surface,
+                               parent_vascular_centerline,
+                               aneurysm_point,
+                               aneurysmal_region_array
+                           )
+
+    return aneurysmalSurface
+
+def ComputeAneurysmNeckPlane(
+        vascular_surface: names.polyDataType,
+        aneurysm_type: str,
+        parent_vascular_surface: names.polyDataType=None,
+        parent_vascular_centerline: names.polyDataType=None,
+        min_variable: str="area",
+        aneurysm_point: tuple=None
+    )   -> tuple:
+    """Search the aneurysm neck plane.
+
+    Procedure based on Piccinelli's pipeline, which is based on the surface
+    model with the aneurysm and its parent vasculature reconstruction. The
+    single difference is the variable which the algorithm minimizes to search
+    for the neck plane: the default is the neck perimeter, whereas in the
+    default procedure is the neck section area; this can be controlled by the
+    optional argument 'min_variable'.
+
+    It returns the information necessary to construct the neck plane: its
+    center and its normal, based on the coordinate system of the input vascular
+    surface model.
+
+    .. warning::
+        The parent vessel surface can be computed with the
+        HealthyVesselReconstruction function also provided with this module. If
+        the parent vessel is not provided, this function uses the vascular
+        surface itself to perform the procedure (tube function reconstruction),
+        which may impair the results.
+
+    .. warning::
+        Better results are expected if you "reduce" the vascular surface to
+        only the region where the aneurysm is, ie clip the surface so only the
+        parent vessel and the daughter branches are left.
+
+    .. warning::
+        Try to select, or pass, a dome point that lies on the farthest location
+        form the neck and that is centered to the neck.
+
+    Arguments
+    ---------
+    vascular_surface (names.polyDataType) -- the original vasculature surface
+    with the aneurysm
+
+    aneurysm_type (str) -- the aneurysm type, bifurcation or lateral
+
+    Optional
+    parent_vascular_surface (names.polyDataType, default: None) --
+    reconstructed parent vasculature
+
+    parent_vascular_centerline (names.polyDataType, default: None) -- instead
+    of the parent (hypothetically healthy) vascular surface, its centerline can
+    be passed
+
+    min_variable (str, 'area' or 'perimeter', default: 'area') -- the varible
+    by which the neck will be searched
+
+    aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
+    aneurysm identification.  If none, the user is prompted to select it.
+
+    Return
+    plane center and normal (tuple) -- returns the center of the neck plane and
+    its normal vector
+    """
+
+    # Perform first five steps of Piccinelli's procedure, returning the
+    # vascular surface marked with the aneurysmal region via an array and the
+    # vascular rerion where the aneurysm has grown
+    aneurysmalSurface, aneurysmInceptionPortion = _extract_aneurysmal_regions(
+                                                      vascular_surface,
+                                                      aneurysm_type,
+                                                      parent_vascular_surface,
+                                                      parent_vascular_centerline,
+                                                      aneurysm_point,
+                                                      _initialAneurysmArrayName
+                                                  )
+    # Rest of the procedure
+    clippedAneurysmalSurface = tools.ClipWithScalar(
+                                   aneurysmalSurface,
+                                   _initialAneurysmArrayName,
+                                   const.zero,
+                                   inside_out=False
+                               )
+
+    clippedAneurysmalSurface = tools.ExtractConnectedRegion(
+                                   clippedAneurysmalSurface,
+                                   'largest'
+                               )
+
+    clippedAneurysmalSurface.GetPointData().RemoveArray(
+        _initialAneurysmArrayName
+    )
+
+
+    # The authors of the study used the distance to the clipped tube
+    # surface to compute the sac centerline. I am currently using
+    # the same array used to clip the aneurysmal region
+    tubeToAneurysmDistance = "ClippedTubeToAneurysmDistanceArray"
+
     aneurysmalSurface = tools.ComputeSurfacesDistance(
-                            aneurysmalSurface,
+                            tools.Cleaner(clippedAneurysmalSurface),
                             aneurysmInceptionPortion,
                             array_name=tubeToAneurysmDistance,
                             signed_array=False
@@ -974,38 +1085,40 @@ def AneurysmNeckPlane(
     neckCenter = neckPlane.GetOrigin()
     neckNormal = neckPlane.GetNormal()
 
-    # Clip final aneurysm surface: the side to where the normal point
-    surf1 = tools.ClipWithPlane(
-                aneurysmalSurface,
-                neckCenter,
-                neckNormal
-            )
+    # # Clip final aneurysm surface: the side to where the normal point
+    # surf1 = tools.ClipWithPlane(
+    #             aneurysmalSurface,
+    #             neckCenter,
+    #             neckNormal
+    #         )
 
-    surf2 = tools.ClipWithPlane(
-                aneurysmalSurface,
-                neckCenter,
-                neckNormal,
-                inside_out=True
-            )
+    # surf2 = tools.ClipWithPlane(
+    #             aneurysmalSurface,
+    #             neckCenter,
+    #             neckNormal,
+    #             inside_out=True
+    #         )
 
-    # Check which output is farthest from clipped tube (the actual aneurysm
-    # surface should be farther)
-    tubePoints  = dsa.WrapDataObject(aneurysmInceptionPortion).GetPoints()
-    surf1Points = dsa.WrapDataObject(surf1).GetPoints()
-    surf2Points = dsa.WrapDataObject(surf2).GetPoints()
+    # # Check which output is farthest from clipped tube (the actual aneurysm
+    # # surface should be farther)
+    # tubePoints  = dsa.WrapDataObject(aneurysmInceptionPortion).GetPoints()
+    # surf1Points = dsa.WrapDataObject(surf1).GetPoints()
+    # surf2Points = dsa.WrapDataObject(surf2).GetPoints()
 
-    tubeCentroid  = tubePoints.mean(axis=0)
-    surf1Centroid = surf1Points.mean(axis=0)
-    surf2Centroid = surf2Points.mean(axis=0)
+    # tubeCentroid  = tubePoints.mean(axis=0)
+    # surf1Centroid = surf1Points.mean(axis=0)
+    # surf2Centroid = surf2Points.mean(axis=0)
 
-    surf1Distance = vtk.vtkMath.Distance2BetweenPoints(
-                        tubeCentroid,
-                        surf1Centroid
-                    )
+    # surf1Distance = vtk.vtkMath.Distance2BetweenPoints(
+    #                     tubeCentroid,
+    #                     surf1Centroid
+    #                 )
 
-    surf2Distance = vtk.vtkMath.Distance2BetweenPoints(
-                        tubeCentroid,
-                        surf2Centroid
-                    )
+    # surf2Distance = vtk.vtkMath.Distance2BetweenPoints(
+    #                     tubeCentroid,
+    #                     surf2Centroid
+    #                 )
 
-    return surf1 if surf1Distance > surf2Distance else surf2
+    # aneurysmPlaneNeckSurface = surf1 if surf1Distance > surf2Distance else surf2
+
+    return neckCenter, neckNormal
