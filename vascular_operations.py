@@ -1151,3 +1151,82 @@ def ComputeAneurysmNeckPlane(
     # aneurysmPlaneNeckSurface = surf1 if surf1Distance > surf2Distance else surf2
 
     return neckCenter, neckNormal
+
+def ExtractAneurysmSacSurface(
+        vascular_surface: names.polyDataType,
+        mode: str="automatic",
+        parent_vascular_surface: names.polyDataType=None,
+        parent_vascular_centerline: names.polyDataType=None
+    )   -> names.polyDataType:
+    """Clip the aneurysm sac surface from the vascular surface model.
+
+    Given the vascular model with an aneurysm, clip the aneurysm sac surface
+    with one of three methods:
+
+        - Manually, by interactively placing seeds that form the aneurysm neck
+          contour;
+
+        - Automatically, by using Piccinelli's procedure to clip the aneurysm
+          neck. This option extracts the aneurysmal portion;
+
+        - Automatically but using the neck plane procedure by Piccinelli et al.
+
+    Arguments
+    ---------
+    vascular_surface (names.polyDataType) -- the original vasculature surface
+    with the aneurysm
+
+    Optional
+    --------
+    mode (str, default: 'automatic') -- the method to clip the aneurysm:
+    'manual', 'automatic', or 'plane'
+
+    parent_vascular_surface (names.polyDataType, default: None) --
+    reconstructed parent vasculature
+
+    parent_vascular_centerline (names.polyDataType, default: None) -- instead
+    of the parent (hypothetically healthy) vascular surface, its centerline can
+    be passed
+
+    Return
+    aneurysm sac surface (names.polyDataType) -- the surface of the aneurysm
+    sac clipped from the vascular surface model
+    """
+
+    # Clean up any arrays on the surface
+    vascular_surface = tools.Cleaner(vascular_surface)
+    vascular_surface = tools.CleanupArrays(vascular_surface)
+
+    # Based on the aailable methods, mark the surface with the neck array
+    if mode == "manual":
+
+        markedSurface = _mark_aneurysm_sac_manually(
+                            vascular_surface,
+                            aneurysm_neck_array_name=DistanceToAneurysmNeckArrayName
+                        )
+
+    elif mode == "automatic":
+
+        # Procedure by Piccinelli's work: defined by the aneurysmal region
+        markedSurface = _extract_aneurysmal_region(
+                            vascular_surface,
+                            parent_vascular_surface=parent_vascular_surface,
+                            parent_vascular_centerline=parent_vascular_centerline,
+                            aneurysmal_region_array=DistanceToAneurysmNeckArrayName
+                        )
+
+    elif mode == "plane":
+        raise NotImplementedError(
+                  "Clipping by the neck plane not yet implemented."
+              )
+
+    # Clip the aneurysm sac (aneurysm marked with negative values)
+    clippedAneurysmSurface = tools.ClipWithScalar(
+                                   markedSurface,
+                                   DistanceToAneurysmNeckArrayName,
+                                   const.zero
+                               )
+
+    clippedAneurysmSurface.GetPointData().RemoveArray(DistanceToAneurysmNeckArrayName)
+
+    return clippedAneurysmSurface
