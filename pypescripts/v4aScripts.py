@@ -12,7 +12,8 @@ __all__ = [
     '.vmtksurfacevasculaturesections',
     '.vmtksurfacevasculaturethickness',
     '.vmtksurfacevasculaturetransform',
-    '.vmtksurfacevesselfixer'
+    '.vmtksurfacevesselfixer',
+    '.vmtkgeodesicdistance'
 ]
 
 for item in __all__:

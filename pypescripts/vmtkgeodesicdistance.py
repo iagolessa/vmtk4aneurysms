@@ -43,7 +43,8 @@ class vmtkGeodesicDistance(pypes.pypeScript):
         self.SetScriptName('vmtkgeodesicdistance')
         self.SetScriptDoc(
             """compute the geodesic distance from a closed contour draw on
-            a surface"""
+            a surface. The inner portion of the closed contour is marked with
+            negative values."""
         )
 
         self.SetInputMembers([

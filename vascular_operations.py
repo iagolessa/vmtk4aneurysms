@@ -38,9 +38,12 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
+from .pypescripts import v4aScripts
+
 _dimensions = int(const.three)
 _initialAneurysmArrayName = "AneurysmalRegionArray"
 AneurysmalRegionArrayName = _initialAneurysmArrayName
+DistanceToAneurysmNeckArrayName = 'DistanceToNeck'
 
 def _bifurcation_aneurysm_clipping_points(
         vascular_surface: names.polyDataType,
@@ -881,6 +884,26 @@ def _extract_aneurysmal_region(
                         )
 
     return aneurysmalSurface
+
+def _mark_aneurysm_sac_manually(
+        surface: names.polyDataType,
+        aneurysm_neck_array_name: str=DistanceToAneurysmNeckArrayName
+    )   -> names.polyDataType:
+    """Manually select the aneurysm neck contour and compute the distance to
+    it.
+
+    Given a vasculature with an aneurysm, prompt the user to manually draw the
+    aneurysm neck on the surface. An scalar array (field) is then defined on
+    the surface with value 0 on the aneurysm neck contour defined and its other
+    values as the geodesic distance to the neck contour.
+    """
+
+    computeGeoDistance = v4aScripts.vmtkGeodesicDistance()
+    computeGeoDistance.Surface = surface
+    computeGeoDistance.GeodesicDistanceArrayName = aneurysm_neck_array_name
+    computeGeoDistance.Execute()
+
+    return computeGeoDistance.Surface
 
 def MarkAneurysmalRegion(
         vascular_surface: names.polyDataType,
