@@ -601,8 +601,8 @@ def _mark_aneurysmal_region(
     markedAneurysmalRegion = vmtkscripts.vmtkSurfaceArrayOperation()
     markedAneurysmalRegion.Surface         = modelSurfaceWithDistance
     markedAneurysmalRegion.Operation       = 'subtract'
-    markedAneurysmalRegion.InputArrayName  = envelopeToModelArray
-    markedAneurysmalRegion.Input2ArrayName = tubeToModelArray
+    markedAneurysmalRegion.InputArrayName  = tubeToModelArray
+    markedAneurysmalRegion.Input2ArrayName = envelopeToModelArray
     markedAneurysmalRegion.ResultArrayName = result_clip_array
     markedAneurysmalRegion.Execute()
 
@@ -1032,11 +1032,11 @@ def ComputeAneurysmNeckPlane(
                             aneurysmal_region_array=_initialAneurysmArrayName
                         )
 
+    # Clip aneurysmal portion (scalars < 0)
     clippedAneurysmalSurface = tools.ClipWithScalar(
                                    aneurysmalSurface,
                                    _initialAneurysmArrayName,
-                                   const.zero,
-                                   inside_out=False
+                                   const.zero
                                )
 
     clippedAneurysmalSurface = tools.ExtractConnectedRegion(
