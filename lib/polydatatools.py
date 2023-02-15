@@ -306,6 +306,21 @@ def Cleaner(surface):
 
     return cleaner.GetOutput()
 
+def RemeshSurface(
+        surface: names.polyDataType,
+        target_cell_area: float=0.01
+    )   -> names.polyDataType:
+    """Remesh surface using VMTK and tageting the cell area size."""
+
+    remesher = vmtkscripts.vmtkSurfaceRemeshing()
+    remesher.Surface = surface
+    remesher.ElementSizeMode = 'area'
+    remesher.TargetArea = target_cell_area
+    remesher.PreserveBoundaryEdges = 1
+    remesher.Execute()
+
+    return remesher.Surface
+
 def GetCellArrays(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType]
     )   -> list:
