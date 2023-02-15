@@ -339,6 +339,83 @@ def WarpPolydata(
     # For backward compatibility
     return WarpVtkObject(polydata, field_name)
 
+def SurfaceGeodesicDistanceToContour(
+        surface: names.polyDataType,
+        id_list: vtk.vtkCommonCorePython.vtkIdList,
+        gdistance_array_name: str=names.DistanceToAneurysmNeckArrayName
+    )   -> names.polyDataType:
+    """Compute the geodesic distance from a contour on a surface.
+
+    Given a surface and a list of point IDs that define a closed contour
+    on the surface, compute the geodesic distance from this contour. Returns
+    the input surface with the array of the geodesic distance defined on it.
+
+    Once the contour must be closed, the algorithm will compute negative
+    distances on the smallest region defined by the contour and positive
+    on the rest.
+    """
+
+    selectionScalarsName = "Scalars"
+
+    # Get points set on the surface
+    seedPoints = vtk.vtkPoints()
+
+    for idx in range(id_list.GetNumberOfIds()):
+
+        # Get and store point
+        point = surface.GetPoint(id_list.GetId(idx))
+        seedPoints.InsertNextPoint(point)
+
+    # Select the region inside the neck contour
+    # (the aneurysm)
+    selectionFilter = vtk.vtkSelectPolyData()
+    selectionFilter.SetInputData(surface)
+    selectionFilter.SetLoop(seedPoints)
+    selectionFilter.GenerateSelectionScalarsOn()
+    selectionFilter.SetSelectionModeToSmallestRegion()
+    selectionFilter.Update()
+
+    selectionFilter.GetOutput().GetPointData().GetScalars().SetName(
+        selectionScalarsName
+    )
+
+    # Compute geodesic distance
+    geodesicFastMarching = vtkvmtk.vtkvmtkNonManifoldFastMarching()
+    geodesicFastMarching.SetInputData(selectionFilter.GetOutput())
+
+    # Set F(x) == 1 to obtain the geodesic distance
+    geodesicFastMarching.UnitSpeedOn()
+    geodesicFastMarching.SetSolutionArrayName(gdistance_array_name)
+    geodesicFastMarching.SetInitializeFromScalars(0)
+    geodesicFastMarching.SeedsBoundaryConditionsOn()
+    geodesicFastMarching.SetSeeds(id_list)
+    geodesicFastMarching.PolyDataBoundaryConditionsOff()
+    geodesicFastMarching.Update()
+
+    # Use the numpy interface to change sign of distance array
+    npSurface = dsa.WrapDataObject(geodesicFastMarching.GetOutput())
+
+    # Get selection scalars
+    selectionScalars = npSurface.PointData.GetArray(selectionScalarsName)
+    gdistanceArray   = npSurface.PointData.GetArray(gdistance_array_name)
+
+    # Where selection value is < 0.0, for this case, invert sign of
+    # geodesic distance (inside the contour, in this case)
+    updatedGdistanceArray = np.where(
+                                selectionScalars < 0.0,
+                                -1.0*gdistanceArray,
+                                gdistanceArray
+                            )
+
+    npSurface.PointData.append(
+        updatedGdistanceArray,
+        gdistance_array_name
+    )
+
+    npSurface.GetPointData().RemoveArray(selectionScalarsName)
+
+    return npSurface.VTKObject
+
 # TODO: I have to optimized this combination
 def _vec_even_bi_combination(values: list) -> list:
 

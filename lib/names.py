@@ -23,6 +23,7 @@ polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
 unstructuredGridType = vtk.vtkCommonDataModelPython.vtkUnstructuredGrid
 multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
 foamReaderType = vtk.vtkIOParallelPython.vtkPOpenFOAMReader
+idList = vtk.vtkCommonCorePython.vtkIdList
 
 planeType = vtk.vtkCommonDataModelPython.vtkPlane
 vtkArrayType = dsa.VTKArray
@@ -48,6 +49,10 @@ ngrad = '_ngradient'
 sgrad = '_sgradient'
 min_ = '_minimum'
 max_ = '_maximum'
+
+# important fields names
+AneurysmalRegionArrayName = "AneurysmalRegionArray"
+DistanceToAneurysmNeckArrayName = 'DistanceToNeck'
 
 # Attribute array names
 WSS = 'WSS'

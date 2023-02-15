@@ -41,9 +41,7 @@ from .lib import polydatageometry as geo
 from .pypescripts import v4aScripts
 
 _dimensions = int(const.three)
-_initialAneurysmArrayName = "AneurysmalRegionArray"
-AneurysmalRegionArrayName = _initialAneurysmArrayName
-DistanceToAneurysmNeckArrayName = 'DistanceToNeck'
+_initialAneurysmArrayName = names.AneurysmalRegionArrayName
 
 def _bifurcation_aneurysm_clipping_points(
         vascular_surface: names.polyDataType,
@@ -887,7 +885,7 @@ def _extract_aneurysmal_region(
 
 def _mark_aneurysm_sac_manually(
         surface: names.polyDataType,
-        aneurysm_neck_array_name: str=DistanceToAneurysmNeckArrayName
+        aneurysm_neck_array_name: str=names.DistanceToAneurysmNeckArrayName
     )   -> names.polyDataType:
     """Manually select the aneurysm neck contour and compute the distance to
     it.
@@ -907,18 +905,26 @@ def _mark_aneurysm_sac_manually(
 
 def MarkAneurysmalRegion(
         vascular_surface: names.polyDataType,
-        aneurysm_type: str,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        aneurysm_point: tuple=None,
-        aneurysmal_region_array: str=AneurysmalRegionArrayName
+        gdistance_to_neck_array_name: str=names.AneurysmalRegionArrayName,
+        aneurysm_point: tuple=None
     )   -> names.polyDataType:
-    """Marks the aneurysmal region with an array.
+    """Marks the aneurysmal region with an array of distances to the neck
+    contour.
 
     Based on the five first steps of Piccinelli's procedure, this function
     marks the vascular model passed with an array whose zero value marks the
     contour of the aneurysmal region. This may be used for an initial
-    approximation of the aneurysm surface itself.
+    approximation of the aneurysm surface itself. The rest of the array is
+    given by the geodesic distance of the point to the neck contour.
+
+    You may optionally pass a point located at the dome point of the aneurysm
+    so the algorithm more easily identifies the aneurysm region.
+
+    .. warning::
+        Negative distance values are used inside the aneurysm neck contour
+        (i.e., it marks the aneurysm sac) and positive values elsewhere.
 
     .. warning::
         The parent vessel surface can be computed with the
@@ -932,16 +938,10 @@ def MarkAneurysmalRegion(
         only the region where the aneurysm is, ie clip the surface so only the
         parent vessel and the daughter branches are left.
 
-    .. warning::
-        Try to select, or pass, a dome point that lies on the farthest location
-        form the neck and that is centered to the neck.
-
     Arguments
     ---------
     vascular_surface (names.polyDataType) -- the original vasculature surface
     with the aneurysm
-
-    aneurysm_type (str) -- the aneurysm type, bifurcation or lateral
 
     Optional
     parent_vascular_surface (names.polyDataType, default: None) --
@@ -951,11 +951,11 @@ def MarkAneurysmalRegion(
     of the parent (hypothetically healthy) vascular surface, its centerline can
     be passed
 
-    aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
-    aneurysm identification.  If none, the user is prompted to select it.
-
-    aneurysmal_region_array (str) -- name of the array defined on the surface
+    gdistance_to_neck_array_name (str) -- name of the array defined on the surface
     to mark the aneurysm
+
+    aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
+    aneurysm identification.
 
     Return
     surface (vtkPolyData) -- vascular surface with an array defined on it
@@ -969,14 +969,83 @@ def MarkAneurysmalRegion(
     # Perform first five steps of Piccinelli's procedure, returning the
     # vascular surface marked with the aneurysmal region via an array and the
     # vascular rerion where the aneurysm has grown
-    aneurysmalSurface = _extract_aneurysmal_region(
+    vascular_surface = _extract_aneurysmal_region(
+                           vascular_surface,
+                           parent_vascular_surface=parent_vascular_surface,
+                           parent_vascular_centerline=parent_vascular_centerline,
+                           aneurysmal_region_array=names.AneurysmalRegionArrayName
+                       )
+
+    # The best approach I found to extract the closest path with the surface
+    # model points was through the clip: the clip used subsequentely wtih the
+    # boundary extractor provides a set of points that are ORIENTED along the
+    # neck line. On the other hand, The initial tests I did were with the
+    # contour filter, which, as far as I could assess, generates a polyline
+    # that does not have its points oriented along the path, which inhibited
+    # the use of the selection filter to get the aneurysmal region and change
+    # the sign of the geodeseic distance to neck array (note, the coumputation
+    # of the geodesic distance per se did not require the points to be
+    # oriented).
+    aneurysmalSurface = tools.ClipWithScalar(
                             vascular_surface,
-                            parent_vascular_surface=parent_vascular_surface,
-                            parent_vascular_centerline=parent_vascular_centerline,
-                            aneurysmal_region_array=aneurysmal_region_array
+                            names.AneurysmalRegionArrayName,
+                            const.zero
                         )
 
-    return aneurysmalSurface
+    # Get the largest region or closest to aneurysm dome point
+    if aneurysm_point:
+        aneurysmalSurface = tools.ExtractConnectedRegion(
+                                aneurysmalSurface,
+                                "closest",
+                                closest_point=aneurysm_point
+                            )
+
+    else:
+        aneurysmalSurface = tools.ExtractConnectedRegion(
+                                aneurysmalSurface,
+                                "largest"
+                            )
+
+    # Extract the bounday of the cutted cells
+    # This provides a rough approximation of where the neck contour
+    # cuts the surface
+    boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
+    boundaryExtractor.SetInputData(aneurysmalSurface)
+    boundaryExtractor.Update()
+
+    neckContour = boundaryExtractor.GetOutput()
+
+    # Locator to find closest points
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(vascular_surface)
+    locator.BuildLocator()
+    locator.Update()
+
+    # Get points on the surface that are closest to the neck points
+    allClosestPointsIds = [locator.FindClosestPoint(
+                               neckContour.GetPoint(pointId)
+                           )
+                           for pointId in range(neckContour.GetNumberOfPoints())]
+
+    # Remove duplicates while keeping its order
+    closestPointsIds = sorted(
+                           set(allClosestPointsIds),
+                           key=lambda x: allClosestPointsIds.index(x)
+                       )
+
+    # Build ID list of points on the surface
+    pointIds = vtk.vtkIdList()
+
+    for pointId in closestPointsIds:
+        pointIds.InsertNextId(pointId)
+
+    # Compute the geodesic distance  from the approximate neck contour
+    vascular_surface = geo.SurfaceGeodesicDistanceToContour(
+                           vascular_surface,
+                           pointIds
+                       )
+
+    return vascular_surface
 
 def ComputeAneurysmNeckPlane(
         vascular_surface: names.polyDataType,
@@ -1202,7 +1271,7 @@ def ExtractAneurysmSacSurface(
 
         markedSurface = _mark_aneurysm_sac_manually(
                             vascular_surface,
-                            aneurysm_neck_array_name=DistanceToAneurysmNeckArrayName
+                            aneurysm_neck_array_name=names.DistanceToAneurysmNeckArrayName
                         )
 
     elif mode == "automatic":
@@ -1212,7 +1281,7 @@ def ExtractAneurysmSacSurface(
                             vascular_surface,
                             parent_vascular_surface=parent_vascular_surface,
                             parent_vascular_centerline=parent_vascular_centerline,
-                            aneurysmal_region_array=DistanceToAneurysmNeckArrayName
+                            aneurysmal_region_array=names.DistanceToAneurysmNeckArrayName
                         )
 
     elif mode == "plane":
@@ -1223,10 +1292,10 @@ def ExtractAneurysmSacSurface(
     # Clip the aneurysm sac (aneurysm marked with negative values)
     clippedAneurysmSurface = tools.ClipWithScalar(
                                    markedSurface,
-                                   DistanceToAneurysmNeckArrayName,
+                                   names.DistanceToAneurysmNeckArrayName,
                                    const.zero
                                )
 
-    clippedAneurysmSurface.GetPointData().RemoveArray(DistanceToAneurysmNeckArrayName)
+    clippedAneurysmSurface.GetPointData().RemoveArray(names.DistanceToAneurysmNeckArrayName)
 
     return clippedAneurysmSurface
