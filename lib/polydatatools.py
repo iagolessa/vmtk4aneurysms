@@ -280,16 +280,23 @@ def BuildPolyDataPoints(
 
     return npPointsData.VTKObject
 
-def SmoothSurface(surface):
+def SmoothSurface(
+        surface: names.polyDataType,
+        niterations: int=30,
+        passband: float=0.1
+    )   -> names.polyDataType:
     """Smooth surface based on Taubin's algorithm."""
-    smoother = vmtkscripts.vmtkSurfaceSmoothing()
-    smoother.Surface = surface
-    smoother.Method  = 'taubin'
-    smoother.NumberOfIterations = int(const.three*const.ten)
-    smoother.PassBand = const.one/const.ten
-    smoother.Execute()
 
-    return smoother.Surface
+    smoothingFilter = vtk.vtkWindowedSincPolyDataFilter()
+
+    smoothingFilter.SetInputData(surface)
+    smoothingFilter.SetNumberOfIterations(niterations)
+    smoothingFilter.SetPassBand(passband)
+    smoothingFilter.BoundarySmoothingOff()
+    smoothingFilter.NormalizeCoordinatesOn()
+    smoothingFilter.Update()
+
+    return smoothingFilter.GetOutput()
 
 def Cleaner(surface):
     """Polydata cleaner."""
