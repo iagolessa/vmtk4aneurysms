@@ -586,6 +586,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             self._generate_centerlines()
 
         # Compute distance to centerlines
+        # It will hold the thickness field at the end
         distanceToCenterlines = vtkvmtk.vtkvmtkPolyDataDistanceToCenterlines()
         distanceToCenterlines.SetInputData(self.Surface)
         distanceToCenterlines.SetCenterlines(self.Centerlines)
@@ -602,10 +603,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         distanceToCenterlines.SetCenterlineRadiusArrayName(self.RadiusArrayName)
         distanceToCenterlines.Update()
 
-        surface = distanceToCenterlines.GetOutput()
+        # use numpy interface with VTK
+        npSurface = dsa.WrapDataObject(distanceToCenterlines.GetOutput())
 
-        distanceArray = surface.GetPointData().GetArray(self.ThicknessArrayName)
-        radiusArray   = surface.GetPointData().GetArray(self.RadiusArrayName)
+        distanceArray = npSurface.GetPointData().GetArray(self.ThicknessArrayName)
+        radiusArray   = npSurface.GetPointData().GetArray(self.RadiusArrayName)
 
         # This portion evaluates if distance is much higher
         # than the actual radius array
@@ -616,66 +618,74 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         highRadiusThresholdFactor = 1.4
         lowRadiusThresholdFactor  = 0.9
 
-        for index in range(surface.GetNumberOfPoints()):
-            distance = distanceArray.GetTuple1(index)
-            radius   = radiusArray.GetTuple1(index)
+        npMaxRadiusLim = highRadiusThresholdFactor*radiusArray
+        npMinRadiusLim = lowRadiusThresholdFactor*radiusArray
 
-            maxRadiusLim = highRadiusThresholdFactor*radius
-            minRadiusLim = lowRadiusThresholdFactor*radius
+        distanceArray = np.where(
+                            distanceArray > npMaxRadiusLim,
+                            npMaxRadiusLim,
+                            distanceArray
+                        )
 
-            if distance > maxRadiusLim:
-                distanceArray.SetTuple1(index, maxRadiusLim)
+        distanceArray = np.where(
+                            distanceArray < npMinRadiusLim,
+                            radiusArray,
+                            distanceArray
+                        )
 
-            elif distance < minRadiusLim:
-                distanceArray.SetTuple1(index, radius)
-
-        # Remove radius array
-        # surface.GetPointData().RemoveArray(self.RadiusArrayName)
-
-        # Smooth the distance to centerline array
-        # to avoid sudden changes of thickness in
-        # certain regions
+        # Smooth the distance to centerline array to avoid sudden changes of
+        # thickness in certain regions
         nIterations = 5     # add a little bit of smoothing now
-        surface = self._smooth_array(surface,
-                                     self.ThicknessArrayName,
-                                     niterations=nIterations)
+        surface = self._smooth_array(
+                      npSurface.VTKObject,
+                      self.ThicknessArrayName,
+                      niterations=nIterations
+                  )
+
+        npSurface = dsa.WrapDataObject(surface)
 
         # Multiply by WLR to have a prelimimar thickness array
         # I assume that the WLR is the same for medium sized arteries
         # but I can change this in a point-wise manner based on
         # the local radius array by using the algorithm contained
         # in the vmtksurfacearrayoperation script
-        distanceArray = surface.GetPointData().GetArray(self.ThicknessArrayName)
+        distanceArray = npSurface.GetPointData().GetArray(self.ThicknessArrayName)
+        radiusArray   = npSurface.GetPointData().GetArray(self.RadiusArrayName)
 
         # TODO: vectorize these operations with vtk numpy adapter
         if self.UniformWallToLumenRatio:
-            for index in range(distanceArray.GetNumberOfTuples()):
-                # Get value
-                diameter = 2.0*distanceArray.GetTuple1(index)
 
-                # Update array to thickness
-                distanceArray.SetTuple1(index, self.WallLumenRatio*diameter)
+            npSurface.PointData.append(
+                dsa.VTKArray([
+                    self.WallLumenRatio*(2.0*r)
+                    for r in distanceArray
+                ]),
+                self.ThicknessArrayName
+            )
 
         else:
             print("Using non uniform WLR", end="\n")
 
-            for index in range(distanceArray.GetNumberOfTuples()):
-                # Get value
-                diameter = 2.0*distanceArray.GetTuple1(index)
+            # Compute are store local WLR for debug
+            localWLRArray = dsa.VTKArray([
+                                self._compute_local_wlr(2.0*r)
+                                for r in distanceArray
+                            ])
 
-                # Get local WLR based on diameter
-                localWRL = self._compute_local_wlr(diameter)
+            npSurface.PointData.append(
+                localWLRArray,
+                "LocalWLR"
+            )
 
-                # Update radius arrays to hold the local WLR for debugging
-                radiusArray.SetTuple1(index, localWRL)
+            # Compute thickness array and replace the thickness array
+            # (originally stored as the distance to neck array with a new one)
+            npSurface.PointData.append(
+                localWLRArray*(2.0*distanceArray),
+                self.ThicknessArrayName
+            )
 
-                # Update array to thickness
-                distanceArray.SetTuple1(index, localWRL*diameter)
-
-        # Update radius array to LocalWLRArray
-        radiusArray.SetName("LocalWLRArray")
-
-        self.Surface = surface
+        self.Surface = npSurface.VTKObject
+        self.Surface.GetPointData().RemoveArray(self.RadiusArrayName)
 
     def SetAneurysmThickness(self):
         """Calculate and set aneurysm thickness.
