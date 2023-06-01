@@ -28,6 +28,9 @@ from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 from vmtk import pypes
 
+from vmtk4aneurysms import vascular_operations as vscop
+from vmtk4aneurysms.lib import polydatatools as tools
+
 vmtksurfacevasculaturethickness = 'vmtkSurfaceVasculatureThickness'
 
 class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
@@ -448,131 +451,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             return self._wlrMedium + angCoeff*(diameter - self._diameterMedium)
 
-    def _compute_euclidean_distance(self, point_ids, array_name):
-        """Add the Euclidean distance from a loop of points defined on
-        the surface.
-
-        Given the list of ids of the points selected interactively by the user,
-        compute the Euclidean distance on the surface to the contour formed by
-        the points.  The set of points defined on the surface and the array
-        name must be passed.
-        """
-
-        # Convert ids to points
-        points = vtk.vtkPoints()
-        points.SetNumberOfPoints(point_ids.GetNumberOfIds())
-
-        # Get points in surface
-        for i in range(point_ids.GetNumberOfIds()):
-            pointId = point_ids.GetId(i)
-            point = self.Surface.GetPoint(pointId)
-            points.SetPoint(i, point)
-
-        neckSelectionFilter = vtk.vtkSelectPolyData()
-        neckSelectionFilter.SetInputData(self.Surface)
-        neckSelectionFilter.SetLoop(points)
-        neckSelectionFilter.GenerateSelectionScalarsOn()
-        neckSelectionFilter.SetSelectionModeToSmallestRegion()
-        neckSelectionFilter.Update()
-
-        # Change name of scalars
-        neckSelectionFilter.GetOutput().GetPointData().GetScalars().SetName(
-            array_name
-        )
-
-        # Add a little bit of smoothing
-        self.Surface = self._smooth_array(
-                           neckSelectionFilter.GetOutput(),
-                           array_name
-                       )
-
-        del neckSelectionFilter
-
-    def _compute_geodesic_distance(self, point_ids, array_name):
-        """Add the geodesic distance from a loop of points defined on
-        the surface.
-
-        Given the list of ids of the points selected interactively by the user,
-        compute the Euclidean distance on the surface to the contour formed by
-        the points.  The set of points defined on the surface and the array
-        name must be passed."""
-
-        # Convert ids to points
-        points = vtk.vtkPoints()
-        points.SetNumberOfPoints(point_ids.GetNumberOfIds())
-
-        # Get points in surface
-        for i in range(point_ids.GetNumberOfIds()):
-            pointId = point_ids.GetId(i)
-            point = self.Surface.GetPoint(pointId)
-            points.SetPoint(i, point)
-
-        # The vtkvmtkNonManifoldFastMarching filter also computes a positive
-        # distance from the neck towards the aneurysm. Hence, we also use
-        # the points to invert the sign of the scalars on the aneurysm, to
-        # conform with the procedure executed when using the Euclidean distance
-        # (where the distance from the aneurysm is > 0 only on the branches)
-
-        # Get array of surface selection based on loop points
-        selectionScalarsName = "SelectionScalars"
-
-        selectionFilter = vtk.vtkSelectPolyData()
-        selectionFilter.SetInputData(self.Surface)
-        selectionFilter.SetLoop(points)
-        selectionFilter.GenerateSelectionScalarsOn()
-        selectionFilter.SetSelectionModeToSmallestRegion()
-        selectionFilter.Update()
-
-        selectionFilter.GetOutput().GetPointData().GetScalars().SetName(
-            selectionScalarsName
-        )
-
-        self.Surface = selectionFilter.GetOutput()
-
-        geodesicFastMarching = vtkvmtk.vtkvmtkNonManifoldFastMarching()
-        geodesicFastMarching.SetInputData(self.Surface)
-        geodesicFastMarching.UnitSpeedOn()
-        geodesicFastMarching.SetSolutionArrayName(
-            array_name
-        )
-        geodesicFastMarching.SetInitializeFromScalars(0)
-        geodesicFastMarching.SeedsBoundaryConditionsOn()
-        geodesicFastMarching.SetSeeds(point_ids)
-        geodesicFastMarching.PolyDataBoundaryConditionsOff()
-        geodesicFastMarching.Update()
-
-        self.Surface = geodesicFastMarching.GetOutput()
-
-        # Get selection scalars
-        # selectionScalars = self.Surface.GetPointData().GetScalars()
-        selectionScalars = self.Surface.GetPointData().GetArray(
-                               selectionScalarsName
-                           )
-
-        gdistanceArray = self.Surface.GetPointData().GetArray(
-                             array_name
-                         )
-
-        # Where selection value is < 0.0, for this case, invert sign of
-        # geodesic distance (inside the aneurysm, in this case)
-        for i in range(gdistanceArray.GetNumberOfValues()):
-            selectionValue = selectionScalars.GetTuple1(i)
-            gdistanceValue = gdistanceArray.GetValue(i)
-
-            if selectionValue <= 0.0:
-                gdistanceArray.SetTuple1(i, -1.0*gdistanceValue)
-
-        self.Surface.GetPointData().RemoveArray(selectionScalarsName)
-
-        # Add a little bit of smoothing
-        self.Surface = self._smooth_array(
-                           self.Surface,
-                           array_name
-                       )
-
-        del geodesicFastMarching
-        del selectionFilter
-
     def ComputeVasculatureThickness(self):
         """Compute thickness array based on diameter and WLR.
 
@@ -740,71 +618,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                             if self.NumberOfAneurysms > 1 \
                             else self.DistanceToNeckArrayName
 
-                # Create mapper for the surface
-                mapper = vtk.vtkPolyDataMapper()
-                mapper.SetInputData(self.Surface)
-                # mapper.ScalarVisibilityOn()
 
-                # Add surface as an actor to the scene
-                Actor = vtk.vtkActor()
-                Actor.SetMapper(mapper)
-                # Actor.GetMapper().SetScalarRange(-1.0, 0.0)
-
-                # Add the surface actor to the renderer
-                self.vmtkRenderer.Renderer.AddActor(Actor)
-
-                # Create contour widget
-                self.ContourWidget = vtk.vtkContourWidget()
-                self.ContourWidget.SetInteractor(
-                    self.vmtkRenderer.RenderWindowInteractor
-                )
-
-                rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
-                    self.ContourWidget.GetRepresentation()
-                )
-
-                rep.GetLinesProperty().SetColor(1, 0.2, 0)
-                rep.GetLinesProperty().SetLineWidth(3.0)
-
-                pointPlacer = vtk.vtkPolygonalSurfacePointPlacer()
-                pointPlacer.AddProp(Actor)
-                pointPlacer.GetPolys().AddItem(self.Surface)
-
-                rep.SetPointPlacer(pointPlacer)
-
-                Interpolator = vtk.vtkPolygonalSurfaceContourLineInterpolator()
-                Interpolator.GetPolys().AddItem(self.Surface)
-                rep.SetLineInterpolator(Interpolator)
-
-                self.vmtkRenderer.AddKeyBinding(
-                    'i',
-                    'Start interaction',
-                    self._interact
-                )
-
-                self.vmtkRenderer.AddKeyBinding(
-                    'd',
-                    'Delete contour',
-                    self._delete_contour
-                )
-
-                self.vmtkRenderer.InputInfo(
-                    'Select aneurysm neck contour\n'
-                )
-
-                self._display()
-
-                # Get loop points from representation to vtkPoints
-                pointIds = vtk.vtkIdList()
-                Interpolator.GetContourPointIds(rep, pointIds)
-
-                # Compute the distance array on the surface (either using
-                # an Euclidean metric or the geodesic distance)
-                if self.UseGeodesicDistance:
-                    self._compute_geodesic_distance(pointIds, arrayName)
-
-                else:
-                    self._compute_euclidean_distance(pointIds, arrayName)
+                self.Surface = vscop._mark_aneurysm_sac_manually(
+                                   self.Surface,
+                                   aneurysm_neck_array_name=arrayName
+                               )
 
                 # Append only arrays
                 distanceToNeckArrays[arrayName] = \
