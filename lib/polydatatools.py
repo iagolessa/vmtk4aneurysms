@@ -508,7 +508,7 @@ def ProjectCellArray(
 
     if field_name not in GetCellArrays(ref_surface):
         raise ValueError(
-                  "No field {} on the reference surface.".format(self.FieldName)
+                  "No field {} on the reference surface.".format(field_name)
               )
 
     else:
@@ -1164,3 +1164,110 @@ def SelectSurfacePoint(
     pickPoint.Execute()
 
     return pickPoint.PickedSeeds.GetPoint(0)
+
+class SelectContourPointsIds():
+    """Select closed contour points on a surface."""
+
+    # Constructor
+    def __init__(self):
+
+        self.Surface      = None
+        self.vmtkRenderer = None
+        self.OwnRenderer  = 0
+
+        self.Actor = None
+        self.ContourWidget = None
+        self.Interpolator  = None
+
+        self.ContourIds = None
+        self.ContourPoints = None
+
+    def DeleteContourCallback(self, obj):
+        self.ContourWidget.Initialize()
+
+    def InteractCallback(self, obj):
+        if self.ContourWidget.GetEnabled() == 1:
+            self.ContourWidget.SetEnabled(0)
+        else:
+            self.ContourWidget.SetEnabled(1)
+
+    def Display(self):
+        self.vmtkRenderer.Render()
+
+    def Execute(self):
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(self.Surface)
+        cleaner.Update()
+
+        # Initialize renderer
+        if not self.vmtkRenderer:
+            self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
+            self.vmtkRenderer.Initialize()
+            self.OwnRenderer = 1
+
+        self.vmtkRenderer.RegisterScript(self)
+
+        # Create mapper and actor to scene
+        self.mapper = vtk.vtkPolyDataMapper()
+        self.mapper.SetInputData(self.Surface)
+        self.mapper.ScalarVisibilityOff()
+
+        self.Actor = vtk.vtkActor()
+        self.Actor.SetMapper(self.mapper)
+        self.Actor.GetMapper().SetScalarRange(-1.0,0.0)
+        self.vmtkRenderer.Renderer.AddActor(self.Actor)
+
+        # Create representation to draw contour
+        self.ContourWidget = vtk.vtkContourWidget()
+
+        self.ContourWidget.SetInteractor(
+            self.vmtkRenderer.RenderWindowInteractor
+        )
+
+        rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
+                  self.ContourWidget.GetRepresentation()
+              )
+
+        rep.GetLinesProperty().SetColor(1, 0.2, 0)
+        rep.GetLinesProperty().SetLineWidth(3.0)
+
+        pointPlacer = vtk.vtkPolygonalSurfacePointPlacer()
+        pointPlacer.AddProp(self.Actor)
+        pointPlacer.GetPolys().AddItem(self.Surface)
+
+        rep.SetPointPlacer(pointPlacer)
+
+        self.Interpolator = vtk.vtkPolygonalSurfaceContourLineInterpolator()
+        self.Interpolator.GetPolys().AddItem(self.Surface)
+
+        rep.SetLineInterpolator(self.Interpolator)
+
+        self.vmtkRenderer.AddKeyBinding(
+            'i',
+            'Start interaction: select contour',
+            self.InteractCallback
+        )
+
+        self.vmtkRenderer.AddKeyBinding(
+            'd',
+            'Delete contour',
+            self.DeleteContourCallback
+        )
+
+        self.Display()
+
+        # Get contour point of closed path
+        self.ContourIds = vtk.vtkIdList()
+        self.Interpolator.GetContourPointIds(rep,self.ContourIds)
+
+        # Get points set on the surface
+        self.ContourPoints = vtk.vtkPoints()
+        self.ContourPoints.SetNumberOfPoints(self.ContourIds.GetNumberOfIds())
+
+        for i in range(self.ContourIds.GetNumberOfIds()):
+            pointId = self.ContourIds.GetId(i)
+            point   = self.Surface.GetPoint(pointId)
+            self.ContourPoints.SetPoint(i,point)
+
+        if self.OwnRenderer:
+            self.vmtkRenderer.Deallocate()

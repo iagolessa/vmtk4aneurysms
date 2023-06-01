@@ -342,7 +342,7 @@ def WarpPolydata(
 def SurfaceGeodesicDistanceToContour(
         surface: names.polyDataType,
         id_list: vtk.vtkCommonCorePython.vtkIdList,
-        gdistance_array_name: str=names.DistanceToAneurysmNeckArrayName
+        gdistance_array_name: str=names.GeodesicDistanceArrayName
     )   -> names.polyDataType:
     """Compute the geodesic distance from a contour on a surface.
 

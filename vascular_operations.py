@@ -38,8 +38,6 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
-from .pypescripts import v4aScripts
-
 _dimensions = int(const.three)
 _initialAneurysmArrayName = names.AneurysmalRegionArrayName
 
@@ -896,12 +894,19 @@ def _mark_aneurysm_sac_manually(
     values as the geodesic distance to the neck contour.
     """
 
-    computeGeoDistance = v4aScripts.vmtkGeodesicDistance()
-    computeGeoDistance.Surface = surface
-    computeGeoDistance.GeodesicDistanceArrayName = aneurysm_neck_array_name
-    computeGeoDistance.Execute()
+    # Get ids of contour
+    getContour = tools.SelectContourPointsIds()
+    getContour.Surface = surface
+    getContour.Execute()
 
-    return computeGeoDistance.Surface
+    # Compute the geodesic distance  from the approximate neck contour
+    surface = geo.SurfaceGeodesicDistanceToContour(
+                  surface,
+                  getContour.ContourIds,
+                  gdistance_array_name=aneurysm_neck_array_name
+              )
+
+    return surface
 
 def ClipVasculature(
         vascular_surface: names.polyDataType
@@ -932,7 +937,7 @@ def MarkAneurysmalRegion(
         vascular_surface: names.polyDataType,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        gdistance_to_neck_array_name: str=names.AneurysmalRegionArrayName,
+        gdistance_to_neck_array_name: str=names.DistanceToAneurysmNeckArrayName,
         aneurysm_point: tuple=None
     )   -> names.polyDataType:
     """Marks the aneurysmal region with an array of distances to the neck
@@ -1307,6 +1312,12 @@ def ExtractAneurysmSacSurface(
                             parent_vascular_surface=parent_vascular_surface,
                             parent_vascular_centerline=parent_vascular_centerline,
                             aneurysmal_region_array=names.DistanceToAneurysmNeckArrayName
+                        )
+
+        # Get the largest surface ifthere is any left disconnected region
+        markedSurface = tools.ExtractConnectedRegion(
+                            markedSurface,
+                            "largest"
                         )
 
     elif mode == "plane":

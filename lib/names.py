@@ -53,6 +53,7 @@ max_ = '_maximum'
 # important fields names
 AneurysmalRegionArrayName = "AneurysmalRegionArray"
 DistanceToAneurysmNeckArrayName = 'DistanceToNeck'
+GeodesicDistanceArrayName = "GeodesicDistance"
 
 # Attribute array names
 WSS = 'WSS'
