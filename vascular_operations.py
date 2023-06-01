@@ -881,7 +881,7 @@ def _extract_aneurysmal_region(
 
     return aneurysmalSurface
 
-def _mark_aneurysm_sac_manually(
+def MarkAneurysmSacManually(
         surface: names.polyDataType,
         aneurysm_neck_array_name: str=names.DistanceToAneurysmNeckArrayName
     )   -> names.polyDataType:
@@ -940,8 +940,8 @@ def MarkAneurysmalRegion(
         gdistance_to_neck_array_name: str=names.DistanceToAneurysmNeckArrayName,
         aneurysm_point: tuple=None
     )   -> names.polyDataType:
-    """Marks the aneurysmal region with an array of distances to the neck
-    contour.
+    """Marks the aneurysmal region with an array of (geodesic) distances to the
+    neck contour.
 
     Based on the five first steps of Piccinelli's procedure, this function
     marks the vascular model passed with an array whose zero value marks the
@@ -968,6 +968,9 @@ def MarkAneurysmalRegion(
         only the region where the aneurysm is, ie clip the surface so only the
         parent vessel and the daughter branches are left.
 
+    .. warning::
+        This function destroys any arrays in the passing surface.
+
     Arguments
     ---------
     vascular_surface (names.polyDataType) -- the original vasculature surface
@@ -981,8 +984,8 @@ def MarkAneurysmalRegion(
     of the parent (hypothetically healthy) vascular surface, its centerline can
     be passed
 
-    gdistance_to_neck_array_name (str) -- name of the array defined on the surface
-    to mark the aneurysm
+    gdistance_to_neck_array_name (str) -- name of the array defined on the
+    surface to mark the aneurysm
 
     aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
     aneurysm identification.
@@ -1072,7 +1075,8 @@ def MarkAneurysmalRegion(
     # Compute the geodesic distance  from the approximate neck contour
     vascular_surface = geo.SurfaceGeodesicDistanceToContour(
                            vascular_surface,
-                           pointIds
+                           pointIds,
+                           gdistance_array_name=gdistance_to_neck_array_name
                        )
 
     return vascular_surface
@@ -1299,7 +1303,7 @@ def ExtractAneurysmSacSurface(
     # Based on the aailable methods, mark the surface with the neck array
     if mode == "manual":
 
-        markedSurface = _mark_aneurysm_sac_manually(
+        markedSurface = MarkAneurysmSacManually(
                             vascular_surface,
                             aneurysm_neck_array_name=names.DistanceToAneurysmNeckArrayName
                         )

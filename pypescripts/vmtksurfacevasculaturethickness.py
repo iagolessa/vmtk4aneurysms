@@ -54,6 +54,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Aneurysm = True
         self.NumberOfAneurysms = 1
 
+        self.NeckComputationMode = "manual"
         self.DistanceToNeckArrayName = 'DistanceToNeck'
         self.AneurysmInfluencedRegionDistance = 0.5
         self.GlobalScaleFactor = 0.75
@@ -101,6 +102,11 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             ['NumberOfAneurysms', 'naneurysms', 'int', 1, '',
                 'integer with number of aneurysms on vasculature'],
+
+            ['NeckComputationMode','neckcomputationmode', 'str' , 1,
+                '["interactive","automatic"]',
+                'if the neck array is not in the surface, compute it using '\
+                'one of these methods'],
 
             ['AneurysmInfluencedRegionDistance', 'influencedistance',
                 'float', 1, '',
@@ -182,6 +188,14 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
     # Code based on the vmtksurfacearraysmoothing.py script of the VMTK library
     def _smooth_array(self, surface, array, niterations=5, relax_factor=1.0):
         """Surface array smoother."""
+
+        # Clean up surface prior to procedure
+        # (this avoid oscillations in the smoothing procedure)
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(surface)
+        cleaner.Update()
+
+        surface = cleaner.GetOutput()
 
         # arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
         # arraySmoother.Surface = surface
@@ -530,7 +544,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         distanceArray = npSurface.GetPointData().GetArray(self.ThicknessArrayName)
         radiusArray   = npSurface.GetPointData().GetArray(self.RadiusArrayName)
 
-        # TODO: vectorize these operations with vtk numpy adapter
         if self.UniformWallToLumenRatio:
 
             npSurface.PointData.append(
@@ -564,6 +577,23 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.Surface = npSurface.VTKObject
         self.Surface.GetPointData().RemoveArray(self.RadiusArrayName)
+
+    def AneurysmTypeValidator(self, iaType):
+        if iaType == 'lateral' or iaType == 'bifurcation':
+            return 1
+
+        else:
+            return 0
+
+        # if text == 'i':
+        #     self.vmtkRenderer.Render()
+        #     return 0
+
+        # try:
+        #     float(text)
+        # except ValueError:
+        #     return 0
+        # return 1
 
     def SetAneurysmThickness(self):
         """Calculate and set aneurysm thickness.
@@ -619,10 +649,70 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                             else self.DistanceToNeckArrayName
 
 
-                self.Surface = vscop._mark_aneurysm_sac_manually(
-                                   self.Surface,
-                                   aneurysm_neck_array_name=arrayName
-                               )
+                if self.NeckComputationMode == "interactive":
+
+                    self.Surface = vscop.MarkAneurysmSacManually(
+                                       self.Surface,
+                                       aneurysm_neck_array_name=arrayName
+                                   )
+
+
+                elif self.NeckComputationMode == "automatic":
+
+                    # Get dome point by the user
+                    domePoint = tools.SelectSurfacePoint(self.Surface)
+
+                    aneurysmType = self.InputText(
+                                       "Type aneurysm type ['lateral','bifurcation']:",
+                                       self.AneurysmTypeValidator
+                                   )
+
+                    # Add input of aneurysm type by the user together with dome
+                    # point
+                    parentSurface = vscop.HealthyVesselReconstruction(
+                                        self.Surface,
+                                        aneurysmType,
+                                        domePoint
+                                    )
+
+                    # Clip the parent vascular surface
+                    clipper = vmtkscripts.vmtkSurfaceClipper()
+                    clipper.Surface = parentSurface
+                    clipper.InsideOut = False
+                    clipper.Execute()
+
+                    parentSurface = clipper.Surface
+
+                    # Does not work well with the vascular cases
+                    # parentSurface = vscop.ClipVasculature(parentSurface)
+
+                    # Procedure by Piccinelli's work: defined by the aneurysmal
+                    # region
+                    # This function destroys the arrays in the surface, so
+                    # let's compute it in a copy and interpolate back, because
+                    # the Thickness array is already here in this procedure
+                    cleanSurface = tools.CopyVtkObject(self.Surface)
+
+                    cleanSurface = vscop.MarkAneurysmalRegion(
+                                       cleanSurface,
+                                       parent_vascular_surface=parentSurface,
+                                       gdistance_to_neck_array_name=arrayName,
+                                       aneurysm_point=domePoint
+                                   )
+
+                    self.Surface = tools.ProjectPointArray(
+                                       self.Surface,
+                                       cleanSurface,
+                                       arrayName
+                                   )
+
+                else:
+                    raise ValueError(
+                              """Neck computation mode either 'interactive'
+                              or 'automatic'. {} passed.""".format(
+                                  self.NeckComputationMode
+                              )
+                          )
 
                 # Append only arrays
                 distanceToNeckArrays[arrayName] = \
