@@ -82,7 +82,6 @@ import vtk
 
 from vmtk import vmtkscripts
 from vmtk4aneurysms.lib import polydatatools as tools
-from vmtk4aneurysms import vasculature as vsc
 from vmtk4aneurysms import vascular_operations as vscop
 
 # Names
@@ -96,7 +95,7 @@ clippedVascularSurfaceFile = args.clippedvascularsurface
 vascularSurface = tools.ReadSurface(vascularSurfaceFile)
 
 # This first clip is to reduce the vasculature to a single bifurcation
-clippedVascSurface = vsc.Vasculature.ClipVasculature(vascularSurface)
+clippedVascSurface = vscop.ClipVasculature(vascularSurface)
 
 # Select dome point if not already passed
 if domePoint is None:

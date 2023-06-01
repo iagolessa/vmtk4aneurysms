@@ -20,7 +20,7 @@ from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
 from . import aneurysms as aneu
-from .vascular_operations import AneurysmNeckPlane
+from .vascular_operations import ExtractAneurysmSacSurface
 
 from .lib import names
 from .lib import centerlines as cnt
@@ -146,7 +146,7 @@ class Vasculature:
             self,
             vtk_poly_data,
             with_aneurysm=False,
-            manual_aneurysm=False,
+            manual_aneurysm=True,
             aneurysm_prop={}
         ):
         """Initiate vascular model.
@@ -400,32 +400,6 @@ class Vasculature:
 
         # Recomputes surface model
         self._surface_model = geo.Surface(vasculatureThickness.Surface)
-
-    @staticmethod
-    def ClipVasculature(
-            vascular_surface: names.polyDataType
-        )   -> names.polyDataType:
-        """Clip a vascular surface segment, by selecting end points.
-
-        Given a vascular surface, the user is prompted to select points
-        on the surface that 1) identifies the surface's bulk and 2) where the
-        vasculature should be clipped. Uses, internally, the
-        'vmtksurfaceendclipper' script.
-        """
-
-        centerlines = cnt.GenerateCenterlines(vascular_surface)
-        geoCenterlines = cnt.ComputeCenterlineGeometry(centerlines)
-
-        FrenetTangentArrayName = "FrenetTangent"
-
-        surfaceEndClipper = vmtkscripts.vmtkSurfaceEndClipper()
-        surfaceEndClipper.Surface = vascular_surface
-        surfaceEndClipper.CenterlineNormals = 1
-        surfaceEndClipper.Centerlines = geoCenterlines
-        surfaceEndClipper.FrenetTangentArrayName = FrenetTangentArrayName
-        surfaceEndClipper.Execute()
-
-        return surfaceEndClipper.Surface
 
     def GetSurface(self):
         """Return the vascular surface."""

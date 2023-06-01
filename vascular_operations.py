@@ -903,6 +903,31 @@ def _mark_aneurysm_sac_manually(
 
     return computeGeoDistance.Surface
 
+def ClipVasculature(
+        vascular_surface: names.polyDataType
+    )   -> names.polyDataType:
+    """Clip a vascular surface segment, by selecting end points.
+
+    Given a vascular surface, the user is prompted to select points
+    on the surface that 1) identifies the surface's bulk and 2) where the
+    vasculature should be clipped. Uses, internally, the
+    'vmtksurfaceendclipper' script.
+    """
+
+    centerlines = cl.GenerateCenterlines(vascular_surface)
+    geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
+
+    FrenetTangentArrayName = "FrenetTangent"
+
+    surfaceEndClipper = vmtkscripts.vmtkSurfaceEndClipper()
+    surfaceEndClipper.Surface = vascular_surface
+    surfaceEndClipper.CenterlineNormals = 1
+    surfaceEndClipper.Centerlines = geoCenterlines
+    surfaceEndClipper.FrenetTangentArrayName = FrenetTangentArrayName
+    surfaceEndClipper.Execute()
+
+    return surfaceEndClipper.Surface
+
 def MarkAneurysmalRegion(
         vascular_surface: names.polyDataType,
         parent_vascular_surface: names.polyDataType=None,
