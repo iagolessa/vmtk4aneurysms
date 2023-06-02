@@ -57,41 +57,43 @@ def ComputeOpenCenters(
 
     newSurface = tools.CleanupArrays(newSurface)
 
-    inletCenters  = []
+    pointArrays  = ['Point1', 'Point2']
+    boundaryRadiusArrayName  = 'Radius'
+    boundaryNormalsArrayName = 'BoundaryNormals'
+
+    boundarySystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
+    boundarySystems.SetInputData(newSurface)
+    boundarySystems.SetBoundaryRadiusArrayName(boundaryRadiusArrayName)
+    boundarySystems.SetBoundaryNormalsArrayName(boundaryNormalsArrayName)
+    boundarySystems.SetPoint1ArrayName(pointArrays[0])
+    boundarySystems.SetPoint2ArrayName(pointArrays[1])
+    boundarySystems.Update()
+
+    referenceSystems = boundarySystems.GetOutput()
+
+    nProfiles = referenceSystems.GetNumberOfPoints()
+
+    # Get inlet center (larger radius)
+    radiusArray = np.array([
+        referenceSystems.GetPointData().GetArray(boundaryRadiusArrayName).GetTuple1(i)
+        for i in range(nProfiles)
+    ])
+
+    # maxRadius = max(radiusArray)
+    # inletId = int(np.where(radiusArray == maxRadius)[0])
+    inletId = radiusArray.argmax()
+    inletCenter = [referenceSystems.GetPoint(inletId)]
+
+    # Get outlets
     outletCenters = []
 
-    pointArrays  = ['Point1', 'Point2']
-    radiusArray  = 'Radius'
-    normalsArray = 'BoundaryNormals'
+    # Get centers of outlets
+    for profileId in range(nProfiles):
 
-    referenceSystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
-    referenceSystems.SetInputData(newSurface)
-    referenceSystems.SetBoundaryRadiusArrayName(radiusArray)
-    referenceSystems.SetBoundaryNormalsArrayName(normalsArray)
-    referenceSystems.SetPoint1ArrayName(pointArrays[0])
-    referenceSystems.SetPoint2ArrayName(pointArrays[1])
-    referenceSystems.Update()
+        if profileId != inletId:
+            outletCenters.append(referenceSystems.GetPoint(profileId))
 
-    openBoundariesRefSystem = referenceSystems.GetOutput()
-    nOpenBoundaries = openBoundariesRefSystem.GetPoints().GetNumberOfPoints()
-
-    maxRadius = openBoundariesRefSystem.GetPointData().GetArray(
-                    radiusArray
-                ).GetRange()[1]
-
-    for i in range(nOpenBoundaries):
-        # Get radius and center
-        center = tuple(openBoundariesRefSystem.GetPoints().GetPoint(i))
-        radius = openBoundariesRefSystem.GetPointData().GetArray(
-                     radiusArray
-                 ).GetValue(i)
-
-        if radius == maxRadius:
-            inletCenters.append(center)
-        else:
-            outletCenters.append(center)
-
-    return inletCenters, outletCenters
+    return inletCenter, outletCenters
 
 # Code of this functions was based on the vmtkcenterlines.py script of the
 # VMTK library: https://github.com/vmtk/vmtk
