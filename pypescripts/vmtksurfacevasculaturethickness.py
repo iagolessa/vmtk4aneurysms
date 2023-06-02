@@ -54,6 +54,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.RadiusArrayName = "MaximumInscribedSphereRadius"
         self.Aneurysm = True
         self.NumberOfAneurysms = 1
+        self.AneurysmType = None # in case only 1 aneurysm
+        self.ParentVesselSurface = None
+        self.DomePoint = []
 
         self.NeckComputationMode = "manual"
         self.DistanceToNeckArrayName = 'DistanceToNeck'
@@ -103,6 +106,17 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             ['NumberOfAneurysms', 'naneurysms', 'int', 1, '',
                 'integer with number of aneurysms on vasculature'],
+
+            ['AneurysmType','aneurysmtype', 'str' , 1,
+                '["lateral","bifurcation"]',
+                'if only one aneurysm, pass also its type'],
+
+            ['ParentVesselSurface', 'iparentvessel', 'vtkPolyData', 1, '',
+                'the parent vessel surface (if not passed, computed externally)',
+                'vmtksurfacereader'],
+
+            ['DomePoint','domepoint', 'float', -1, '',
+                'coordinates of aneurysm dome point'],
 
             ['NeckComputationMode','neckcomputationmode', 'str' , 1,
                 '["interactive","automatic"]',
@@ -534,30 +548,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
                 elif self.NeckComputationMode == "automatic":
 
-                    # Get dome point by the user
-                    domePoint = tools.SelectSurfacePoint(self.Surface)
-
-                    aneurysmType = self.InputText(
-                                       "Type aneurysm type ['lateral','bifurcation']:",
-                                       self.AneurysmTypeValidator
-                                   )
-
-                    # Add input of aneurysm type by the user together with dome
-                    # point
-                    parentSurface = vscop.HealthyVesselReconstruction(
-                                        self.Surface,
-                                        aneurysmType,
-                                        domePoint
-                                    )
-
-                    # Clip the parent vascular surface
-                    clipper = vmtkscripts.vmtkSurfaceClipper()
-                    clipper.Surface = parentSurface
-                    clipper.InsideOut = False
-                    clipper.Execute()
-
-                    parentSurface = clipper.Surface
-
                     # Does not work well with the vascular cases
                     # parentSurface = vscop.ClipVasculature(parentSurface)
 
@@ -570,9 +560,9 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
                     cleanSurface = vscop.MarkAneurysmalRegion(
                                        cleanSurface,
-                                       parent_vascular_surface=parentSurface,
+                                       parent_vascular_surface=self.ParentVesselSurface,
                                        gdistance_to_neck_array_name=arrayName,
-                                       aneurysm_point=domePoint
+                                       aneurysm_point=self.DomePoint
                                    )
 
                     self.Surface = tools.ProjectPointArray(
@@ -879,6 +869,53 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
+
+        if self.NeckComputationMode == "automatic":
+
+            if self.DomePoint is None:
+                # Get dome point by the user
+                self.DomePoint = tools.SelectSurfacePoint(self.Surface)
+
+                self.OutputText(
+                    "Selected dome point: {}\n".format(self.DomePoint)
+                )
+
+            if self.NumberOfAneurysms == 1 and self.AneurysmType is None:
+                self.PrintError('Inform the aneurysm type.')
+
+            # # The aneurysm type mjst be informed here because ot may
+            # # change with the case of multiple aneurysms
+            # if (self.NumberOfAneurysms != 1) or \
+            #    (self.NumberOfAneurysms == 1 and \
+            #     self.AneurysmType is None):
+
+            #     aneurysmType = self.InputText(
+            #                        "Type aneurysm type ['lateral','bifurcation']:",
+            #                        self.AneurysmTypeValidator
+            #                    )
+
+            # else:
+            #     aneurysmType = self.AneurysmType
+
+            if self.ParentVesselSurface is None and self.NumberOfAneurysms == 1:
+                self.ParentVesselSurface = vscop.HealthyVesselReconstruction(
+                                                self.Surface,
+                                                self.AneurysmType,
+                                                self.DomePoint
+                                            )
+
+                # Clip the parent vascular surface
+                clipper = vmtkscripts.vmtkSurfaceClipper()
+                clipper.Surface = self.ParentVesselSurface
+                clipper.InsideOut = False
+                clipper.Execute()
+
+                self.ParentVesselSurface = clipper.Surface
+
+            elif self.ParentVesselSurface is None and self.NumberOfAneurysms != 1:
+
+                msg = "If there is more than 1 aneurysm, pass the parent surface separately."
+                self.PrintError(msg)
 
         # I had a bug with the 'select thinner regions' with
         # polygonal meshes. So, operate on a triangulated surface
