@@ -31,6 +31,7 @@ from vmtk4aneurysms import vascular_operations as vscop
 from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import centerlines as cl
 from vmtk4aneurysms.lib import names
+from vmtk4aneurysms.lib import constants as const
 
 vmtksurfacevasculaturethickness = 'vmtkSurfaceVasculatureThickness'
 
@@ -42,38 +43,40 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
     def __init__(self):
         pypes.pypeScript.__init__(self)
 
-        # "Private" members
-        self._wlrMedium = 0.07
-        self._wlrLarge = 0.088
-        self._diameterMedium = 2.0
-        self._diameterLarge = 3.0
-
         # Public member
         self.Surface = None
         self.Centerlines = None
-        self.RadiusArrayName = "MaximumInscribedSphereRadius"
         self.Aneurysm = True
         self.NumberOfAneurysms = 1
         self.AneurysmType = None # in case only 1 aneurysm
         self.ParentVesselSurface = None
         self.DomePoint = []
 
+        # Fields that are created or edited in this script
+        # - User-modifiable
+        self.DistanceToNeckArrayName = names.DistanceToNeckArrayName
+        self.ThicknessArrayName = names.ThicknessArrayName
+
+        # Non-modifiable by user
+        self.RadiusArrayName = names.VascularRadiusArrayName
+        self.AbnormalFactorArrayName = "AbnormalFactorArray"
+
+        # Vasculature thickness parameters
+        self.UniformWallToLumenRatio = False
+        self.WallLumenRatio = const.WlrMedium
+        self.SmoothingIterations = 10
+
+        # Aneurysm thickness parameters
         self.NeckComputationMode = "manual"
-        self.DistanceToNeckArrayName = 'DistanceToNeck'
         self.AneurysmInfluencedRegionDistance = 0.5
         self.GlobalScaleFactor = 0.75
-        self.UniformWallToLumenRatio = False
-        self.WallLumenRatio = self._wlrMedium
-        self.ThicknessArrayName = 'Thickness'
-        self.SmoothingIterations = 10
-        self.UseGeodesicDistance = True
 
         self.SelectAneurysmRegions = False
         self.LocalScaleFactor = 0.75
         self.OnlyUpdateThickness = False
 
         self.AbnormalHemodynamicsRegions = False
-        self.WallTypeArrayName = "WallType"
+        self.WallTypeArrayName = names.WallTypeArrayName
         self.AtheroscleroticFactor = 1.20
         self.RedRegionsFactor = 0.95
 
@@ -142,10 +145,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
             ['SmoothingIterations', 'iterations', 'int', 1, '',
                 'number of iterations for array smoothing'],
-
-            ['UseGeodesicDistance', 'geodesicdistance', 'bool', 1, '',
-                'to use the geodesic distance to the neck in the aneurysm'\
-                'thickness computation. If false, use Euclidean distance'],
 
             ['GenerateWallMesh', 'wallmesh', 'bool', 1, '',
                 'automatically extrude wall mesh with thickness array'],
@@ -254,134 +253,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Actor.GetMapper().SetScalarRange(thicknessArray.GetRange(0))
         self.Surface.Modified()
         self.ContourWidget.Initialize()
-
-    def _compute_local_wlr(self, diameter):
-        if diameter > self._diameterLarge:
-            return self._wlrLarge
-
-        elif diameter < self._diameterMedium:
-            return self._wlrMedium
-
-        else:
-            # Linear threshold
-            deltaWlr = self._wlrLarge - self._wlrMedium
-            deltaDiameter = self._diameterLarge - self._diameterMedium
-            angCoeff = deltaWlr/deltaDiameter
-
-            return self._wlrMedium + angCoeff*(diameter - self._diameterMedium)
-
-    def ComputeVasculatureThickness(self):
-        """Compute thickness array based on diameter and WLR.
-
-        Given input surface with the radius array, computes the thickness by
-        multiplying by the wall-to-lumen ration. The aneurysm portion is also
-        multiplyed.
-        """
-
-        # Compute centerlines
-        if not self.Centerlines:
-            self.Centerlines = cl.GenerateCenterlines(self.Surface)
-
-        # Compute distance to centerlines
-        # It will hold the thickness field at the end
-        distanceToCenterlines = vtkvmtk.vtkvmtkPolyDataDistanceToCenterlines()
-        distanceToCenterlines.SetInputData(self.Surface)
-        distanceToCenterlines.SetCenterlines(self.Centerlines)
-
-        distanceToCenterlines.SetUseRadiusInformation(True)
-        distanceToCenterlines.SetEvaluateCenterlineRadius(True)
-        distanceToCenterlines.SetEvaluateTubeFunction(False)
-        distanceToCenterlines.SetProjectPointArrays(False)
-
-        distanceToCenterlines.SetDistanceToCenterlinesArrayName(
-            self.ThicknessArrayName
-        )
-
-        distanceToCenterlines.SetCenterlineRadiusArrayName(self.RadiusArrayName)
-        distanceToCenterlines.Update()
-
-        # use numpy interface with VTK
-        npSurface = dsa.WrapDataObject(distanceToCenterlines.GetOutput())
-
-        distanceArray = npSurface.GetPointData().GetArray(self.ThicknessArrayName)
-        radiusArray   = npSurface.GetPointData().GetArray(self.RadiusArrayName)
-
-        # This portion evaluates if distance is much higher
-        # than the actual radius array
-        # This necessarily will need some smoothing
-
-        # Set high and low threshold factors
-        # Are they arbitrary?
-        highRadiusThresholdFactor = 1.4
-        lowRadiusThresholdFactor  = 0.9
-
-        npMaxRadiusLim = highRadiusThresholdFactor*radiusArray
-        npMinRadiusLim = lowRadiusThresholdFactor*radiusArray
-
-        distanceArray = np.where(
-                            distanceArray > npMaxRadiusLim,
-                            npMaxRadiusLim,
-                            distanceArray
-                        )
-
-        distanceArray = np.where(
-                            distanceArray < npMinRadiusLim,
-                            radiusArray,
-                            distanceArray
-                        )
-
-        # Smooth the distance to centerline array to avoid sudden changes of
-        # thickness in certain regions
-        nIterations = 5     # add a little bit of smoothing now
-        surface = tools.SmoothSurfacePointField(
-                      npSurface.VTKObject,
-                      self.ThicknessArrayName,
-                      niterations=nIterations
-                  )
-
-        npSurface = dsa.WrapDataObject(surface)
-
-        # Multiply by WLR to have a prelimimar thickness array
-        # I assume that the WLR is the same for medium sized arteries
-        # but I can change this in a point-wise manner based on
-        # the local radius array by using the algorithm contained
-        # in the vmtksurfacearrayoperation script
-        distanceArray = npSurface.GetPointData().GetArray(self.ThicknessArrayName)
-        radiusArray   = npSurface.GetPointData().GetArray(self.RadiusArrayName)
-
-        if self.UniformWallToLumenRatio:
-
-            npSurface.PointData.append(
-                dsa.VTKArray([
-                    self.WallLumenRatio*(2.0*r)
-                    for r in distanceArray
-                ]),
-                self.ThicknessArrayName
-            )
-
-        else:
-            print("Using non uniform WLR", end="\n")
-
-            # Compute are store local WLR for debug
-            localWLRArray = dsa.VTKArray([
-                                self._compute_local_wlr(2.0*r)
-                                for r in distanceArray
-                            ])
-
-            npSurface.PointData.append(
-                localWLRArray,
-                "LocalWLR"
-            )
-
-            # Compute thickness array and replace the thickness array
-            # (originally stored as the distance to neck array with a new one)
-            npSurface.PointData.append(
-                localWLRArray*(2.0*distanceArray),
-                self.ThicknessArrayName
-            )
-
-        self.Surface = npSurface.VTKObject
-        self.Surface.GetPointData().RemoveArray(self.RadiusArrayName)
 
     def AneurysmTypeValidator(self, iaType):
         if iaType == 'lateral' or iaType == 'bifurcation':
@@ -868,7 +739,13 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             self.UpdateAbnormalHemodynamicsRegions()
 
         else:
-            self.ComputeVasculatureThickness()
+            self.Surface = vscop.ComputeVasculatureThickness(
+                              self.Surface,
+                              self.Centerlines,
+                              thickness_field_name=self.ThicknessArrayName,
+                              set_uniform_wlr=self.UniformWallToLumenRatio,
+                              uniform_wlr_value=self.WallLumenRatio
+                           )
 
             if self.Aneurysm:
                 self.SetAneurysmThickness()

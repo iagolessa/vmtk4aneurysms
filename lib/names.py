@@ -55,6 +55,8 @@ AneurysmalRegionArrayName = "AneurysmalRegionArray"
 GeodesicDistanceArrayName = "GeodesicDistance"
 WallTypeArrayName         = "WallType"
 DistanceToNeckArrayName   = 'DistanceToNeck'
+ThicknessArrayName        = 'Thickness'
+VascularRadiusArrayName   = "MaximumInscribedSphereRadius"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility

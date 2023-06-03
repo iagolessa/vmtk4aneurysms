@@ -43,3 +43,9 @@ millimeterToMeterFactor = 1000.0
 # identifies the aneurysm neck path (see 'NeckIsoValue')
 # Here only for backward compatibility, as deprecated
 NeckIsoValue = 0.0 # old 0.5
+
+# Wall-to-lumen ration values
+WlrMedium = 0.07
+WlrLarge  = 0.088
+VesselMediumDiameter = 2.0
+VesselLargeDiameter  = 3.0
