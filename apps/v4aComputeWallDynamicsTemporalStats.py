@@ -17,7 +17,7 @@
 
 
 import argparse
-from vmtk4aneurysms.aneurysms import AneurysmNeckArrayName
+from vmtk4aneurysms.lib.names import AneurysmNeckArrayName
 
 def generate_arg_parser():
     """Creates and return a parser object for this app."""

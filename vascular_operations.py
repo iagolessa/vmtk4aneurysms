@@ -883,7 +883,7 @@ def _extract_aneurysmal_region(
 
 def MarkAneurysmSacManually(
         surface: names.polyDataType,
-        aneurysm_neck_array_name: str=names.DistanceToAneurysmNeckArrayName
+        aneurysm_neck_array_name: str=names.DistanceToNeckArrayName
     )   -> names.polyDataType:
     """Manually select the aneurysm neck contour and compute the distance to
     it.
@@ -937,7 +937,7 @@ def MarkAneurysmalRegion(
         vascular_surface: names.polyDataType,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        gdistance_to_neck_array_name: str=names.DistanceToAneurysmNeckArrayName,
+        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
         aneurysm_point: tuple=None
     )   -> names.polyDataType:
     """Marks the aneurysmal region with an array of (geodesic) distances to the
@@ -1305,7 +1305,7 @@ def ExtractAneurysmSacSurface(
 
         markedSurface = MarkAneurysmSacManually(
                             vascular_surface,
-                            aneurysm_neck_array_name=names.DistanceToAneurysmNeckArrayName
+                            aneurysm_neck_array_name=names.DistanceToNeckArrayName
                         )
 
     elif mode == "automatic":
@@ -1315,7 +1315,7 @@ def ExtractAneurysmSacSurface(
                             vascular_surface,
                             parent_vascular_surface=parent_vascular_surface,
                             parent_vascular_centerline=parent_vascular_centerline,
-                            aneurysmal_region_array=names.DistanceToAneurysmNeckArrayName
+                            aneurysmal_region_array=names.DistanceToNeckArrayName
                         )
 
         # Get the largest surface ifthere is any left disconnected region
@@ -1332,10 +1332,10 @@ def ExtractAneurysmSacSurface(
     # Clip the aneurysm sac (aneurysm marked with negative values)
     clippedAneurysmSurface = tools.ClipWithScalar(
                                    markedSurface,
-                                   names.DistanceToAneurysmNeckArrayName,
+                                   names.DistanceToNeckArrayName,
                                    const.zero
                                )
 
-    clippedAneurysmSurface.GetPointData().RemoveArray(names.DistanceToAneurysmNeckArrayName)
+    clippedAneurysmSurface.GetPointData().RemoveArray(names.DistanceToNeckArrayName)
 
     return clippedAneurysmSurface

@@ -518,9 +518,9 @@ def PressureTemporalStats(
 def AneurysmStats(
         neck_surface: names.polyDataType,
         array_name: str,
-        neck_array_name: str=aneu.AneurysmNeckArrayName,
+        neck_array_name: str=names.AneurysmNeckArrayName,
         n_percentile: float=99,
-        neck_iso_value: float=aneu.NeckIsoValue
+        neck_iso_value: float=const.NeckIsoValue
     )   -> dict:
     """Compute fields statistics over aneurysm surface.
 
@@ -563,8 +563,8 @@ def AneurysmStats(
 def LsaAverage(
         neck_surface: names.polyDataType,
         lowWSS: float,
-        neck_array_name: str=aneu.AneurysmNeckArrayName,
-        neck_iso_value: float=aneu.NeckIsoValue,
+        neck_array_name: str=names.AneurysmNeckArrayName,
+        neck_iso_value: float=const.NeckIsoValue,
         avgMagWSSArray: str=names.TAWSS
     )   -> float:
     """Computes the LSA based on the time-averaged WSS (TAWSS) field.
@@ -605,7 +605,7 @@ def LsaAverage(
 def WssParentVessel(
         parent_artery_surface: names.polyDataType,
         parent_artery_array: str = aneu.ParentArteryArrayName,
-        parent_artery_iso_value: float = aneu.NeckIsoValue,
+        parent_artery_iso_value: float = const.NeckIsoValue,
         wss_field: str = names.TAWSS
     )   -> float:
     """Calculates the surface averaged WSS value over the parent artery."""
@@ -643,8 +643,8 @@ def WssParentVessel(
 def WssSurfaceAverage(
         foam_case: str,
         neck_surface: names.polyDataType=None,
-        neck_array_name: str=aneu.AneurysmNeckArrayName,
-        neck_iso_value: float=aneu.NeckIsoValue,
+        neck_array_name: str=names.AneurysmNeckArrayName,
+        neck_iso_value: float=const.NeckIsoValue,
         density: float=_density,
         field_name: str=names.foamWSS,
         patch: str=names.wallPatchName,
@@ -725,8 +725,8 @@ def LsaInstant(
         foam_case: str,
         neck_surface: names.polyDataType,
         low_wss: float,
-        neck_array_name: str=aneu.AneurysmNeckArrayName,
-        neck_iso_value: float=aneu.NeckIsoValue,
+        neck_array_name: str=names.AneurysmNeckArrayName,
+        neck_iso_value: float=const.NeckIsoValue,
         density: float=_density,
         field_name: str=names.foamWSS,
         patch: str=names.wallPatchName,

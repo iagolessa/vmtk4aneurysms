@@ -38,14 +38,6 @@ from lib import polydatamath as pmath
 
 _cellEntityIdsArrayName = "CellEntityIds"
 
-# Field names
-
-# Name of the field defined on a vascular surface that identifies the aneurysm
-# with zero values and one the rest of the surface. The value 0.5, hence,
-# identifies the aneurysm neck path (see 'NeckIsoValue')
-AneurysmNeckArrayName = 'AneurysmNeckContourArray'
-NeckIsoValue = 0.5
-
 # Name of the field defined on a vascular surface that identifies the parent
 # artery with zero values and one the rest of the surface.
 ParentArteryArrayName = 'ParentArteryContourArray'
@@ -97,7 +89,7 @@ def SelectAneurysm(
     aneurysmSelection.Surface = tools.Cleaner(remesher.Surface)
     aneurysmSelection.InsideValue  = 0.0 # the aneurysm portion
     aneurysmSelection.OutsideValue = 1.0
-    aneurysmSelection.ContourScalarsArrayName = AneurysmNeckArrayName
+    aneurysmSelection.ContourScalarsArrayName = names.AneurysmNeckArrayName
     aneurysmSelection.Execute()
 
     smoother = vmtkscripts.vmtkSurfaceArraySmoothing()

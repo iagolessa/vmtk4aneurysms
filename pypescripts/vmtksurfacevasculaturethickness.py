@@ -31,6 +31,7 @@ from vmtk import pypes
 from vmtk4aneurysms import vascular_operations as vscop
 from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import centerlines as cl
+from vmtk4aneurysms.lib import names
 
 vmtksurfacevasculaturethickness = 'vmtkSurfaceVasculatureThickness'
 

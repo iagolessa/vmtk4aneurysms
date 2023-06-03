@@ -52,8 +52,13 @@ max_ = '_maximum'
 
 # important fields names
 AneurysmalRegionArrayName = "AneurysmalRegionArray"
-DistanceToAneurysmNeckArrayName = 'DistanceToNeck'
 GeodesicDistanceArrayName = "GeodesicDistance"
+WallTypeArrayName         = "WallType"
+DistanceToNeckArrayName   = 'DistanceToNeck'
+
+# this one is deprecated (using the distance to neck instead)
+# only here for backward compatibility
+AneurysmNeckArrayName     = DistanceToNeckArrayName # old 'AneurysmNeckContourArray'
 
 # Attribute array names
 WSS = 'WSS'
