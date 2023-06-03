@@ -1749,6 +1749,7 @@ def ComputeVasculatureThicknessWithNAneurysms(
     #this version will account for more than one aneurysm case
     raise NotImplementedError("Not yet implemented.")
 
+    # import re
     # # Check if there is any 'DistanceToNeck<i>' array in points arrays
     # # where 'i' indicates that more than one aneurysm are present on
     # # the surface.
