@@ -47,7 +47,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Surface = None
         self.Centerlines = None
         self.Aneurysm = True
-        self.NumberOfAneurysms = 1
+        # self.NumberOfAneurysms = 1
         self.AneurysmType = None # in case only 1 aneurysm
         self.ParentVesselSurface = None
         self.DomePoint = []
@@ -67,7 +67,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.SmoothingIterations = 10
 
         # Aneurysm thickness parameters
-        self.NeckComputationMode = "manual"
+        self.NeckComputationMode = "interactive"
         self.AneurysmInfluencedRegionDistance = 0.5
         self.GlobalScaleFactor = 0.75
 
@@ -107,8 +107,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             ['Aneurysm', 'aneurysm', 'bool', 1, '',
                 'to indicate presence of an aneurysm'],
 
-            ['NumberOfAneurysms', 'naneurysms', 'int', 1, '',
-                'integer with number of aneurysms on vasculature'],
+            # ['NumberOfAneurysms', 'naneurysms', 'int', 1, '',
+                # 'integer with number of aneurysms on vasculature'],
 
             ['AneurysmType','aneurysmtype', 'str' , 1,
                 '["lateral","bifurcation"]',
@@ -270,162 +270,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # except ValueError:
         #     return 0
         # return 1
-
-    def SetAneurysmThickness(self):
-        """Calculate and set aneurysm thickness.
-
-        Based on the vasculature thickness distribution, defined as the outside
-        portion of the complete geometry from the neck selected by the user,
-        estimates an aneurysm thickness by averaging the vasculature thickness
-        using as weight function the distance to the "aneurysm-influenced"
-        region line. The estimated aneurysm thickness is, then, set on the
-        aneurysm surface in the thickness array.
-
-        The aneurysm-influenced neck line is defined as the region between the
-        neck line (provided by the user) and the path that is at a distance of
-        'AneurysmInfluencedRegionDistance' value (in mm; default 0.5 mm) from
-        the neck line.  This strip around the aneurysm is imagined as a region
-        of the original vasculature that had its thickness changed by the
-        aneurysm growth.
-
-        If the surface does not already have the 'DistanceToNeckArray' scalar,
-        then it will prompt the user to select the neck line, which will be
-        stored on the surface.
-        """
-        # Get point array names
-        nPointArrays = self.Surface.GetPointData().GetNumberOfArrays()
-        pointArrays  = [self.Surface.GetPointData().GetArray(id_).GetName()
-                        for id_ in range(nPointArrays)]
-
-        # New procedure: instead of selecting the 'aneurysm-influenced region'
-        # by hand (which is subjective), we define this region based on the
-        # DistanceToNeckArrayName created by the operator or input with the
-        # surface alredy (although this is still subjective, it is possible to
-        # automatize it too. In any case, it is 'less subjective' than the
-        # other procedure, because the aneurysm neck line is somewhat possible
-        # to define precisely).
-        distanceToNeckArrays = {}
-
-        # To also account for the possibility of multiple aneurysms,
-        # neck distance array of each aneurysm will be stored in a list
-
-        # Check if there is any 'DistanceToNeck<i>' array in points arrays
-        # where 'i' indicates that more than one aneurysm are present on
-        # the surface.
-        r = re.compile(self.DistanceToNeckArrayName + ".*")
-
-        distanceToNeckArrayNames = list(filter(r.match, pointArrays))
-
-        if not distanceToNeckArrayNames:
-            for id_ in range(self.NumberOfAneurysms):
-
-                # Update neck array name if more than one aneurysm
-                arrayName = self.DistanceToNeckArrayName + str(id_ + 1) \
-                            if self.NumberOfAneurysms > 1 \
-                            else self.DistanceToNeckArrayName
-
-
-                if self.NeckComputationMode == "interactive":
-
-                    self.Surface = vscop.MarkAneurysmSacManually(
-                                       self.Surface,
-                                       aneurysm_neck_array_name=arrayName
-                                   )
-
-
-                elif self.NeckComputationMode == "automatic":
-
-                    # Does not work well with the vascular cases
-                    # parentSurface = vscop.ClipVasculature(parentSurface)
-
-                    # Procedure by Piccinelli's work: defined by the aneurysmal
-                    # region
-                    # This function destroys the arrays in the surface, so
-                    # let's compute it in a copy and interpolate back, because
-                    # the Thickness array is already here in this procedure
-                    cleanSurface = tools.CopyVtkObject(self.Surface)
-
-                    cleanSurface = vscop.MarkAneurysmalRegion(
-                                       cleanSurface,
-                                       parent_vascular_surface=self.ParentVesselSurface,
-                                       gdistance_to_neck_array_name=arrayName,
-                                       aneurysm_point=self.DomePoint
-                                   )
-
-                    self.Surface = tools.ProjectPointArray(
-                                       self.Surface,
-                                       cleanSurface,
-                                       arrayName
-                                   )
-
-                else:
-                    raise ValueError(
-                              """Neck computation mode either 'interactive'
-                              or 'automatic'. {} passed.""".format(
-                                  self.NeckComputationMode
-                              )
-                          )
-
-                # Append only arrays
-                distanceToNeckArrays[arrayName] = \
-                    dsa.VTKArray(
-                        self.Surface.GetPointData().GetArray(arrayName)
-                    )
-
-
-        else:
-            distanceToNeckArrays = {arrayName:
-                                    dsa.VTKArray(
-                                        self.Surface.GetPointData().GetArray(
-                                            arrayName
-                                        )
-                                   ) for arrayName in distanceToNeckArrayNames}
-
-        npDistanceSurface = dsa.WrapDataObject(self.Surface)
-
-        # Update both fields with selection
-        thicknessArray = npDistanceSurface.GetPointData().GetArray(
-                             self.ThicknessArrayName
-                         )
-
-        _SMALL = 1e-12
-        for id_, (name, neckScalars) in enumerate(distanceToNeckArrays.items()):
-
-            # Add array to surface before we change it
-            npDistanceSurface.PointData.append(
-                neckScalars,
-                name
-            )
-
-            # First compute aneurysm thickness based on vasculature thickness
-            # the vasculature is selection value > 0
-            onVasculature = neckScalars > self.AneurysmInfluencedRegionDistance
-
-            # Filter thickness and neckScalars
-            thicknesses = onVasculature*thicknessArray
-            vasculatureDistances = onVasculature*neckScalars
-
-            # Aneurysm thickness as weighted average
-            aneurysmThickness = self.GlobalScaleFactor*np.average(
-                                    thicknesses,
-                                    weights=np.array([
-                                        1.0/x if x != 0.0 else 0.0
-                                        for x in vasculatureDistances
-                                    ])
-                                )
-
-            print(
-                "Aneurysm "+str(id_ + 1)+" thickness computed: {}".format(
-                    aneurysmThickness
-                ),
-                end="\n"
-            )
-
-            # Then, substitute thickness array by aneurysmThickness
-            thicknessArray[thicknesses == 0.0] = aneurysmThickness
-
-        self.Surface = npDistanceSurface.VTKObject
-
 
     def SelectThinnerRegions(self):
         """Interactvely select thinner regions of the aneurysm."""
@@ -657,52 +501,24 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
-        if self.NeckComputationMode == "automatic":
+        # # The aneurysm type mjst be informed here because ot may
+        # # change with the case of multiple aneurysms
+        # if (naneurysms != 1) or \
+        #    (naneurysms == 1 and \
+        #     aneurysm_type is None):
 
-            if self.DomePoint is None:
-                # Get dome point by the user
-                self.DomePoint = tools.SelectSurfacePoint(self.Surface)
+        #     aneurysmType = self.InputText(
+        #                        "Type aneurysm type ['lateral','bifurcation']:",
+        #                        aneurysm_typeValidator
+        #                    )
 
-                self.OutputText(
-                    "Selected dome point: {}\n".format(self.DomePoint)
-                )
+        # else:
+        #     aneurysmType = aneurysm_type
 
-            if self.NumberOfAneurysms == 1 and self.AneurysmType is None:
-                self.PrintError('Inform the aneurysm type.')
+        # Store the point and cell array that were already on the surface
 
-            # # The aneurysm type mjst be informed here because ot may
-            # # change with the case of multiple aneurysms
-            # if (self.NumberOfAneurysms != 1) or \
-            #    (self.NumberOfAneurysms == 1 and \
-            #     self.AneurysmType is None):
-
-            #     aneurysmType = self.InputText(
-            #                        "Type aneurysm type ['lateral','bifurcation']:",
-            #                        self.AneurysmTypeValidator
-            #                    )
-
-            # else:
-            #     aneurysmType = self.AneurysmType
-
-            if self.ParentVesselSurface is None and self.NumberOfAneurysms == 1:
-                self.ParentVesselSurface = vscop.HealthyVesselReconstruction(
-                                                self.Surface,
-                                                self.AneurysmType,
-                                                self.DomePoint
-                                            )
-
-                # Clip the parent vascular surface
-                clipper = vmtkscripts.vmtkSurfaceClipper()
-                clipper.Surface = self.ParentVesselSurface
-                clipper.InsideOut = False
-                clipper.Execute()
-
-                self.ParentVesselSurface = clipper.Surface
-
-            elif self.ParentVesselSurface is None and self.NumberOfAneurysms != 1:
-
-                msg = "If there is more than 1 aneurysm, pass the parent surface separately."
-                self.PrintError(msg)
+        origCellArrays  = tools.GetCellArrays(self.Surface)
+        origPointArrays = tools.GetPointArrays(self.Surface)
 
         # I had a bug with the 'select thinner regions' with
         # polygonal meshes. So, operate on a triangulated surface
@@ -739,16 +555,21 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             self.UpdateAbnormalHemodynamicsRegions()
 
         else:
-            self.Surface = vscop.ComputeVasculatureThickness(
-                              self.Surface,
-                              self.Centerlines,
-                              thickness_field_name=self.ThicknessArrayName,
-                              set_uniform_wlr=self.UniformWallToLumenRatio,
-                              uniform_wlr_value=self.WallLumenRatio
-                           )
-
             if self.Aneurysm:
-                self.SetAneurysmThickness()
+                self.Surface = vscop.ComputeVasculatureThicknessWithAneurysm(
+                                   self.Surface,
+                                   self.Centerlines,
+                                   thickness_field_name=self.ThicknessArrayName,
+                                   set_uniform_wlr=self.UniformWallToLumenRatio,
+                                   uniform_wlr_value=self.WallLumenRatio,
+                                   neck_comp_mode=self.NeckComputationMode,
+                                   gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
+                                   aneurysm_type=self.AneurysmType,
+                                   aneurysm_influence_dist=self.AneurysmInfluencedRegionDistance,
+                                   scale_factor=self.GlobalScaleFactor,
+                                   parent_vessel_surface=self.ParentVesselSurface,
+                                   dome_point=self.DomePoint
+                               )
 
                 if self.OwnRenderer:
                     self.vmtkRenderer.Deallocate()
@@ -757,6 +578,14 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                 if self.SelectAneurysmRegions:
                     self.SelectThinnerRegions()
 
+            else:
+                self.Surface = vscop.ComputeVasculatureThickness(
+                                  self.Surface,
+                                  self.Centerlines,
+                                  thickness_field_name=self.ThicknessArrayName,
+                                  set_uniform_wlr=self.UniformWallToLumenRatio,
+                                  uniform_wlr_value=self.WallLumenRatio
+                               )
 
         # After array create, smooth it hard
         self.Surface = self._smooth_array(self.Surface,

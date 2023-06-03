@@ -368,7 +368,16 @@ def HealthyVesselReconstruction(
     # 5) Compute parent surface from new Voronoi
     parentSurface = cl.ComputeVoronoiEnvelope(newVoronoi)
 
-    return parentSurface
+    # Clip the parent vascular surface
+    # Does not work well with the vascular cases
+    # parentSurface = vscop.ClipVasculature(parentSurface)
+
+    clipper = vmtkscripts.vmtkSurfaceClipper()
+    clipper.Surface = parentSurface
+    clipper.InsideOut = False
+    clipper.Execute()
+
+    return clipper.Surface
 
 
 def _transf_normal(
@@ -1361,7 +1370,7 @@ def ComputeVasculatureThickness(
         thickness_field_name: str=names.ThicknessArrayName,
         set_uniform_wlr: bool=False,
         uniform_wlr_value: float=const.WlrMedium
-    ):
+    )   -> names.polyDataType:
     """Compute thickness of a vasculature based on its diameter and WLR.
 
     Given input surface with the radius array, computes the thickness by
@@ -1474,3 +1483,169 @@ def ComputeVasculatureThickness(
     vascular_surface.GetPointData().RemoveArray(names.VascularRadiusArrayName)
 
     return vascular_surface
+
+def ComputeVasculatureThicknessWithAneurysm(
+        vascular_surface: names.polyDataType,
+        centerlines: names.polyDataType=None,
+        thickness_field_name: str=names.ThicknessArrayName,
+        set_uniform_wlr: bool=False,
+        uniform_wlr_value: float=const.WlrMedium,
+        neck_comp_mode: str="interactive",
+        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
+        aneurysm_type: str="",
+        aneurysm_influence_dist: float=0.5,
+        scale_factor: float=0.75,
+        parent_vessel_surface: names.polyDataType=None,
+        dome_point: tuple=None
+    )   -> names.polyDataType:
+    """Calculate and set aneurysm thickness.
+
+    Based on the vasculature thickness distribution, defined as the outside
+    portion of the complete geometry from the neck selected by the user,
+    estimates an aneurysm thickness by averaging the vasculature thickness
+    using as weight function the inverse distance to the
+    "aneurysm-influenced" region line. The estimated aneurysm thickness is,
+    then, set on the aneurysm surface in the thickness array.
+
+    The aneurysm-influenced neck line is defined as the region between the
+    neck line (provided by the user or computed automatically) and the path
+    that is at a distance of 'AneurysmInfluencedRegionDistance' value (in
+    mm; default 0.5 mm) from the neck line.  This strip around the aneurysm
+    is imagined as a region of the original vasculature that had its
+    thickness changed by the aneurysm growth.
+
+    If the surface does not already have the 'DistanceToNeckArray' scalar,
+    then it will prompt the user to select the neck line, which will be
+    stored on the surface.
+    """
+
+
+    # Compute thickness of the vascular tree portion
+    vascular_surface = ComputeVasculatureThickness(
+                            vascular_surface,
+                            centerlines,
+                            thickness_field_name=thickness_field_name,
+                            set_uniform_wlr=set_uniform_wlr,
+                            uniform_wlr_value=uniform_wlr_value
+                        )
+
+    # Compute the distance to neck array
+    if gdistance_to_neck_array_name not in tools.GetPointArrays(vascular_surface):
+
+        if neck_comp_mode == "interactive":
+
+            vascular_surface = MarkAneurysmSacManually(
+                                   vascular_surface,
+                                   aneurysm_neck_array_name=gdistance_to_neck_array_name
+                               )
+
+        elif neck_comp_mode == "automatic":
+
+            if not aneurysm_type:
+                raise ValueError(
+                          'Inform the aneurysm type: bifurcation or lateral'
+                      )
+
+            if not parent_vessel_surface:
+                parent_vessel_surface = HealthyVesselReconstruction(
+                                            vascular_surface,
+                                            aneurysm_type,
+                                            dome_point if dome_point else None
+                                        )
+
+            # The MarkAneurysmalRegion function destroys the arrays in the
+            # surface, so let's compute it in a copy and interpolate back,
+            # because the Thickness array is already here in this procedure
+            cleanSurface = tools.CopyVtkObject(vascular_surface)
+
+            cleanSurface = MarkAneurysmalRegion(
+                               cleanSurface,
+                               parent_vascular_surface=parent_vessel_surface,
+                               gdistance_to_neck_array_name=gdistance_to_neck_array_name,
+                               aneurysm_point=dome_point if dome_point else None
+                           )
+
+            vascular_surface = tools.ProjectPointArray(
+                               vascular_surface,
+                               cleanSurface,
+                               gdistance_to_neck_array_name
+                           )
+
+        else:
+            raise ValueError(
+                      """Neck computation mode either 'interactive'
+                      or 'automatic'. {} passed.""".format(
+                          neck_comp_mode
+                      )
+                  )
+
+    # Surface with thickness and distnce to neck
+    npDistanceSurface = dsa.WrapDataObject(vascular_surface)
+
+    # Update both fields with selection
+    thicknessArray = npDistanceSurface.GetPointData().GetArray(
+                         thickness_field_name
+                     )
+
+    distanceToNeckArray = npDistanceSurface.GetPointData().GetArray(
+                              gdistance_to_neck_array_name
+                          )
+
+    # First compute aneurysm thickness based on vasculature thickness
+    # the vasculature is selection value > 0
+    onVasculature = distanceToNeckArray > aneurysm_influence_dist
+
+    # Filter thickness and neckScalars
+    vasculatureThicknesses = onVasculature*thicknessArray
+    vasculatureDistances   = onVasculature*distanceToNeckArray
+
+    # Aneurysm thickness as weighted average
+    aneurysmThickness = scale_factor*np.average(
+                            vasculatureThicknesses,
+                            weights=np.array([
+                                1.0/x if x != 0.0 else 0.0
+                                for x in vasculatureDistances
+                            ])
+                        )
+
+    print(
+        "Aneurysm thickness computed: {}".format(
+            aneurysmThickness
+        ),
+        end="\n"
+    )
+
+    # Then, substitute thickness array by aneurysmThickness
+    thicknessArray[vasculatureThicknesses == 0.0] = aneurysmThickness
+
+    return npDistanceSurface.VTKObject
+
+def ComputeVasculatureThicknessWithNAneurysms(
+        vascular_surface: names.polyDataType,
+        centerlines: names.polyDataType=None,
+        thickness_field_name: str=names.ThicknessArrayName,
+        set_uniform_wlr: bool=False,
+        uniform_wlr_value: float=const.WlrMedium,
+        naneurysms: int=1,
+        aneurysm_type: str="",
+        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
+        neck_comp_mode: str="interactive",
+        parent_vessel_surface: names.polyDataType=None,
+        dome_point: tuple=None
+    )   -> names.polyDataType:
+    #this version will account for more than one aneurysm case
+    raise NotImplementedError("Not yet implemented.")
+
+    # # Check if there is any 'DistanceToNeck<i>' array in points arrays
+    # # where 'i' indicates that more than one aneurysm are present on
+    # # the surface.
+    # r = re.compile(gdistance_to_neck_array_name + ".*")
+
+    # distanceToNeckArrayNames = list(filter(r.match, pointArrays))
+
+    # for id_ in range(naneurysms):
+
+    #     # Update neck array name if more than one aneurysm
+    #     arrayName = gdistance_to_neck_array_name + str(id_ + 1) \
+    #                 if naneurysms > 1 \
+    #                 else gdistance_to_neck_array_name
