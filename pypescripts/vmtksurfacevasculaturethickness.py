@@ -59,7 +59,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         # Non-modifiable by user
         self.RadiusArrayName = names.VascularRadiusArrayName
-        self.AbnormalFactorArrayName = "AbnormalFactorArray"
 
         # Vasculature thickness parameters
         self.UniformWallToLumenRatio = False
@@ -76,7 +75,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.OnlyUpdateThickness = False
 
         self.AbnormalHemodynamicsRegions = False
-        self.WallTypeArrayName = names.WallTypeArrayName
         self.AtheroscleroticFactor = 1.20
         self.RedRegionsFactor = 0.95
 
@@ -174,9 +172,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             ['RedRegionsFactor', 'redregionsfactor', 'float', 1, '',
                 'scale fator to update thickness of red regions '\
                 'if AbnormalHemodynamicsRegions is true'],
-
-            ['WallTypeArrayName', 'walltypearray', 'str', 1, '',
-                'name of wall type characterization array']
         ])
 
         self.SetOutputMembers([
@@ -364,89 +359,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
             self.vmtkRenderer.Deallocate()
             self.OwnRenderer = 0
 
-    def UpdateAbnormalHemodynamicsRegions(self):
-        """Based on wall type array, increase or deacrease thickness.
-
-        With a global thickness array already defined on the surface, update
-        the thickness based on the wall type array created based on the
-        hemodynamics variables, by multiplying it by a factor defined below. As
-        explained in the function WallTypeCharacterization of wallmotion.py,
-        the three types of wall and the operation performed here for each are:
-
-        .. table:: Local wall type characterization
-            :widths: auto
-
-            =====   =============== =========
-            Label   Wall Type       Operation
-            =====   =============== =========
-                0   Normal wall     Nothing (default = 1)
-                1   Atherosclerotic Increase elasticity (default factor = 1.20)
-                2   "Red" wall      Decrease elasticity (default factor = 0.95)
-            =====   =============== =========
-
-        The multiplying factors for the atherosclerotic and red wall must be
-        provided at object instantiation, with default values given above.
-        The function will look for the array named "WallType" for defining
-        its operation.
-        """
-        # Labels for wall classification
-        normalWall  = 0
-        thickerWall = 1
-        thinnerWall = 2
-
-        # Update both fields with selection
-        thicknessArray = self.Surface.GetPointData().GetArray(
-                             self.ThicknessArrayName
-                         )
-
-        # factor array: name WallType
-        wallTypeArray = self.Surface.GetCellData().GetArray(
-                            self.WallTypeArrayName
-                        )
-
-        # Update WallType array with scale factor
-        # this is important to have a smooth field to multiply with the
-        # thickness array (scale factor can be viewed as a continous
-        # distribution in contrast to the WallType array that is discrete)
-        for i in range(wallTypeArray.GetNumberOfTuples()):
-            wallTypeValue  = wallTypeArray.GetTuple1(i)
-
-            if wallTypeValue == thickerWall:
-                newValue = self.AtheroscleroticFactor
-
-            elif wallTypeValue == thinnerWall:
-                newValue = self.RedRegionsFactor
-
-            else:
-                newValue = 1.0
-
-            wallTypeArray.SetTuple1(i, newValue)
-
-        # Interpolate WallType cell data to point data
-        cellDataToPointData = vtk.vtkCellDataToPointData()
-        cellDataToPointData.SetInputData(self.Surface)
-        cellDataToPointData.PassCellDataOff()
-        cellDataToPointData.Update()
-
-        self.Surface = cellDataToPointData.GetOutput()
-
-        # self.Surface.GetCellData().RemoveArray(self.WallTypeArrayName)
-
-        wallTypeArray = self.Surface.GetPointData().GetArray(
-                            self.WallTypeArrayName
-                        )
-
-        # multiply thickness by scale factor
-        for i in range(thicknessArray.GetNumberOfTuples()):
-            wallTypeValue  = wallTypeArray.GetTuple1(i)
-            thicknessValue = thicknessArray.GetTuple1(i)
-
-            thicknessArray.SetTuple1(i, wallTypeValue*thicknessValue)
-
-        # Update name of abnormal regions factor final array
-        wallTypeArray.SetName("AbnormalFactorArray")
-
-
     def ExtrudeWallMesh(self):
         """Extrude wall along normals with thickness array."""
 
@@ -548,28 +460,46 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.vmtkRenderer.RegisterScript(self)
 
-        if self.OnlyUpdateThickness and not self.AbnormalHemodynamicsRegions:
+        # Compute the thickness field
+        if self.Aneurysm:
+            self.Surface = vscop.ComputeVasculatureThicknessWithAneurysm(
+                               self.Surface,
+                               self.Centerlines,
+                               thickness_field_name=self.ThicknessArrayName,
+                               set_uniform_wlr=self.UniformWallToLumenRatio,
+                               uniform_wlr_value=self.WallLumenRatio,
+                               neck_comp_mode=self.NeckComputationMode,
+                               gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
+                               aneurysm_type=self.AneurysmType,
+                               aneurysm_influence_dist=self.AneurysmInfluencedRegionDistance,
+                               scale_factor=self.GlobalScaleFactor,
+                               parent_vessel_surface=self.ParentVesselSurface,
+                               dome_point=self.DomePoint,
+                               abnormal_thickness=self.AbnormalHemodynamicsRegions,
+                               atherosclerotic_factor=self.AtheroscleroticFactor,
+                               red_regions_factor=self.RedRegionsFactor
+                           )
+
+            if self.OwnRenderer:
+                self.vmtkRenderer.Deallocate()
+                self.OwnRenderer = 0
+
+        else:
+            self.Surface = vscop.ComputeVasculatureThickness(
+                              self.Surface,
+                              self.Centerlines,
+                              thickness_field_name=self.ThicknessArrayName,
+                              set_uniform_wlr=self.UniformWallToLumenRatio,
+                              uniform_wlr_value=self.WallLumenRatio
+                           )
+
+
+        if self.OnlyUpdateThickness:
             self.SelectThinnerRegions()
 
         elif self.OnlyUpdateThickness and self.AbnormalHemodynamicsRegions:
             self.UpdateAbnormalHemodynamicsRegions()
 
-        else:
-            if self.Aneurysm:
-                self.Surface = vscop.ComputeVasculatureThicknessWithAneurysm(
-                                   self.Surface,
-                                   self.Centerlines,
-                                   thickness_field_name=self.ThicknessArrayName,
-                                   set_uniform_wlr=self.UniformWallToLumenRatio,
-                                   uniform_wlr_value=self.WallLumenRatio,
-                                   neck_comp_mode=self.NeckComputationMode,
-                                   gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
-                                   aneurysm_type=self.AneurysmType,
-                                   aneurysm_influence_dist=self.AneurysmInfluencedRegionDistance,
-                                   scale_factor=self.GlobalScaleFactor,
-                                   parent_vessel_surface=self.ParentVesselSurface,
-                                   dome_point=self.DomePoint
-                               )
 
                 if self.OwnRenderer:
                     self.vmtkRenderer.Deallocate()

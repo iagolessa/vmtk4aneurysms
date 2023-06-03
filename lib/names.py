@@ -57,6 +57,7 @@ WallTypeArrayName         = "WallType"
 DistanceToNeckArrayName   = 'DistanceToNeck'
 ThicknessArrayName        = 'Thickness'
 VascularRadiusArrayName   = "MaximumInscribedSphereRadius"
+AbnormalFactorArrayName   = "AbnormalFactorArray"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility

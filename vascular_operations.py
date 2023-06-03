@@ -38,6 +38,8 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
+from . import wallmotion as wm
+
 _dimensions = int(const.three)
 _initialAneurysmArrayName = names.AneurysmalRegionArrayName
 
@@ -1484,6 +1486,73 @@ def ComputeVasculatureThickness(
 
     return vascular_surface
 
+def UpdateAbnormalHemodynamicsRegions(
+        vascular_surface: names.polyDataType,
+        thickness_field_name: str=names.ThicknessArrayName,
+        atherosclerotic_factor: float=1.20,
+        red_regions_factor: float=0.95
+    )   -> names.polyDataType:
+
+    # Factor array: compute WallTypeArrayName if not yet on the surface
+    if names.WallTypeArrayName not in tools.GetCellArrays(vascular_surface):
+        vascular_surface = wm.WallTypeClassification(vascular_surface)
+
+    npSurface = dsa.WrapDataObject(vascular_surface)
+
+    wallTypeArray = npSurface.GetCellData().GetArray(
+                        names.WallTypeArrayName
+                    )
+
+    # Add abnormal factor array
+    # This is important to have a smooth field to multiply with the
+    # thickness array (scale factor can be viewed as a continous
+    # distribution in contrast to the WallType array that is discrete)
+    abnormalFactorArray = dsa.VTKArray(
+                              np.ones(shape=wallTypeArray.shape)
+                          )
+
+    # update with scale factors
+    abnormalFactorArray[
+        wallTypeArray == wm.IaWallTypes["AtheroscleroticWall"]
+    ] = atherosclerotic_factor
+
+    abnormalFactorArray[
+        wallTypeArray == wm.IaWallTypes["RedWall"]
+    ] = red_regions_factor
+
+    npSurface.CellData.append(
+        abnormalFactorArray,
+        names.AbnormalFactorArrayName
+    )
+
+    vascular_surface = npSurface.VTKObject
+
+    # Interpolate AbnormalFactorArray cell data to point data
+    vascular_surface = tools.CellFieldToPointField(
+                           vascular_surface,
+                           names.AbnormalFactorArrayName
+                       )
+
+    npSurface = dsa.WrapDataObject(vascular_surface)
+
+    abnormalFactorArray = npSurface.GetPointData().GetArray(
+                              names.AbnormalFactorArrayName
+                          )
+
+    thicknessArray = npSurface.GetPointData().GetArray(
+                         thickness_field_name
+                     )
+
+    npSurface.PointData.append(
+        abnormalFactorArray*thicknessArray,
+        thickness_field_name
+    )
+
+    vascular_surface = npSurface.VTKObject
+    vascular_surface.GetCellData().RemoveArray(names.AbnormalFactorArrayName)
+
+    return vascular_surface
+
 def ComputeVasculatureThicknessWithAneurysm(
         vascular_surface: names.polyDataType,
         centerlines: names.polyDataType=None,
@@ -1496,7 +1565,10 @@ def ComputeVasculatureThicknessWithAneurysm(
         aneurysm_influence_dist: float=0.5,
         scale_factor: float=0.75,
         parent_vessel_surface: names.polyDataType=None,
-        dome_point: tuple=None
+        dome_point: tuple=None,
+        abnormal_thickness: bool=False,
+        atherosclerotic_factor: float=1.20,
+        red_regions_factor: float=0.95
     )   -> names.polyDataType:
     """Calculate and set aneurysm thickness.
 
@@ -1514,11 +1586,41 @@ def ComputeVasculatureThicknessWithAneurysm(
     is imagined as a region of the original vasculature that had its
     thickness changed by the aneurysm growth.
 
-    If the surface does not already have the 'DistanceToNeckArray' scalar,
-    then it will prompt the user to select the neck line, which will be
-    stored on the surface.
-    """
+    If the surface does not already have the 'DistanceToNeckArray' scalar, then
+    it will prompt the user to select the neck line, which will be stored on
+    the surface. Alternatively, the user may select the option "neck_comp_mode"
+    as 'automatic', which estimates a neck line (see function
+    'MarkAneurysmalRegion').
 
+    The aneurysm sac thickness may be estimated as 'uniform', the default
+    behavior, or using the abnormal wall thickness based on the adjacent
+    hemodynamics to the aneurysm wall: the TAWSS and OSI fields (controlled by
+    setting the option 'abnormal_thickness' to True). In this last case, the
+    passed suface must have these two field from a CFD simulation.
+
+    The aneurysm abnormal thickness is computed based on a 'wall type array',
+    and hence increase or deacrease the sac thickness. The procedure is as
+    follows: With a global thickness array already defined on the surface,
+    update the thickness based on the wall type array created based on the
+    hemodynamics variables, by multiplying it by a factor defined below. As
+    explained in the function WallTypeCharacterization of wallmotion.py, the
+    three types of wall and the operation performed here for each are:
+
+    .. table:: Local wall type characterization
+        :widths: auto
+
+        =====   =============== =========
+        Label   Wall Type       Operation
+        =====   =============== =========
+            0   Normal wall     Nothing (default = 1)
+            1   Atherosclerotic Increase thickness (default factor = 1.20)
+            2   "Red" wall      Decrease thickness (default factor = 0.95)
+        =====   =============== =========
+
+    The multiplying factors for the atherosclerotic and red wall must be
+    provided, with default values given above. The function will look for the
+    array named "WallType" for defining its operation or compute it on the fly.
+    """
 
     # Compute thickness of the vascular tree portion
     vascular_surface = ComputeVasculatureThickness(
@@ -1618,7 +1720,18 @@ def ComputeVasculatureThicknessWithAneurysm(
     # Then, substitute thickness array by aneurysmThickness
     thicknessArray[vasculatureThicknesses == 0.0] = aneurysmThickness
 
-    return npDistanceSurface.VTKObject
+    vascular_surface = npDistanceSurface.VTKObject
+
+    if abnormal_thickness:
+        vascular_surface = UpdateAbnormalHemodynamicsRegions(
+                               vascular_surface,
+                               thickness_field_name=thickness_field_name,
+                               atherosclerotic_factor=atherosclerotic_factor,
+                               red_regions_factor=red_regions_factor
+                           )
+
+    return vascular_surface
+
 
 def ComputeVasculatureThicknessWithNAneurysms(
         vascular_surface: names.polyDataType,
