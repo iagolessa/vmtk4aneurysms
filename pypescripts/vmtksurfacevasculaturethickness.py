@@ -19,7 +19,6 @@
 import re
 import sys
 import vtk
-import math
 import numpy as np
 import vtk.numpy_interface.dataset_adapter as dsa
 
@@ -201,90 +200,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
     def _display(self):
         self.vmtkRenderer.Render()
 
-    # Code based on the vmtksurfacearraysmoothing.py script of the VMTK library
-    def _smooth_array(self, surface, array, niterations=5, relax_factor=1.0):
-        """Surface array smoother."""
-
-        # Clean up surface prior to procedure
-        # (this avoid oscillations in the smoothing procedure)
-        cleaner = vtk.vtkCleanPolyData()
-        cleaner.SetInputData(surface)
-        cleaner.Update()
-
-        surface = cleaner.GetOutput()
-
-        # arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
-        # arraySmoother.Surface = surface
-        # arraySmoother.SurfaceArrayName = array
-        # arraySmoother.Connexity = 1
-        # arraySmoother.Relaxation = 1.0
-        # arraySmoother.Iterations = niterations
-        # arraySmoother.Execute()
-
-        _SMALL = 1e-12
-        array = surface.GetPointData().GetArray(array)
-
-        extractEdges = vtk.vtkExtractEdges()
-        extractEdges.SetInputData(surface)
-        extractEdges.Update()
-
-        # Get surface edges
-        surfEdges = extractEdges.GetOutput()
-
-        for n in range(niterations):
-
-            # Iterate over all edges cells
-            for i in range(surfEdges.GetNumberOfPoints()):
-                # Get edge cells
-                cells = vtk.vtkIdList()
-                surfEdges.GetPointCells(i, cells)
-
-                sum_ = 0.0
-                normFactor = 0.0
-
-                # For each edge cells
-                for j in range(cells.GetNumberOfIds()):
-
-                    # Get points
-                    points = vtk.vtkIdList()
-                    surfEdges.GetCellPoints(cells.GetId(j), points)
-
-                    # Over points in edge cells
-                    for k in range(points.GetNumberOfIds()):
-
-                        # Compute distance of the current point
-                        # to all surface points
-                        if points.GetId(k) != i:
-
-                            # Compute distance between a point and surrounding
-                            distance = math.sqrt(
-                                vtk.vtkMath.Distance2BetweenPoints(
-                                    surface.GetPoint(i),
-                                    surface.GetPoint(points.GetId(k))
-                                )
-                            )
-
-                            # Get inverse to act as weight?
-                            weight = 1.0/(distance + _SMALL)
-
-                            # Get value
-                            value = array.GetTuple1(points.GetId(k))
-
-                            normFactor += weight
-                            sum_ += value*weight
-
-                currVal = array.GetTuple1(i)
-
-                # Average value weighted by the surrounding values
-                weightedValue = sum_/normFactor
-
-                newValue = relax_factor*weightedValue + \
-                           (1.0 - relax_factor)*currVal
-
-                array.SetTuple1(i, newValue)
-
-        return surface
-
     def _set_thinner_thickness(self, obj):
         """Set thinner thickness on selected region."""
 
@@ -418,7 +333,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # Smooth the distance to centerline array to avoid sudden changes of
         # thickness in certain regions
         nIterations = 5     # add a little bit of smoothing now
-        surface = self._smooth_array(
+        surface = tools.SmoothSurfacePointField(
                       npSurface.VTKObject,
                       self.ThicknessArrayName,
                       niterations=nIterations

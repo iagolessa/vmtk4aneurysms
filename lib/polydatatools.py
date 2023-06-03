@@ -17,6 +17,7 @@
 
 import os
 import sys
+import math
 import pandas as pd
 from typing import Union
 from copy import copy
@@ -1271,3 +1272,91 @@ class SelectContourPointsIds():
 
         if self.OwnRenderer:
             self.vmtkRenderer.Deallocate()
+
+
+# Code based on the vmtksurfacearraysmoothing.py script of the VMTK library
+def SmoothSurfacePointField(
+        surface: names.polyDataType, 
+        field_name: str,
+        niterations: int=5, 
+        relax_factor: float=1.0
+    )   -> names.polyDataType:
+    """Smooths a field defined on a surface."""
+
+    _SMALL = 1e-12
+
+    # Clean up surface prior to procedure
+    # (this avoid oscillations in the smoothing procedure)
+    surface = Cleaner(surface)
+
+    # With vmtk
+    # arraySmoother = vmtkscripts.vmtkSurfaceArraySmoothing()
+    # arraySmoother.Surface = surface
+    # arraySmoother.SurfaceArrayName = array
+    # arraySmoother.Connexity = 1
+    # arraySmoother.Relaxation = 1.0
+    # arraySmoother.Iterations = niterations
+    # arraySmoother.Execute()
+
+    field = surface.GetPointData().GetArray(field_name)
+
+    extractEdges = vtk.vtkExtractEdges()
+    extractEdges.SetInputData(surface)
+    extractEdges.Update()
+
+    # Get surface edges
+    surfEdges = extractEdges.GetOutput()
+
+    for n in range(niterations):
+
+        # Iterate over all edges cells
+        for i in range(surfEdges.GetNumberOfPoints()):
+            # Get edge cells
+            cells = vtk.vtkIdList()
+            surfEdges.GetPointCells(i, cells)
+
+            sum_ = 0.0
+            normFactor = 0.0
+
+            # For each edge cells
+            for j in range(cells.GetNumberOfIds()):
+
+                # Get points
+                points = vtk.vtkIdList()
+                surfEdges.GetCellPoints(cells.GetId(j), points)
+
+                # Over points in edge cells
+                for k in range(points.GetNumberOfIds()):
+
+                    # Compute distance of the current point
+                    # to all surface points
+                    if points.GetId(k) != i:
+
+                        # Compute distance between a point and surrounding
+                        distance = math.sqrt(
+                            vtk.vtkMath.Distance2BetweenPoints(
+                                surface.GetPoint(i),
+                                surface.GetPoint(points.GetId(k))
+                            )
+                        )
+
+                        # Get inverse to act as weight?
+                        weight = 1.0/(distance + _SMALL)
+
+                        # Get value
+                        value = field.GetTuple1(points.GetId(k))
+
+                        normFactor += weight
+                        sum_ += value*weight
+
+            currVal = field.GetTuple1(i)
+
+            # Average value weighted by the surrounding values
+            weightedValue = sum_/normFactor
+
+            newValue = relax_factor*weightedValue + \
+                       (1.0 - relax_factor)*currVal
+
+            field.SetTuple1(i, newValue)
+
+    return surface
