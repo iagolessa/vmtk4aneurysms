@@ -3,6 +3,7 @@ from __future__ import absolute_import
 __all__ = [
     '.vmtkextractaneurysm',
     '.vmtkextractrawsurface',
+    '.vmtkextractembolizedaneurysmsurface'
     '.vmtkmeshpointdatatocelldata',
     '.vmtksurfaceclipaddflowextension',
     '.vmtksurfaceremeshwithresolution',
