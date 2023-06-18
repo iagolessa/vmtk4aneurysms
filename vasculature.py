@@ -224,24 +224,11 @@ class Vasculature:
                                       )
 
             else:
-                raise NotImplementedError(
-                          "Automatic clipping not yet implemented."
-                      )
-
-                # TODO: to compute the aneurysm automatically, it is necessary
-                # to compute inside this class the healthy vessel.
-
-                # The only place where the parent vessel is needed is here. So
-                # this is the natural place to compute it
-                parentVesselSurface = HealthyVesselReconstruction(
-                                          self._surface_model.GetSurfaceObject(),
-                                          aneurysm_prop["aneurysm_type"]
-                                      )
-
+                # This function already computes the parent vessels
                 aneurysm_surface = ExtractAneurysmSacSurface(
                                        self._surface_model.GetSurfaceObject(),
                                        mode="automatic",
-                                       parent_vascular_surface=parentVesselSurface,
+                                       aneurysm_type=aneurysm_prop["aneurysm_type"]
                                    )
 
             self._aneurysm_model = aneu.Aneurysm(

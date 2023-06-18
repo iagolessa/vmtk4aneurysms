@@ -839,7 +839,8 @@ def _extract_aneurysmal_region(
         vascular_surface: names.polyDataType,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        aneurysmal_region_array: str=_initialAneurysmArrayName
+        aneurysmal_region_array: str=_initialAneurysmArrayName,
+        aneurysm_type: str=""
     )   -> names.polyDataType:
     """Marks the aneurysmal region with an array and extract the vessel portion
     where the aneurysm grew.
@@ -857,8 +858,13 @@ def _extract_aneurysmal_region(
     if parent_vascular_centerline is None and \
        parent_vascular_surface is None:
 
-        # Use the actual vascular surface
-        parentCenterlines = cl.GenerateCenterlines(vascular_surface)
+        # Compute healthy vasculature
+        parent_vascular_surface = HealthyVesselReconstruction(
+                                      vascular_surface,
+                                      aneurysm_type
+                                  )
+
+        parentCenterlines = cl.GenerateCenterlines(parent_vascular_surface)
 
     elif parent_vascular_centerline is None and \
          parent_vascular_surface is not None:
@@ -1166,7 +1172,8 @@ def ComputeAneurysmNeckPlane(
                             vascular_surface,
                             parent_vascular_surface=parent_vascular_surface,
                             parent_vascular_centerline=parent_vascular_centerline,
-                            aneurysmal_region_array=_initialAneurysmArrayName
+                            aneurysmal_region_array=_initialAneurysmArrayName,
+                            aneurysm_type=aneurysm_type
                         )
 
     # Clip aneurysmal portion (scalars < 0)
@@ -1268,9 +1275,10 @@ def ComputeAneurysmNeckPlane(
 
 def ExtractAneurysmSacSurface(
         vascular_surface: names.polyDataType,
-        mode: str="automatic",
+        mode: str="interactive",
         parent_vascular_surface: names.polyDataType=None,
-        parent_vascular_centerline: names.polyDataType=None
+        parent_vascular_centerline: names.polyDataType=None,
+        aneurysm_type: str=""
     )   -> names.polyDataType:
     """Clip the aneurysm sac surface from the vascular surface model.
 
@@ -1292,7 +1300,7 @@ def ExtractAneurysmSacSurface(
 
     Optional
     --------
-    mode (str, default: 'automatic') -- the method to clip the aneurysm:
+    mode (str, default: 'interactive') -- the method to clip the aneurysm:
     'interactive', 'automatic', or 'plane'
 
     parent_vascular_surface (names.polyDataType, default: None) --
@@ -1301,6 +1309,10 @@ def ExtractAneurysmSacSurface(
     parent_vascular_centerline (names.polyDataType, default: None) -- instead
     of the parent (hypothetically healthy) vascular surface, its centerline can
     be passed
+
+    aneurysm_type (str, default: "", ["lateral", "bifurcation"]): mandatory if
+    'mode' is 'automatic' and 'parent_vascular_surface' is not passed, because
+    it is used in its computation
 
     Return
     aneurysm sac surface (names.polyDataType) -- the surface of the aneurysm
@@ -1326,7 +1338,8 @@ def ExtractAneurysmSacSurface(
                             vascular_surface,
                             parent_vascular_surface=parent_vascular_surface,
                             parent_vascular_centerline=parent_vascular_centerline,
-                            aneurysmal_region_array=names.DistanceToNeckArrayName
+                            aneurysmal_region_array=names.DistanceToNeckArrayName,
+                            aneurysm_type=aneurysm_type
                         )
 
         # Get the largest surface ifthere is any left disconnected region
