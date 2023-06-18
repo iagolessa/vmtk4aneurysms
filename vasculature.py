@@ -218,17 +218,31 @@ class Vasculature:
             print("Extracting aneurysm surface.")
 
             if self._manual_aneurysm:
-                extractAneurysm = v4aScripts.vmtkExtractAneurysm()
-                extractAneurysm.Surface = self._surface_model.GetSurfaceObject()
-                extractAneurysm.Execute()
-
-                aneurysm_surface = extractAneurysm.AneurysmSurface
+                aneurysm_surface = ExtractAneurysmSacSurface(
+                                          self._surface_model.GetSurfaceObject(),
+                                          mode="interactive"
+                                      )
 
             else:
-                # Extract aneurysm surface with plane neck
-                aneurysm_surface = AneurysmNeckPlane(
-                                        self._surface_model.GetSurfaceObject()
-                                    )
+                raise NotImplementedError(
+                          "Automatic clipping not yet implemented."
+                      )
+
+                # TODO: to compute the aneurysm automatically, it is necessary
+                # to compute inside this class the healthy vessel.
+
+                # The only place where the parent vessel is needed is here. So
+                # this is the natural place to compute it
+                parentVesselSurface = HealthyVesselReconstruction(
+                                          self._surface_model.GetSurfaceObject(),
+                                          aneurysm_prop["aneurysm_type"]
+                                      )
+
+                aneurysm_surface = ExtractAneurysmSacSurface(
+                                       self._surface_model.GetSurfaceObject(),
+                                       mode="automatic",
+                                       parent_vascular_surface=parentVesselSurface,
+                                   )
 
             self._aneurysm_model = aneu.Aneurysm(
                                         aneurysm_surface,

@@ -1293,7 +1293,7 @@ def ExtractAneurysmSacSurface(
     Optional
     --------
     mode (str, default: 'automatic') -- the method to clip the aneurysm:
-    'manual', 'automatic', or 'plane'
+    'interactive', 'automatic', or 'plane'
 
     parent_vascular_surface (names.polyDataType, default: None) --
     reconstructed parent vasculature
@@ -1312,7 +1312,7 @@ def ExtractAneurysmSacSurface(
     vascular_surface = tools.CleanupArrays(vascular_surface)
 
     # Based on the aailable methods, mark the surface with the neck array
-    if mode == "manual":
+    if mode == "interactive":
 
         markedSurface = MarkAneurysmSacManually(
                             vascular_surface,
