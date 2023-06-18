@@ -43,22 +43,22 @@ class vmtkSurfaceProjectCellField(pypes.pypeScript):
         )
 
         self.SetInputMembers([
-            ['Surface',	'i', 'vtkPolyData', 1, '', 
+            ['Surface',	'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
 
-            ['FieldName', 'fieldname', 'str', 1, '', 
+            ['FieldName', 'fieldname', 'str', 1, '',
                 'the name of the field to project'],
 
-            ['ReferenceSurface', 'r', 'vtkPolyData', 1, '', 
+            ['ReferenceSurface', 'r', 'vtkPolyData', 1, '',
                 'the reference surface', 'vmtksurfacereader'],
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 
+            ['Surface', 'o', 'vtkPolyData', 1, '',
                 'the output surface', 'vmtksurfacewriter']
         ])
 
-        
+
     def Execute(self):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')

@@ -23,25 +23,30 @@ from vmtk import pypes
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 
-# Defining the relation between the class name 'customScrpt'
-# and this file name
 vmtkextractrawsurface = 'vmtkExtractRawSurface'
 
-
 class vmtkExtractRawSurface(pypes.pypeScript):
-    def __init__(self):     
+    def __init__(self):
         pypes.pypeScript.__init__(self)
 
         self.Image   = None
         self.Surface = None
         self.Inflation = 0.0
         self.Level = 0.0
-#         self.vmtkRenderer = None
+        self.LevelSetsImage = None
+
+        # Default values
+        self.NumberOfIterations  = 300
+        self.PropagationScaling  = 0.5
+        self.CurvatureScaling    = 0.1
+        self.AdvectionScaling    = 1.0
+        self.SmoothingIterations = 20
+
         self.OwnRenderer = 0
         self.ShowOutput = False
-        
+
         self.SetScriptName('vmtkextractrawsurface')
-        self.SetScriptDoc('Extract raw surface from image.')
+        self.SetScriptDoc('Automatically extract raw surface from image.')
         self.SetInputMembers([
             ['Image','i','vtkImageData',1,'',
                 'the input image','vmtkimagereader'],
@@ -52,16 +57,34 @@ class vmtkExtractRawSurface(pypes.pypeScript):
             ['Inflation','inflation','float',1,'',
                 'inflation parameters of the Marching Cubes algorithm'],
 
+            ['NumberOfIterations','iterations','int',1,'(0,)',
+                'number of iterations of level sets algorithm'],
+
+            ['PropagationScaling','propagation','float',1,'(0.0,)',
+                'propagation scaling of level sets algorithm'],
+
+            ['CurvatureScaling','curvature','float',1,'(0.0,)',
+                'curvature scaling of level sets algorithm'],
+
+            ['AdvectionScaling','advection','float',1,'(0.0,)',
+                'advection scaling of level sets algorithm'],
+
+            ['SmoothingIterations','smoothingiterations','int',1,'(0,)',
+                'smoothing iterations of level sets algorithm'],
+
             ['ShowOutput','showoutput','bool',1,'',
                 'whether to see the final surface with image'],
 
         ])
 
         self.SetOutputMembers([
+            ['LevelSetsImage','olevelsets','vtkImageData',1,'',
+                'the output levels sets image','vmtkimagewriter'],
+
             ['Surface','o','vtkPolyData',1,'',
                 'the output surface','vmtksurfacewriter']
         ])
-    
+
 
     def ShowInputImage(self,obj):
 
@@ -75,10 +98,10 @@ class vmtkExtractRawSurface(pypes.pypeScript):
     def Execute(self):
         if self.Image == None:
             self.PrintError('Error: No Image.')
-                
+
         if not self.Level:
             self.PrintError('Error: No Level')
-        
+
         self.initializationImage = vmtkscripts.vmtkImageInitialization()
         self.initializationImage.Image = self.Image
         self.initializationImage.Method = 'isosurface'
@@ -86,25 +109,25 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         self.initializationImage.Interactive = 0
         self.initializationImage.Execute()
 
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-	# If image was generated from dicom above
         self.imageLevelSets = vmtkscripts.vmtkLevelSetSegmentation()
-        
+
         # Input image
         self.imageLevelSets.Image = self.initializationImage.Image
         self.imageLevelSets.InitialLevelSets = self.initializationImage.InitialLevelSets
-        self.imageLevelSets.NumberOfIterations  = 300
-        self.imageLevelSets.PropagationScaling  = 0.5
-        self.imageLevelSets.CurvatureScaling    = 0.1
-        self.imageLevelSets.AdvectionScaling    = 1.0
-        self.imageLevelSets.SmoothingIterations = 20
+        self.imageLevelSets.NumberOfIterations  = self.NumberOfIterations
+        self.imageLevelSets.PropagationScaling  = self.PropagationScaling
+        self.imageLevelSets.CurvatureScaling    = self.CurvatureScaling
+        self.imageLevelSets.AdvectionScaling    = self.AdvectionScaling
+        self.imageLevelSets.SmoothingIterations = self.SmoothingIterations
         self.imageLevelSets.Execute()
-        
+
+        self.LevelSetsImage = self.imageLevelSets.LevelSets
+
         self.marchingCubes = vmtkscripts.vmtkMarchingCubes()
         self.marchingCubes.Image = self.imageLevelSets.LevelSets
         self.marchingCubes.Level = self.Inflation
         self.marchingCubes.Execute()
-       
+
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInputData(self.marchingCubes.Surface)
         cleaner.Update()
@@ -112,7 +135,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         triangleFilter = vtk.vtkTriangleFilter()
         triangleFilter.SetInputConnection(cleaner.GetOutputPort())
         triangleFilter.Update()
-        
+
         self.Surface = triangleFilter.GetOutput()
 
         # Extract largest connected surface
@@ -126,15 +149,20 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         if self.ShowOutput:
             # Initialize renderer = surface + image
             self.vmtkRenderer = vmtkscripts.vmtkRenderer()
-            self.vmtkRenderer.AddKeyBinding('space', 'Show input image', self.ShowInputImage)
+            self.vmtkRenderer.AddKeyBinding(
+                'space',
+                'Show input image',
+                self.ShowInputImage
+            )
+
             self.vmtkRenderer.Initialize()
-            
+
             self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
             self.surfaceViewer.vmtkRenderer = self.vmtkRenderer
             self.surfaceViewer.Surface = self.Surface
-            self.surfaceViewer.Opacity = 0.5
+            self.surfaceViewer.Opacity = 0.4
             self.surfaceViewer.BuildView()
-            
+
             self.vmtkRenderer.Deallocate()
 
 

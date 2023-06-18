@@ -30,7 +30,7 @@ class vmtkMeshPointDataToCellData(pypes.pypeScript):
     def __init__(self):
 
         pypes.pypeScript.__init__(self)
-        
+
         self.Mesh = None
 
         self.SetScriptName('vmtkmeshpointdatatocelldata')

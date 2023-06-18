@@ -38,32 +38,32 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         self.OutsideValue = 0.2
 
         self.SetScriptName('vmtksurfaceremeshwithresolution')
-        self.SetScriptDoc("Script to remesh a surface based on a" 
-                           "resolution array defined on it created"     
-                           "by the user: the user must draw the array"  
+        self.SetScriptDoc("Script to remesh a surface based on a"
+                           "resolution array defined on it created"
+                           "by the user: the user must draw the array"
                            "on the surface with a drawing utility."
                            "The array scalar are the edge length factor"
-                           "for the remeshing. The array is smoothed" 
+                           "for the remeshing. The array is smoothed"
                            "before the remeshing procedure.")
 
         self.SetInputMembers([
-            ['Surface',	'i', 'vtkPolyData', 1, '', 
+            ['Surface', 'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
 
-            ['InsideValue', 'inside', 'float', 1, '(0.0,)', 
+            ['InsideValue', 'inside', 'float', 1, '(0.0,)',
                 'the edgelength size inside contour'],
 
-            ['OutsideValue', 'outside', 'float', 1, '(0.0,)', 
+            ['OutsideValue', 'outside', 'float', 1, '(0.0,)',
                 'the edgelength size outside contour'],
         ])
 
         self.SetOutputMembers([
-            ['Surface', 'o', 'vtkPolyData', 1, '', 
+            ['Surface', 'o', 'vtkPolyData', 1, '',
                 'the output surface', 'vmtksurfacewriter']
         ])
 
 
-        
+
     def Execute(self):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
@@ -75,7 +75,7 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
         triangulate.SetInputData(self.Surface)
         triangulate.Update()
 
-        # Creating resolution array 
+        # Creating resolution array
         resolutionArrayCreator = vmtkscripts.vmtkSurfaceRegionDrawing()
         resolutionArrayCreator.Surface = triangulate.GetOutput()
         resolutionArrayCreator.Binary = 1
@@ -91,7 +91,7 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
 
         self.Surface = cleaner.GetOutput()
 
-        # Smooth the resolution array 
+        # Smooth the resolution array
         resolutionArraySmoothing = vmtkscripts.vmtkSurfaceArraySmoothing()
         resolutionArraySmoothing.Surface = self.Surface
         resolutionArraySmoothing.SurfaceArrayName = resolutionArrayCreator.ContourScalarsArrayName
@@ -103,7 +103,7 @@ class vmtkSurfaceRemeshWithResolution(pypes.pypeScript):
 
         # Remesh procedure
         surfaceRemesh = vmtkscripts.vmtkSurfaceRemeshing()
-        surfaceRemesh.Surface = resolutionArraySmoothing.Surface 
+        surfaceRemesh.Surface = resolutionArraySmoothing.Surface
         surfaceRemesh.ElementSizeMode = 'edgelengtharray'
         surfaceRemesh.TargetEdgeLengthArrayName = resolutionArraySmoothing.SurfaceArrayName
         surfaceRemesh.TargetEdgeLengthFactor = 1

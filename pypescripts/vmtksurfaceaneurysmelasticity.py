@@ -15,10 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
-# Creating Python Class to handle aneurysms operations
-# My idea is to expand this class in the future:
-# extract the aneyurysm and calculate other geometric parameters
 import re
 import sys
 import vtk
