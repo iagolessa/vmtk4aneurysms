@@ -17,12 +17,14 @@
 
 import sys
 import vtk
-from numpy import where
+from numpy import mean, where
 
 from vmtk import pypes
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 from vtk.numpy_interface import dataset_adapter as dsa
+
+from vmtk4aneurysms.lib import polydatatools as tools
 
 # Defining the relation between the class name 'customScrpt'
 # and this file name
@@ -34,7 +36,10 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
 
         self.Image   = None
         self.Surface = None
+        self.CoilSurface = None
         self.Inflation = 0.0
+        self.Gamma = 1.0
+        self.CoilRegionThreshold = 0.25
         self.VascularLevel = 0.0
         self.CoilsLevel = 0.0
         self.ArrayName = "VasculatureWithoutCoilScalars"
@@ -62,6 +67,12 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
             ['CoilsLevel', 'coilslevel', 'float', 1, '',
                 'graylevels roughly corresponding to the coils isosurface'],
 
+            ['Gamma','gamma','float',1,'',
+                'value of new map range for the filtered image'],
+
+            ['CoilRegionThreshold','coilregionthreshold','float',1,'',
+                'value (above zero) that delimits an extended region of coils'],
+
             ['Inflation','inflation','float',1,'',
                 'inflation parameters of the Marching Cubes algorithm'],
 
@@ -72,7 +83,7 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
 
         self.SetOutputMembers([
             ['Surface', 'o', 'vtkPolyData', 1, '',
-                'the output surface','vmtksurfacewriter']
+                'the output surface','vmtksurfacewriter'],
         ])
 
     def ShowInputImage(self, obj):
@@ -81,6 +92,22 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
         self.imageViewer.vmtkRenderer = self.vmtkRenderer
         self.imageViewer.Image = self.Image
         self.imageViewer.BuildView()
+
+    def ShowCoilSurface(self, obj):
+
+        self.surfaceViewer2 = vmtkscripts.vmtkSurfaceViewer()
+        self.surfaceViewer2.vmtkRenderer = self.vmtkRenderer
+        self.surfaceViewer2.Surface = self.CoilSurface
+        self.surfaceViewer2.Opacity = 0.4
+        self.surfaceViewer2.Color = [0.0, 1.0, 0.0]
+        self.surfaceViewer2.Display = 1
+        self.surfaceViewer2.BuildView()
+
+
+    def ViewImage(self, image):
+        imageViewer = vmtkscripts.vmtkImageViewer()
+        imageViewer.Image = image
+        imageViewer.Execute()
 
     def GenerateImageLevelSet(self, image, level):
         # Get level sets image of the vascular and coiled portions
@@ -107,6 +134,41 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
 
         return imageLevelSets.LevelSets
 
+    def MapImageScalarsRange(self, image, new_range):
+        """Given a VTK image, map the image scalars values to a
+        specified range."""
+
+        normalizeLevelSets = vmtkscripts.vmtkImageShiftScale()
+        normalizeLevelSets.Image = image
+        normalizeLevelSets.MapRanges = True
+        normalizeLevelSets.OutputRange = new_range
+        normalizeLevelSets.Execute()
+
+        return normalizeLevelSets.Image
+
+    def ExtractSurfaceMarchingCubes(
+            self,
+            image,
+            level,
+            array_name="ImageScalars"
+        ):
+
+        marchingCubes = vmtkscripts.vmtkMarchingCubes()
+        marchingCubes.Image = image
+        marchingCubes.ArrayName = array_name
+        marchingCubes.Level = level
+        marchingCubes.Execute()
+
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(marchingCubes.Surface)
+        cleaner.Update()
+
+        triangleFilter = vtk.vtkTriangleFilter()
+        triangleFilter.SetInputConnection(cleaner.GetOutputPort())
+        triangleFilter.Update()
+
+        return triangleFilter.GetOutput()
+
     def Execute(self):
         if not self.Image:
             self.PrintError('Error: No Image.')
@@ -129,7 +191,22 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
                                      self.VascularLevel
                                  )
 
-        
+        # Set new map range of ImageScalars
+        newMapRange = [-self.Gamma, self.Gamma]
+
+        imageLevelSetsCoils = self.MapImageScalarsRange(
+                                  imageLevelSetsCoils,
+                                  newMapRange
+                              )
+
+        imageLevelSetsVascular = self.MapImageScalarsRange(
+                                     imageLevelSetsVascular,
+                                     newMapRange
+                                 )
+
+        # self.ViewImage(imageLevelSetsCoils)
+        # self.ViewImage(imageLevelSetsVascular)
+
         # Filter the vascular image with the coiled portion
         npLevelSetsCoils    = dsa.WrapDataObject(imageLevelSetsCoils)
         npLevelSetsVascular = dsa.WrapDataObject(imageLevelSetsVascular)
@@ -137,11 +214,11 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
         scalarsCoils       = npLevelSetsCoils.GetPointData().GetArray("ImageScalars")
         scalarsVasculature = npLevelSetsVascular.GetPointData().GetArray("ImageScalars")
 
-        # Filtering: set 1.0 (positive number in the coils region)
-        # filter a positive number (different then zero so a larger portion of
-        # the coil is removed)
-        threshold = 1.0
-        coiledPortionSetValue = 1.0
+        # Filtering: set 0.25 (positive number in the coils region) filter a
+        # positive number (different then zero so a larger portion of the coil
+        # is removed)
+        threshold = mean(newMapRange) + self.CoilRegionThreshold*max(newMapRange)
+        coiledPortionSetValue = max(newMapRange)
 
         vasculatureNoCoilsFields = where(
                                        scalarsCoils > threshold,
@@ -157,21 +234,11 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
         imageLevelSetsVascular = npLevelSetsVascular.VTKObject
 
         # Extract surface
-        marchingCubes = vmtkscripts.vmtkMarchingCubes()
-        marchingCubes.Image = imageLevelSetsVascular
-        marchingCubes.ArrayName = self.ArrayName
-        marchingCubes.Level = 0.0
-        marchingCubes.Execute()
-
-        cleaner = vtk.vtkCleanPolyData()
-        cleaner.SetInputData(marchingCubes.Surface)
-        cleaner.Update()
-
-        triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInputConnection(cleaner.GetOutputPort())
-        triangleFilter.Update()
-
-        self.Surface = triangleFilter.GetOutput()
+        self.Surface = self.ExtractSurfaceMarchingCubes(
+                           imageLevelSetsVascular,
+                           self.Inflation,
+                           array_name=self.ArrayName
+                       )
 
         # Extract largest connected surface
         surfaceConnected = vmtkscripts.vmtkSurfaceConnectivity()
@@ -181,22 +248,39 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
         # Get final surface
         self.Surface = surfaceConnected.Surface
 
+        # Estimate the coil surface used
+        self.CoilSurface = self.ExtractSurfaceMarchingCubes(
+                               imageLevelSetsCoils,
+                               0.0
+                           )
+
+
         if self.ShowOutput:
+            # Extract coil isosurface to show too
             # Initialize renderer = surface + image
             self.vmtkRenderer = vmtkscripts.vmtkRenderer()
+
             self.vmtkRenderer.AddKeyBinding(
                 'space',
                 'Show input image',
                 self.ShowInputImage
             )
+
+            self.vmtkRenderer.AddKeyBinding(
+                'c',
+                'Show estimated coil isosurface (green)',
+                self.ShowCoilSurface
+            )
+
             self.vmtkRenderer.Initialize()
-            
+
             self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
             self.surfaceViewer.vmtkRenderer = self.vmtkRenderer
             self.surfaceViewer.Surface = self.Surface
-            self.surfaceViewer.Opacity = 0.5
+            self.surfaceViewer.Opacity = 0.35
+            self.surfaceViewer.Color = [1.0, 0.0, 0.0]
             self.surfaceViewer.BuildView()
-            
+
             self.vmtkRenderer.Deallocate()
 
 if __name__ == '__main__':
