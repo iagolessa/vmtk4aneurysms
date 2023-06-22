@@ -84,6 +84,9 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
         self.SetOutputMembers([
             ['Surface', 'o', 'vtkPolyData', 1, '',
                 'the output surface','vmtksurfacewriter'],
+
+            ['CoilSurface', 'ocoil', 'vtkPolyData', 1, '',
+                'the output coil surface','vmtksurfacewriter'],
         ])
 
     def ShowInputImage(self, obj):
@@ -251,7 +254,7 @@ class vmtkExtractEmbolizedAneurysmSurface(pypes.pypeScript):
         # Estimate the coil surface used
         self.CoilSurface = self.ExtractSurfaceMarchingCubes(
                                imageLevelSetsCoils,
-                               0.0
+                               self.Inflation
                            )
 
 
