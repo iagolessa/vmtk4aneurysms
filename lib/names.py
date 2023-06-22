@@ -58,6 +58,7 @@ DistanceToNeckArrayName   = 'DistanceToNeck'
 ThicknessArrayName        = 'Thickness'
 VascularRadiusArrayName   = "MaximumInscribedSphereRadius"
 AbnormalFactorArrayName   = "AbnormalFactorArray"
+ElasticityArrayName       = "E"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility

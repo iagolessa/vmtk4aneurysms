@@ -57,7 +57,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         # Vasculature thickness parameters
         self.UniformWallToLumenRatio = False
         self.WallLumenRatio = const.WlrMedium
-        self.SmoothingIterations = 10
+        self.SmoothingIterations = 5
 
         # Aneurysm thickness parameters
         self.NeckComputationMode = "interactive"
@@ -278,7 +278,8 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                                dome_point=self.DomePoint,
                                abnormal_thickness=self.AbnormalHemodynamicsRegions,
                                atherosclerotic_factor=self.AtheroscleroticFactor,
-                               red_regions_factor=self.RedRegionsFactor
+                               red_regions_factor=self.RedRegionsFactor,
+                               nsmooth_iterations=self.SmoothingIterations
                            )
 
             if self.OwnRenderer:
@@ -293,14 +294,6 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                               set_uniform_wlr=self.UniformWallToLumenRatio,
                               uniform_wlr_value=self.WallLumenRatio
                            )
-
-        # After array create, smooth it hard
-        self.Surface = tools.SmoothSurfacePointField(
-                           self.Surface,
-                           self.ThicknessArrayName,
-                           niterations=self.SmoothingIterations
-                       )
-
 
         # Get all arrays
         newCellArrays  = [arr for arr in tools.GetCellArrays(self.Surface)
