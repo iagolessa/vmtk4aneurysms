@@ -274,7 +274,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
                                aneurysm_type=self.AneurysmType,
                                aneurysm_influence_dist=self.AneurysmInfluencedRegionDistance,
                                scale_factor=self.GlobalScaleFactor,
-                               parent_vessel_surface=self.ParentVesselSurface,
+                               parent_vascular_surface=self.ParentVesselSurface,
                                dome_point=self.DomePoint,
                                abnormal_thickness=self.AbnormalHemodynamicsRegions,
                                atherosclerotic_factor=self.AtheroscleroticFactor,

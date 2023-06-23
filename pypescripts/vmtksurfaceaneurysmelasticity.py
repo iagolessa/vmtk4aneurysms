@@ -156,7 +156,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
                            neck_comp_mode=self.NeckComputationMode,
                            gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
                            aneurysm_type=self.AneurysmType,
-                           parent_vessel_surface=self.ParentVesselSurface,
+                           parent_vascular_surface=self.ParentVesselSurface,
                            dome_point=self.DomePoint,
                            abnormal_elasticity=self.AbnormalHemodynamicsRegions,
                            atherosclerotic_factor=self.AtheroscleroticFactor,
