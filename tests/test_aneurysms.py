@@ -15,6 +15,7 @@
 """Test the aneurysms.py."""
 
 import os
+import re
 import sys
 import vtk
 import unittest
@@ -24,6 +25,9 @@ import pandas as pd
 import aneurysms as ia
 
 _SMALL = 1e-6
+
+def addSpaceCapitals(word):
+    return re.sub(r"(\w)([A-Z])", r"\1 \2", word)
 
 def relative_diff(value, reference):
     return abs(value - reference)/(reference + _SMALL)
@@ -257,12 +261,6 @@ class TestAneurysmModule(unittest.TestCase):
         def select_diff_measure(parameter):
             return relative_diff if parameter in higherOrderMetrics else absolute_diff
 
-        diffs = {label: {param: select_diff_measure(param)(
-                                    dictMorphology[label + "-measured"][param],
-                                    dictMorphology[label + "-model"][param]
-                                ) for param in metrics}
-                 for label in modelSurfaces.keys()}
-
         # This tolerance was set as an upper threshold, and applied to all
         # metrics irrespective of their nature (either 1D, 2D or 3D) or how the
         # difference was computed (either absolute or relative) so this should
@@ -274,14 +272,29 @@ class TestAneurysmModule(unittest.TestCase):
         # for the surface models decreases.
         tol = 1e-2
 
-        toleranceTest = np.all(
-                            pd.DataFrame.from_dict(
-                                diffs,
-                                orient="index"
-                            ).T < tol
-                        )
+        for label in modelSurfaces.keys():
+            print("\nInspecting {}:".format(label), end="\n")
+            print("\t Parameter              Model   Measured    Diff.", end="\n")
+            print("\t ---------------------  -----   --------    -----", end="\n")
 
-        self.assertTrue(toleranceTest)
+            for param in metrics:
+                measured = dictMorphology[label + "-measured"][param]
+                model = dictMorphology[label + "-model"][param]
+
+                diff = select_diff_measure(param)(measured, model)
+
+                print(
+                    "\t {:22s}    {:4.2f}    {:4.2f}    {:4.2e}".format(
+                        addSpaceCapitals(param),
+                        model,
+                        measured,
+                        diff
+                    ),
+                    end="\n"
+                )
+
+                self.assertTrue(diff < tol)
+
 
 if __name__=='__main__':
     unittest.main()
