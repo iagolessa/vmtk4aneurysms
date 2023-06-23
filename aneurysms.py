@@ -36,7 +36,6 @@ from lib import polydatatools as tools
 from lib import polydatageometry as geo
 from lib import polydatamath as pmath
 
-_cellEntityIdsArrayName = "CellEntityIds"
 
 # Name of the field defined on a vascular surface that identifies the parent
 # artery with zero values and one the rest of the surface.
@@ -267,7 +266,7 @@ class Aneurysm:
         # capper.SetInputData(self._aneurysm_surface)
 
         # Common attributes
-        capper.SetCellEntityIdsArrayName(_cellEntityIdsArrayName)
+        capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
         capper.SetCellEntityIdOffset(-1) # The ostium surface will be 0
         capper.Update()
 
@@ -355,7 +354,7 @@ class Aneurysm:
         # Return a vtkUnstructuredGrid -> needs conversion to vtkPolyData
         getNeckSurface = vtk.vtkThreshold()
         getNeckSurface.SetInputData(self._cap_aneurysm())
-        getNeckSurface.SetInputArrayToProcess(0,0,0,1,_cellEntityIdsArrayName)
+        getNeckSurface.SetInputArrayToProcess(0,0,0,1,names.CellEntityIdsArrayName)
         getNeckSurface.ThresholdBetween(self._neck_index, self._neck_index)
         getNeckSurface.Update()
 
@@ -404,7 +403,7 @@ class Aneurysm:
         # Get only ostium surface (id = 0)
         getNeckSurface = vtk.vtkThreshold()
         getNeckSurface.SetInputData(normals.GetOutput())
-        getNeckSurface.SetInputArrayToProcess(0,0,0,1,_cellEntityIdsArrayName)
+        getNeckSurface.SetInputArrayToProcess(0,0,0,1,names.CellEntityIdsArrayName)
         getNeckSurface.ThresholdBetween(self._neck_index, self._neck_index)
         getNeckSurface.Update()
 
@@ -775,21 +774,21 @@ class Aneurysm:
         curvatureSurface = npCurvSurface.VTKObject
 
         GAA = pmath.SurfaceAverage(
-                    curvatureSurface, 
+                    curvatureSurface,
                     curvatureArrays["Gauss"]
                 )
 
         MAA = pmath.SurfaceAverage(
-                    curvatureSurface, 
+                    curvatureSurface,
                     curvatureArrays["Mean"]
                 )
 
         surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
-                                curvatureSurface, 
+                                curvatureSurface,
                                 nameSqrGaussCurv
                             )
         surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
-                                curvatureSurface, 
+                                curvatureSurface,
                                 nameSqrMeanCurv
                             )
 
@@ -798,8 +797,8 @@ class Aneurysm:
 
         # Computing the hyperbolic L2-norm
         hyperbolicPatches = tools.ClipWithScalar(
-                                curvatureSurface, 
-                                curvatureArrays["Gauss"], 
+                                curvatureSurface,
+                                curvatureArrays["Gauss"],
                                 float(const.zero)
                             )
         hyperbolicArea    = geo.Surface.Area(hyperbolicPatches)
@@ -807,7 +806,7 @@ class Aneurysm:
         # Check if there is any hyperbolic areas
         if hyperbolicArea > 0.0:
             surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
-                                                        hyperbolicPatches, 
+                                                        hyperbolicPatches,
                                                         nameSqrGaussCurv
                                                     )
 
@@ -815,8 +814,8 @@ class Aneurysm:
         else:
             HGLN = 0.0
 
-        return {"MAA": MAA, 
-                "GAA": GAA, 
-                "MLN": MLN, 
+        return {"MAA": MAA,
+                "GAA": GAA,
+                "MLN": MLN,
                 "GLN": GLN,
                 "HGLN": HGLN}

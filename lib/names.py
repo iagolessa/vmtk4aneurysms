@@ -51,6 +51,7 @@ min_ = '_minimum'
 max_ = '_maximum'
 
 # important fields names
+CellEntityIdsArrayName    = "CellEntityIds"
 AneurysmalRegionArrayName = "AneurysmalRegionArray"
 GeodesicDistanceArrayName = "GeodesicDistance"
 WallTypeArrayName         = "WallType"
