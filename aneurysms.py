@@ -282,6 +282,7 @@ class Aneurysm:
         self._neck_index = int(const.zero)
 
         self._aneurysm_surface = tools.Cleaner(surface)
+        self._neck_contour = self._compute_neck_contour()
         self._ostium_surface = GenerateOstiumSurface(
                                    self._aneurysm_surface,
                                    compute_normals=True
@@ -381,7 +382,7 @@ class Aneurysm:
 
         return polyData
 
-    def _neck_contour(self):
+    def _compute_neck_contour(self):
         """Return boundary of aneurysm surface (== neck contour)"""
         boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
         boundaryExtractor.SetInputData(self._aneurysm_surface)
@@ -393,9 +394,7 @@ class Aneurysm:
         """Return the neck contour barycenter as a Numpy array."""
 
         # Get neck contour
-        neckContour = self._neck_contour()
-
-        return geo.ContourBarycenter(neckContour)
+        return geo.ContourBarycenter(self._neck_contour)
 
     def _compute_ostium_normal_vector(self):
         """Calculate the normal vector to the aneurysm ostium surface/plane.
@@ -464,21 +463,11 @@ class Aneurysm:
     def _compute_neck_diameter(self):
         """Return the neck diameter.
 
-        Compute neck diameter, defined as the hydraulic diameter of the ostium
-        surface or plane:
-
-        .. math::
-            D_n = 4A_n/p_n
-
-        where :math:`A_n` is the ostium surface area and :math:`p_n` is its
-        perimeter.
+        Compute neck diameter, defined as twice the averaged distance between
+        the neck contour barycenter and each point on the neck contour.
         """
-        ostiumPerimeter = geo.ContourPerimeter(self._neck_contour())
 
-        if ostiumPerimeter == 0.0:
-            sys.exit("Ostium perimeter is zero")
-
-        return const.four*self._ostium_area/ostiumPerimeter
+        return geo.ContourAverageDiameter(self._neck_contour)
 
     def _compute_max_normal_height(self):
         """Return the maximum normal height."""

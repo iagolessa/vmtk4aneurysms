@@ -279,6 +279,30 @@ def ContourHydraulicDiameter(
     # Return hydraulic diameter of neck
     return const.four*area/perimeter
 
+def ContourAverageDiameter(
+        contour: names.polyDataType
+    )   -> float:
+    """Compute the averaged diameter of a 3D contour.
+
+    Given a 3D contour in space, computes the average of the distance between
+    its barycenter and the points on the contour. Returns the double of it,
+    i.e. a measure of its diameter.
+    """
+
+    # Get contour barycenter
+    contourBarycenter = ContourBarycenter(contour)
+
+    # Compute distance between barycenter and contour points
+    npContour = dsa.WrapDataObject(contour)
+    contourPoints = npContour.GetPoints()
+
+    contourRadius = np.array(
+                        [Distance(point, contourBarycenter)
+                         for point in contourPoints]
+                    )
+
+    # Return hydraulic diameter of neck
+    return 2.0*contourRadius.mean()
 
 # TODO: review this function to check closed contour
 def ContourIsClosed(
