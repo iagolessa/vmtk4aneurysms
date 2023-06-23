@@ -40,6 +40,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.AneurysmType    = None
 
         self.ComputationMode = "interactive"
+        self.ParentVesselSurface = None
         self.ComputeOstium   = False
 
         self.vmtkRenderer    = None
@@ -58,6 +59,10 @@ class vmtkExtractAneurysm(pypes.pypeScript):
             ['ComputationMode','mode', 'str', 1,
                 '["interactive", "automatic", "plane"]',
                 'mode of neck ostium computation'],
+
+            ['ParentVesselSurface', 'iparentvessel', 'vtkPolyData', 1, '',
+                'the parent vessel surface (if not passed, computed externally)',
+                'vmtksurfacereader'],
 
             ['ComputeOstium','computeostium', 'bool', 1,'',
                 'do not generate ostium surface']
@@ -146,6 +151,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.AneurysmSurface = vscop.ExtractAneurysmSacSurface(
                                    self.Surface,
                                    mode=self.ComputationMode,
+                                   parent_vascular_surface=self.ParentVesselSurface,
                                    aneurysm_type=self.AneurysmType
                                )
 
