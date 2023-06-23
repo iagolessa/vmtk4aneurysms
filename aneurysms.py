@@ -30,11 +30,11 @@ from vmtk import vmtkscripts
 from scipy.spatial import ConvexHull
 
 # Local modules
-from lib import names
-from lib import constants as const
-from lib import polydatatools as tools
-from lib import polydatageometry as geo
-from lib import polydatamath as pmath
+from vmtk4aneurysms.lib import names
+from vmtk4aneurysms.lib import constants as const
+from vmtk4aneurysms.lib import polydatatools as tools
+from vmtk4aneurysms.lib import polydatageometry as geo
+from vmtk4aneurysms.lib import polydatamath as pmath
 
 
 # Name of the field defined on a vascular surface that identifies the parent
@@ -274,8 +274,12 @@ class Aneurysm:
         self._neck_index = int(const.zero)
 
         self._aneurysm_surface = tools.Cleaner(surface)
-        self._ostium_surface = self._gen_ostium_surface()
-        self._ostium_normal_vector = self._gen_ostium_normal_vector()
+        self._ostium_surface = GenerateOstiumSurface(
+                                   self._aneurysm_surface,
+                                   compute_normals=True
+                               )
+
+        self._ostium_normal_vector = self._compute_ostium_normal_vector()
 
         # Compute ostium surface area
         # Compute areas...
@@ -296,36 +300,19 @@ class Aneurysm:
         self._max_diameter, self._bulge_height = self._compute_max_diameter()
 
     def _cap_aneurysm(self):
-        """Cap aneurysm neck with triangles.
+        """Cap aneurysm with the computed ostium surface.
 
         Return the aneurysm surface 'capped', i.e. with a surface covering the
-        neck region. The surface is created with the vtkvmtkCapPolyData()
-        filter and build this neck or ostium surface by joining the neck
-        vertices with its barycenter with triangles. The original aneurysm
-        surface and the neck one are defined by a CellEntityIds array defined
-        on them, with zero values on the ostium surface.
+        neck region. The surface is the same created as the ostium surface
+        using the smooth method.
         """
 
-        # TODO: I noticed that sometimes the cap
-        # algorithm does not generate correct array values for each cap
-        # Investigate that
+        appendFilter = vtk.vtkAppendPolyData()
+        appendFilter.AddInputData(self._aneurysm_surface)
+        appendFilter.AddInputData(self._ostium_surface)
+        appendFilter.Update()
 
-        # The centerpoint approach seems to be the best
-        capper = vtkvmtk.vtkvmtkCapPolyData()
-        capper.SetInputData(self._aneurysm_surface)
-        capper.SetDisplacement(const.zero)
-        capper.SetInPlaneDisplacement(const.zero)
-
-        # Alternative strategy: using the simple approach
-        # capper = vtkvmtk.vtkvmtkSimpleCapPolyData()
-        # capper.SetInputData(self._aneurysm_surface)
-
-        # Common attributes
-        capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
-        capper.SetCellEntityIdOffset(-1) # The ostium surface will be 0
-        capper.Update()
-
-        return capper.GetOutput()
+        return appendFilter.GetOutput()
 
     def _make_vtk_id_list(self, it):
         vil = vtk.vtkIdList()
@@ -402,78 +389,26 @@ class Aneurysm:
 
         return geo.ContourBarycenter(neckContour)
 
-    def _gen_ostium_surface(self):
-        """Generate aneurysm' ostium surface."""
-
-        # Use thrshold filter to get neck plane
-        # Return a vtkUnstructuredGrid -> needs conversion to vtkPolyData
-        getNeckSurface = vtk.vtkThreshold()
-        getNeckSurface.SetInputData(self._cap_aneurysm())
-        getNeckSurface.SetInputArrayToProcess(0,0,0,1,names.CellEntityIdsArrayName)
-        getNeckSurface.ThresholdBetween(self._neck_index, self._neck_index)
-        getNeckSurface.Update()
-
-        # Converts vtkUnstructuredGrid -> vtkPolyData
-        neckSurface = tools.UnsGridToPolyData(getNeckSurface.GetOutput())
-
-        ostiumRemesher = vmtkscripts.vmtkSurfaceRemeshing()
-        ostiumRemesher.Surface = tools.Cleaner(neckSurface)
-        ostiumRemesher.ElementSizeMode = 'edgelength'
-        ostiumRemesher.TargetEdgeLength = 0.15
-        ostiumRemesher.TargetEdgeLengthFactor = 1.0
-        ostiumRemesher.PreserveBoundaryEdges = 1
-        ostiumRemesher.Execute()
-
-        ostiumSmoother = vmtkscripts.vmtkSurfaceSmoothing()
-        ostiumSmoother.Surface = tools.CleanupArrays(ostiumRemesher.Surface)
-        ostiumSmoother.Method = 'taubin'
-        ostiumSmoother.NumberOfIterations = 30
-        ostiumSmoother.PassBand = 0.1
-        ostiumSmoother.BoundarySmoothing = 0
-        ostiumSmoother.Execute()
-
-        return ostiumSmoother.Surface
-
-    def _gen_ostium_normal_vector(self):
+    def _compute_ostium_normal_vector(self):
         """Calculate the normal vector to the aneurysm ostium surface/plane.
 
         The outwards normal unit vector to the ostium surface is computed by
         summing the normal vectors to each cell of the ostium surface.
         Rigorously, the neck plane vector should be computed with the actual
         neck *plane*, however, there are other ways to compute the aneurysm
-        neck which is not based on a plane surface. In this scenario, it is
+        neck that are not based on a plane surface. In this scenario, it is
         robust enough to employ the approach used here because it provides a
         'sense of normal direction' to the neck line, be it a 3D curved path in
         space.
 
         In any case, if an actual plane is passed, the function will work.
         """
-        # Compute outwards normals
-        normals = vtk.vtkPolyDataNormals()
-        normals.SetInputData(self._cap_aneurysm())
-        normals.ComputeCellNormalsOn()
-        normals.ComputePointNormalsOff()
-        normals.Update()
-
-        # Get only ostium surface (id = 0)
-        getNeckSurface = vtk.vtkThreshold()
-        getNeckSurface.SetInputData(normals.GetOutput())
-        getNeckSurface.SetInputArrayToProcess(0,0,0,1,names.CellEntityIdsArrayName)
-        getNeckSurface.ThresholdBetween(self._neck_index, self._neck_index)
-        getNeckSurface.Update()
-
-        # Converts vtkUnstructuredGrid -> vtkPolyData
-        ostiumSurface = tools.UnsGridToPolyData(getNeckSurface.GetOutput())
-
-        # Convert to points
-        cellCenter = vtk.vtkCellCenters()
-        cellCenter.SetInputData(ostiumSurface)
-        cellCenter.Update()
 
         # Use Numpy
-        npSurface = dsa.WrapDataObject(cellCenter.GetOutput())
+        npSurface = dsa.WrapDataObject(self._ostium_surface)
 
-        neckNormalsVector = npSurface.GetPointData().GetArray("Normals").sum(axis=0)
+        # Compute normalized sum of the normals
+        neckNormalsVector = npSurface.GetCellData().GetArray(names.normals).sum(axis=0)
         neckNormalsVector /= np.linalg.norm(neckNormalsVector)
 
         return tuple(neckNormalsVector)
