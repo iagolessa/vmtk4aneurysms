@@ -21,9 +21,11 @@ import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from vmtk import pypes
+from pprint import PrettyPrinter
 
+from vmtk4aneurysms.aneurysms import Aneurysm
+from vmtk4aneurysms.lib.polydatatools import RemeshSurface
 from vmtk4aneurysms.vascular_operations import ExtractAneurysmSacSurface
-from vmtk4aneurysms.aneurysms import GenerateOstiumSurface
 
 vmtkextractaneurysm = 'vmtkExtractAneurysm'
 
@@ -38,10 +40,10 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.VesselSurface   = None
         self.OstiumSurface   = None
         self.AneurysmType    = None
+        self.AneurysmStatus  = None
 
         self.ComputationMode = "interactive"
         self.ParentVesselSurface = None
-        self.ComputeOstium   = False
 
         self.SetScriptName('vmtkextractaneurysm')
         self.SetScriptDoc('extract aneurysm from vascular surface')
@@ -53,16 +55,16 @@ class vmtkExtractAneurysm(pypes.pypeScript):
             ['AneurysmType','type', 'str', 1, '["lateral", "bifurcation"]',
                 'aneurysm type'],
 
+            ['AneurysmStatus','status', 'str', 1, '["ruptured", "unruptured"]',
+                'rupture status'],
+
             ['ComputationMode','mode', 'str', 1,
                 '["interactive", "automatic", "plane"]',
                 'mode of neck ostium computation'],
 
             ['ParentVesselSurface', 'iparentvessel', 'vtkPolyData', 1, '',
                 'the parent vessel surface (if not passed, computed externally)',
-                'vmtksurfacereader'],
-
-            ['ComputeOstium','computeostium', 'bool', 1,'',
-                'do not generate ostium surface']
+                'vmtksurfacereader']
         ])
 
         self.SetOutputMembers([
@@ -92,12 +94,43 @@ class vmtkExtractAneurysm(pypes.pypeScript):
                                    aneurysm_type=self.AneurysmType
                                )
 
-        # Generate ostium surface
-        if self.ComputeOstium:
-            self.OstiumSurface = GenerateOstiumSurface(
-                                    self.AneurysmSurface,
-                                    compute_normals=True
-                                )
+        # Generate an aneurysm object
+        aneurysm = Aneurysm(
+                       self.AneurysmSurface,
+                       aneurysm_type=self.AneurysmType,
+                       status=self.AneurysmStatus
+                   )
+
+        # Print aneurysm indices and metrics
+        methods = [param for param in dir(Aneurysm)
+                   if param.startswith("Get")]
+
+        # Remove metrics that are not analyzed
+        methods.remove("GetSurface")
+        methods.remove("GetOstiumSurface")
+        methods.remove("GetHullSurface")
+
+        # Get methods of each aneurysm model
+        self.OutputText("Computing metrics of aneurysm models.\n")
+
+        attributes = {}
+
+        for method in methods:
+
+            # Get only float (exclude surfaces)
+            attr = getattr(aneurysm, method)()
+            attributes.update(
+                {method.replace("Get", ''): attr}
+            )
+
+        pp = PrettyPrinter(depth=2)
+        pp.pprint(
+            attributes
+        )
+
+        # Get ostium surface
+        self.OstiumSurface = RemeshSurface(aneurysm.GetOstiumSurface())
+
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
