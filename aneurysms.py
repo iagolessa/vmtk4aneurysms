@@ -141,6 +141,50 @@ def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
 
     return smoother.Surface
 
+def GenerateOstiumSurface(
+        aneurysm_sac_surface: names.polyDataType
+    )   -> names.polyDataType:
+    """ Generate an ostium surface based on the aneurysm neck.
+
+    The ostium surface, by definition, is the imaginary surface that 'closes'
+    the aneurysm neck. This functions estimates this surface by using the
+    'smooth' capping method from vtkvtmk. It 'caps' the aneruysm sac with a
+    surface that is smooth and, then, extracts it. The algorithm finally
+    remeshes is for a better quality surface , but keeping its boundary (the
+    neck contour) intact.
+    """
+
+    # Close the aneurysm with the 'smooth' method, which was the best to fit a
+    # generic 3D contour
+    capper = vtkvmtk.vtkvmtkSmoothCapPolyData()
+    capper.SetInputData(aneurysm_sac_surface)
+    capper.SetConstraintFactor(0.20)
+    capper.SetNumberOfRings(8)
+    capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
+    capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
+    capper.Update()
+
+    # Get maximum id of the surfaces
+    ostiumId = max(
+                   capper.GetOutput().GetCellData().GetArray(
+                       names.CellEntityIdsArrayName
+                   ).GetRange()
+               )
+
+    ostiumSurface = tools.ExtractPortion(
+                        capper.GetOutput(),
+                        names.CellEntityIdsArrayName,
+                        ostiumId
+                    )
+
+    # Remesh: the smooth capping may add too deformed cells
+    ostiumSurface = tools.RemeshSurface(
+                        tools.UnsGridToPolyData(ostiumSurface)
+                    )
+
+    # Add a little bit of smoothing
+    return tools.SmoothSurface(ostiumSurface)
+
 class Aneurysm:
     """Representation for saccular cerebral aneurysms.
 

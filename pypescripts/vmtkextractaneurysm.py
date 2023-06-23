@@ -20,10 +20,10 @@ import vtk
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
-from vmtk import vmtkrenderer
 from vmtk import pypes
 
-from vmtk4aneurysms import vascular_operations as vscop
+from vmtk4aneurysms.vascular_operations import ExtractAneurysmSacSurface
+from vmtk4aneurysms.aneurysms import GenerateOstiumSurface
 
 vmtkextractaneurysm = 'vmtkExtractAneurysm'
 
@@ -42,9 +42,6 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.ComputationMode = "interactive"
         self.ParentVesselSurface = None
         self.ComputeOstium   = False
-
-        self.vmtkRenderer    = None
-        self.OwnRenderer     = 0
 
         self.SetScriptName('vmtkextractaneurysm')
         self.SetScriptDoc('extract aneurysm from vascular surface')
@@ -77,69 +74,9 @@ class vmtkExtractAneurysm(pypes.pypeScript):
              'vmtksurfacewriter'],
         ])
 
-    def GenerateOstium(self):
-        """ Generate an ostium surface based on the aneurysm neck array."""
-
-        cellEntityIdsArrayName = "CellEntityIds"
-        method = 'centerpoint' # or simple
-
-        if method == 'simple':
-            capper = vtkvmtk.vtkvmtkSimpleCapPolyData()
-            capper.SetInputData(self.AneurysmSurface)
-        else:
-            capper = vtkvmtk.vtkvmtkCapPolyData()
-            capper.SetInputData(self.AneurysmSurface)
-            capper.SetDisplacement(0.0)
-            capper.SetInPlaneDisplacement(0.0)
-
-        capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
-        capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
-        capper.Update()
-
-        # Get maximum id of the surfaces
-        ids = capper.GetOutput().GetCellData().GetArray(cellEntityIdsArrayName).GetRange()
-        ostiumId = max(ids)
-
-        ostiumExtractor = vtk.vtkThreshold()
-        ostiumExtractor.SetInputData(capper.GetOutput())
-        ostiumExtractor.SetInputArrayToProcess(0, 0, 0, 1, cellEntityIdsArrayName)
-        ostiumExtractor.ThresholdBetween(ostiumId, ostiumId)
-        ostiumExtractor.Update()
-
-        # Converts vtkUnstructuredGrid -> vtkPolyData
-        gridToSurfaceFilter = vtk.vtkGeometryFilter()
-        gridToSurfaceFilter.SetInputData(ostiumExtractor.GetOutput())
-        gridToSurfaceFilter.Update()
-
-        ostiumRemesher = vmtkscripts.vmtkSurfaceRemeshing()
-        ostiumRemesher.Surface = gridToSurfaceFilter.GetOutput()
-        ostiumRemesher.ElementSizeMode = 'edgelength'
-        ostiumRemesher.TargetEdgeLength = 0.1
-        ostiumRemesher.TargetEdgeLengthFactor = 1.0
-        ostiumRemesher.PreserveBoundaryEdges = 1
-        ostiumRemesher.Execute()
-
-        ostiumSmoother = vmtkscripts.vmtkSurfaceSmoothing()
-        ostiumSmoother.Surface = ostiumRemesher.Surface
-        ostiumSmoother.Method = 'taubin'
-        ostiumSmoother.NumberOfIterations = 30
-        ostiumSmoother.PassBand = 0.1
-        ostiumSmoother.BoundarySmoothing = 0
-        ostiumSmoother.Execute()
-
-        self.OstiumSurface = ostiumSmoother.Surface
-
     def Execute(self):
         if not self.Surface:
             self.PrintError('Error: no Surface.')
-
-        # Initialize renderer
-        if not self.vmtkRenderer:
-            self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
-            self.vmtkRenderer.Initialize()
-            self.OwnRenderer = 1
-
-        self.vmtkRenderer.RegisterScript(self)
 
         # Filter input surface
         triangleFilter = vtk.vtkTriangleFilter()
@@ -148,7 +85,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
         self.Surface = triangleFilter.GetOutput()
 
-        self.AneurysmSurface = vscop.ExtractAneurysmSacSurface(
+        self.AneurysmSurface = ExtractAneurysmSacSurface(
                                    self.Surface,
                                    mode=self.ComputationMode,
                                    parent_vascular_surface=self.ParentVesselSurface,
@@ -157,10 +94,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
         # Generate ostium surface
         if self.ComputeOstium:
-            self.GenerateOstium()
-
-        if self.OwnRenderer:
-            self.vmtkRenderer.Deallocate()
+            self.OstiumSurface = GenerateOstiumSurface(self.AneurysmSurface)
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
