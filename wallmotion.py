@@ -19,13 +19,13 @@ import sys
 import vtk
 from vtk.numpy_interface import dataset_adapter as dsa
 
-from .lib import names
-from .lib import constants as const
-from .lib import polydatatools as tools
-from .lib import polydatageometry as geo
+from vmtk4aneurysms.lib import names
+from vmtk4aneurysms.lib import constants as const
+from vmtk4aneurysms.lib import polydatatools as tools
+from vmtk4aneurysms.lib import polydatageometry as geo
 
-from . import aneurysms as aneu
-from . import vascular_operations as vscop
+from vmtk4aneurysms.aneurysms import Aneurysm
+from vmtk4aneurysms.vascular_operations import MarkAneurysmSacManually
 
 # Dictionalry holding the IDs of each wall type
 # See docstring of func WallTypeClassification
@@ -73,8 +73,8 @@ def AneurysmPulsatility(
                                              aneurysm_neck_array_name,
                                              const.NeckIsoValue)
 
-    ldAneurysm = aneu.Aneurysm(ldAneurysmSurface)
-    psAneurysm = aneu.Aneurysm(psAneurysmSurface)
+    ldAneurysm = Aneurysm(ldAneurysmSurface)
+    psAneurysm = Aneurysm(psAneurysmSurface)
 
     return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
 
@@ -108,7 +108,7 @@ def AneurysmPulsatility2(
     if aneurysm_neck_array_name not in tools.GetPointArrays(lumenSurface):
         print("Neck array name not in surface. Computing it.")
 
-        lumenSurface = vscop.MarkAneurysmSacManually(
+        lumenSurface = MarkAneurysmSacManually(
                            lumenSurface,
                            aneurysm_neck_array_name=aneurysm_neck_array_name
                        )
@@ -130,8 +130,8 @@ def AneurysmPulsatility2(
                                              const.NeckIsoValue)
 
     # Initiate aneurysm model
-    ldAneurysm = aneu.Aneurysm(ldAneurysmSurface)
-    psAneurysm = aneu.Aneurysm(psAneurysmSurface)
+    ldAneurysm = Aneurysm(ldAneurysmSurface)
+    psAneurysm = Aneurysm(psAneurysmSurface)
 
     # Compute pulsatility
     return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
@@ -189,7 +189,7 @@ def WallTypeClassification(
     if distance_to_neck_array not in arraysInSurface:
         print("Distance to neck array name not in surface. Computing it.")
 
-        surface = vscop.MarkAneurysmSacManually(
+        surface = MarkAneurysmSacManually(
                       surface,
                       aneurysm_neck_array_name=distance_to_neck_array
                   )

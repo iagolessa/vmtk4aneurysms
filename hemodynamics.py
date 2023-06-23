@@ -29,14 +29,15 @@ import vtk
 from vmtk import vtkvmtk
 from vtk.numpy_interface import dataset_adapter as dsa
 
-from .lib import names
-from .lib import constants as const
-from .lib import polydatatools as tools
-from .lib import polydatageometry as geo
-from .lib import polydatamath as pmath
-from .lib import foamtovtk as fvtk
+from vmtk4aneurysms.lib import names
+from vmtk4aneurysms.lib import constants as const
+from vmtk4aneurysms.lib import polydatatools as tools
+from vmtk4aneurysms.lib import polydatageometry as geo
+from vmtk4aneurysms.lib import polydatamath as pmath
+from vmtk4aneurysms.lib import foamtovtk as fvtk
 
-from . import aneurysms as aneu
+from vmtk4aneurysms.vascular_operations import MarkAneurysmSacManually
+from vmtk4aneurysms.aneurysms import SelectParentArtery
 
 # Default density used for WSS
 _density = 1056.0 # kg/m3
@@ -545,7 +546,7 @@ def AneurysmStats(
 
     if not neckArrayInSurface:
         # Compute neck array
-        neck_surface = aneu.SelectAneurysm(neck_surface)
+        neck_surface = MarkAneurysmSacManually(neck_surface)
 
     # Get aneurysm
     aneurysmSurface = tools.ClipWithScalar(
@@ -604,7 +605,7 @@ def LsaAverage(
 # the aneurysm
 def WssParentVessel(
         parent_artery_surface: names.polyDataType,
-        parent_artery_array: str = aneu.ParentArteryArrayName,
+        parent_artery_array: str = names.ParentArteryArrayName,
         parent_artery_iso_value: float = const.NeckIsoValue,
         wss_field: str = names.TAWSS
     )   -> float:
@@ -621,7 +622,7 @@ def WssParentVessel(
 
     if parent_artery_array not in pointArrays:
         # Compute parent artery portion
-        surface = aneu.SelectParentArtery(surface)
+        surface = SelectParentArtery(surface)
     else:
         pass
 

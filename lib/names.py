@@ -60,6 +60,7 @@ ThicknessArrayName        = 'Thickness'
 VascularRadiusArrayName   = "MaximumInscribedSphereRadius"
 AbnormalFactorArrayName   = "AbnormalFactorArray"
 ElasticityArrayName       = "E"
+ParentArteryArrayName     = "ParentArteryContourArray"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility
