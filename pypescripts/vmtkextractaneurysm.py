@@ -94,7 +94,10 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
         # Generate ostium surface
         if self.ComputeOstium:
-            self.OstiumSurface = GenerateOstiumSurface(self.AneurysmSurface)
+            self.OstiumSurface = GenerateOstiumSurface(
+                                    self.AneurysmSurface,
+                                    compute_normals=True
+                                )
 
 if __name__ == '__main__':
     main = pypes.pypeMain()

@@ -142,7 +142,8 @@ def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
     return smoother.Surface
 
 def GenerateOstiumSurface(
-        aneurysm_sac_surface: names.polyDataType
+        aneurysm_sac_surface: names.polyDataType,
+        compute_normals: bool=False
     )   -> names.polyDataType:
     """ Generate an ostium surface based on the aneurysm neck.
 
@@ -152,6 +153,9 @@ def GenerateOstiumSurface(
     surface that is smooth and, then, extracts it. The algorithm finally
     remeshes is for a better quality surface , but keeping its boundary (the
     neck contour) intact.
+
+    The outward normals to the ostium surface may be optionally added through
+    the option 'compute_normals'.
     """
 
     # Close the aneurysm with the 'smooth' method, which was the best to fit a
@@ -183,7 +187,14 @@ def GenerateOstiumSurface(
                     )
 
     # Add a little bit of smoothing
-    return tools.SmoothSurface(ostiumSurface)
+    ostiumSurface = tools.SmoothSurface(ostiumSurface)
+
+    # Add outward normal
+    if compute_normals:
+        return geo.Surface.Normals(ostiumSurface)
+
+    else:
+        return OstiumSurface
 
 class Aneurysm:
     """Representation for saccular cerebral aneurysms.

@@ -313,6 +313,15 @@ def RemeshSurface(
     )   -> names.polyDataType:
     """Remesh surface using VMTK and tageting the cell area size."""
 
+    # The remesh procedure destroys the arrays defined on the surface
+    # Keep a copy of the surface and interpolate the fields to the new one
+
+    # Store the point and cell array that were already on the surface
+    origCellArrays  = GetCellArrays(surface)
+    origPointArrays = GetPointArrays(surface)
+
+    copiedSurface = CopyVtkObject(surface)
+
     remesher = vmtkscripts.vmtkSurfaceRemeshing()
     remesher.Surface = surface
     remesher.ElementSizeMode = 'area'
@@ -320,7 +329,30 @@ def RemeshSurface(
     remesher.PreserveBoundaryEdges = 1
     remesher.Execute()
 
-    return remesher.Surface
+    # Clean up garbage arrays in remesh procedure
+    remeshedSurface = CleanupArrays(remesher.Surface)
+
+    # Interpolate back the fields
+    for arr in origCellArrays:
+        remeshedSurface = ProjectCellArray(
+                              remeshedSurface,
+                              copiedSurface,
+                              arr
+                          )
+
+    for arr in origPointArrays:
+        remeshedSurface = ProjectPointArray(
+                              remeshedSurface,
+                              copiedSurface,
+                              arr
+                          )
+
+    # The cell normals field depends on the new remeshed surface
+    # So, if it is on the surface, compute it separately
+    if names.normals in origCellArrays or names.normals in origPointArrays:
+        remeshedSurface = geo.Surface.Normals(remeshedSurface)
+
+    return remeshedSurface
 
 def GetCellArrays(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType]
@@ -1276,9 +1308,9 @@ class SelectContourPointsIds():
 
 # Code based on the vmtksurfacearraysmoothing.py script of the VMTK library
 def SmoothSurfacePointField(
-        surface: names.polyDataType, 
+        surface: names.polyDataType,
         field_name: str,
-        niterations: int=5, 
+        niterations: int=5,
         relax_factor: float=1.0
     )   -> names.polyDataType:
     """Smooths a field defined on a surface."""
