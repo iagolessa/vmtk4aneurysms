@@ -311,7 +311,11 @@ def RemeshSurface(
         surface: names.polyDataType,
         target_cell_area: float=0.01
     )   -> names.polyDataType:
-    """Remesh surface using VMTK and tageting the cell area size."""
+    """Remesh surface using VMTK and tageting the cell area size.
+
+    .. warning::
+        Use cautiously: it destroy all arrays on the surface.
+    """
 
     # The remesh procedure destroys the arrays defined on the surface
     # Keep a copy of the surface and interpolate the fields to the new one
@@ -330,27 +334,30 @@ def RemeshSurface(
     remesher.Execute()
 
     # Clean up garbage arrays in remesh procedure
+    remeshedSurface = Cleaner(remesher.Surface)
     remeshedSurface = CleanupArrays(remesher.Surface)
 
-    # Interpolate back the fields
-    for arr in origCellArrays:
-        remeshedSurface = ProjectCellArray(
-                              remeshedSurface,
-                              copiedSurface,
-                              arr
-                          )
+    # TODO: how to preserve the arrays on the remeshed surface?
+    # # The cell normals field depends on the new remeshed surface
+    # # So, if it is on the surface, compute it separately
+    # if names.normals in origCellArrays or names.normals in origPointArrays:
+    #     remeshedSurface = geo.Surface.Normals(remeshedSurface)
 
-    for arr in origPointArrays:
-        remeshedSurface = ProjectPointArray(
-                              remeshedSurface,
-                              copiedSurface,
-                              arr
-                          )
+    # # Interpolate back the fields
+    # if origCellArrays:
+    #     for arr in origCellArrays:
+    #         remeshedSurface = ProjectCellArray(
+    #                               remeshedSurface,
+    #                               copiedSurface,
+    #                               arr
+    #                           )
 
-    # The cell normals field depends on the new remeshed surface
-    # So, if it is on the surface, compute it separately
-    if names.normals in origCellArrays or names.normals in origPointArrays:
-        remeshedSurface = geo.Surface.Normals(remeshedSurface)
+    # if origPointArrays:
+    #     # Investigates if this produces a bug
+    #     remeshedSurface = _project_point_arrays_surface_to_surface(
+    #                           remeshedSurface,
+    #                           copiedSurface
+    #                       )
 
     return remeshedSurface
 

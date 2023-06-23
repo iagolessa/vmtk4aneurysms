@@ -143,7 +143,7 @@ def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
 
 def GenerateOstiumSurface(
         aneurysm_sac_surface: names.polyDataType,
-        compute_normals: bool=False
+        compute_normals: bool=True
     )   -> names.polyDataType:
     """ Generate an ostium surface based on the aneurysm neck.
 
@@ -162,39 +162,47 @@ def GenerateOstiumSurface(
     # generic 3D contour
     capper = vtkvmtk.vtkvmtkSmoothCapPolyData()
     capper.SetInputData(aneurysm_sac_surface)
-    capper.SetConstraintFactor(0.20)
-    capper.SetNumberOfRings(8)
+
+    # It is important to set cnostraint to zero to have 90 degrees angles on corners
+    capper.SetConstraintFactor(0.0)
+    capper.SetNumberOfRings(15)
     capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
     capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
     capper.Update()
 
+    triangulate = vtk.vtkTriangleFilter()
+    triangulate.SetInputData(capper.GetOutput())
+    triangulate.PassLinesOff()
+    triangulate.PassVertsOff()
+    triangulate.Update()
+
+    surface = geo.Surface.Normals(triangulate.GetOutput()) \
+              if compute_normals else triangulate.GetOutput()
+
     # Get maximum id of the surfaces
     ostiumId = max(
-                   capper.GetOutput().GetCellData().GetArray(
+                   surface.GetCellData().GetArray(
                        names.CellEntityIdsArrayName
                    ).GetRange()
                )
 
     ostiumSurface = tools.ExtractPortion(
-                        capper.GetOutput(),
+                        surface,
                         names.CellEntityIdsArrayName,
                         ostiumId
                     )
 
+    # Removed remeshing as it was complicating the Normals addition with the
+    # correct orientation
     # Remesh: the smooth capping may add too deformed cells
-    ostiumSurface = tools.RemeshSurface(
-                        tools.UnsGridToPolyData(ostiumSurface)
-                    )
+    # ostiumSurface = tools.RemeshSurface(
+    #                     tools.UnsGridToPolyData(ostiumSurface)
+    #                 )
 
     # Add a little bit of smoothing
-    ostiumSurface = tools.SmoothSurface(ostiumSurface)
+    # ostiumSurface = tools.SmoothSurface(ostiumSurface)
 
-    # Add outward normal
-    if compute_normals:
-        return geo.Surface.Normals(ostiumSurface)
-
-    else:
-        return OstiumSurface
+    return ostiumSurface
 
 class Aneurysm:
     """Representation for saccular cerebral aneurysms.
