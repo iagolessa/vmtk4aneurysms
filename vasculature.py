@@ -19,14 +19,15 @@ import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
-from . import aneurysms as aneu
-from .vascular_operations import ExtractAneurysmSacSurface
+from vtk.numpy_interface import dataset_adapter as dsa
+from vmtk4aneurysms.aneurysms import Aneurysm
+from vmtk4aneurysms.vascular_operations import ExtractAneurysmSacSurface
 
-from .lib import names
-from .lib import centerlines as cnt
-from .lib import constants as const
-from .lib import polydatatools as tools
-from .lib import polydatageometry as geo
+from vmtk4aneurysms.lib import names
+from vmtk4aneurysms.lib import centerlines as cnt
+from vmtk4aneurysms.lib import constants as const
+from vmtk4aneurysms.lib import polydatatools as tools
+from vmtk4aneurysms.lib import polydatageometry as geo
 
 from .pypescripts import v4aScripts
 
@@ -144,10 +145,11 @@ class Vasculature:
 
     def __init__(
             self,
-            vtk_poly_data,
-            with_aneurysm=False,
-            manual_aneurysm=True,
-            aneurysm_prop={}
+            vtk_poly_data: names.polyDataType,
+            with_aneurysm: bool=False,
+            clip_aneurysm_mode: str="interactive",
+            parent_vascular_surface: names.polyDataType=None,
+            aneurysm_prop: dict={}
         ):
         """Initiate vascular model.
 
@@ -161,19 +163,13 @@ class Vasculature:
         with_aneurysm -- bool to indicate that the vasculature
         has an aneurysm (default False)
 
-        manual_aneurysm -- bool that enable the manual selection of the
-        aneurysm neck, otherwise, try to automatically extract the aneurysm
-        neck *plane*, based on the user input of the aneurysm tip point and the
-        algorithm proposed in
+        clip_aneurysm_mode (str, default: 'interactive') -- the method to clip
+        the aneurysm, if present. Use the function
+        'vascular_operations.ExtractAneurysmSacSurface', hence the options are:
+        'interactive', 'automatic', or 'plane'.  Only enabled if the
+        'with_aneurysm' arguments is True.  (default False).
 
-        Piccinelli et al. (2012).  Automatic neck plane detection and 3d
-        geometric characterization of aneurysmal sacs.  Annals of Biomedical
-        Engineering, 40(10), 2188–2211.  DOI :10.1007/s10439-012-0577-5.
-
-        Only enabled if the 'with_aneurysm' arguments is True.  (default
-        False).
-
-        aneurysm_prop -- dictionary with properties required by Aneurysm class:
+        aneurysm_prop -- optional dictionary with properties of the aneurysms:
         type, status, label.
         """
 
@@ -185,7 +181,11 @@ class Vasculature:
         self._aneurysm_point  = None
         self._aneurysm_model  = None
         self._with_aneurysm   = with_aneurysm
-        self._manual_aneurysm = manual_aneurysm
+        self._clip_aneurysm_mode = clip_aneurysm_mode
+
+        # If the vasculature has an aneurysm, allow to also input the parent
+        # vasculature
+        self._parent_vascular_surface = parent_vascular_surface
 
         self._nbifurcations  = int(const.zero)
         self._bifurcations   = []
@@ -217,21 +217,18 @@ class Vasculature:
         if self._with_aneurysm:
             print("Extracting aneurysm surface.")
 
-            if self._manual_aneurysm:
-                aneurysm_surface = ExtractAneurysmSacSurface(
-                                          self._surface_model.GetSurfaceObject(),
-                                          mode="interactive"
-                                      )
+            aneurysmType = aneurysm_prop["aneurysm_type"]
 
-            else:
-                # This function already computes the parent vessels
-                aneurysm_surface = ExtractAneurysmSacSurface(
-                                       self._surface_model.GetSurfaceObject(),
-                                       mode="automatic",
-                                       aneurysm_type=aneurysm_prop["aneurysm_type"]
-                                   )
+            # This function already computes the parent vessels
+            # but then the type is required here
+            aneurysm_surface = ExtractAneurysmSacSurface(
+                                   self._surface_model.GetSurfaceObject(),
+                                   mode=self._clip_aneurysm_mode,
+                                   parent_vascular_surface=self._parent_vascular_surface,
+                                   aneurysm_type=aneurysmType
+                               )
 
-            self._aneurysm_model = aneu.Aneurysm(
+            self._aneurysm_model = Aneurysm(
                                         aneurysm_surface,
                                         **aneurysm_prop
                                     )
@@ -241,14 +238,16 @@ class Vasculature:
             cls,
             file_name,
             with_aneurysm=False,
-            manual_aneurysm=False,
+            clip_aneurysm_mode="interactive",
+            parent_vascular_surface=None,
             aneurysm_prop={}
         ):
         """Initialize vasculature object from vasculature surface file."""
 
         return cls(tools.ReadSurface(file_name),
                    with_aneurysm=with_aneurysm,
-                   manual_aneurysm=manual_aneurysm,
+                   clip_aneurysm_mode=clip_aneurysm_mode,
+                   parent_vascular_surface=parent_vascular_surface,
                    aneurysm_prop=aneurysm_prop)
 
     def _extract_branches(self):
@@ -358,32 +357,41 @@ class Vasculature:
 
         # Array Names
         radiusArrayName = branches.RadiusArrayName
+
+        # Defines the branches and the bifurcations
         blankingArrayName = branches.BlankingArrayName
+
+        # Defines *each* branch and bifurcations
         groupIdsArrayName = branches.GroupIdsArrayName
+
+        # Roughly defines the before and after the bifurcations
         tractIdsArrayName = branches.TractIdsArrayName
 
         # Extract only the branches portion
+        # (the blanking array separates the branches from the bifurcations)
         branchesId = 0
         branches = tools.ExtractPortion(
-            branches.Centerlines,
-            blankingArrayName,
-            branchesId
-        )
+                       branches.Centerlines,
+                       blankingArrayName,
+                       branchesId
+                   )
 
-        maxGroupId = max(
-            branches.GetCellData().GetArray(groupIdsArrayName).GetRange()
-        )
+        # Get only the branch group ids
+        npBranches = dsa.WrapDataObject(branches)
+        branchesIds = set(npBranches.GetCellData().GetArray(groupIdsArrayName))
 
-        for branchId in range(int(maxGroupId) + 1):
-            branch = tools.ExtractPortion(
-                branches,
-                groupIdsArrayName,
-                branchId
-            )
+        for branchId in branchesIds:
+            try:
+                branch = tools.ExtractPortion(
+                             branches,
+                             groupIdsArrayName,
+                             branchId
+                         )
 
-            if branch.GetLength() != 0.0:
                 self._branches.append(Branch(branch))
 
+            except(ValueError):
+                pass
 
     # TODO: maybe evaluate suitability to turn this method into a classmethod
     def ComputeWallThicknessArray(self):

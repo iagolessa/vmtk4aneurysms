@@ -922,6 +922,7 @@ def _geo_distance_to_aneurysmal_region_neck(
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
         gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
+        aneurysm_type: str="",
         aneurysm_point: tuple=None
     )   -> names.polyDataType:
     """Marks the aneurysmal region with an array of (geodesic) distances to the
@@ -989,7 +990,8 @@ def _geo_distance_to_aneurysmal_region_neck(
                            vascular_surface,
                            parent_vascular_surface=parent_vascular_surface,
                            parent_vascular_centerline=parent_vascular_centerline,
-                           aneurysmal_region_array=names.AneurysmalRegionArrayName
+                           aneurysmal_region_array=names.AneurysmalRegionArrayName,
+                           aneurysm_type=aneurysm_type
                        )
 
     # Add a little bit of smoothing to the Distance field to remove corner
@@ -1319,7 +1321,8 @@ def ComputeGeodesicDistanceToAneurysmNeck(
         vascular_surface = _geo_distance_to_aneurysmal_region_neck(
                                vascular_surface,
                                parent_vascular_surface=parent_vascular_surface,
-                               gdistance_to_neck_array_name=gdistance_to_neck_array_name
+                               gdistance_to_neck_array_name=gdistance_to_neck_array_name,
+                               aneurysm_type=aneurysm_type
                            )
 
     elif mode == "plane":
