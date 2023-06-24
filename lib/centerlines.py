@@ -27,9 +27,6 @@ from . import constants as const
 from . import polydatageometry as geo
 from . import polydatatools as tools
 
-_dimensions = int(const.three)
-_radiusArrayName = "MaximumInscribedSphereRadius"
-
 def ComputeOpenCenters(
         surface: names.polyDataType
     )   -> tuple:
@@ -163,7 +160,7 @@ def GenerateCenterlines(
     centerlineFilter.SetSourceSeedIds(sourceSeedIds)
     centerlineFilter.SetTargetSeedIds(targetSeedIds)
 
-    centerlineFilter.SetRadiusArrayName(_radiusArrayName)
+    centerlineFilter.SetRadiusArrayName(names.VascularRadiusArrayName)
     centerlineFilter.SetCostFunction(CostFunction)
     centerlineFilter.SetFlipNormals(FlipNormals)
     centerlineFilter.SetAppendEndPointsToCenterlines(AppendEndPoints)
@@ -253,7 +250,7 @@ def ComputeTubeSurface(
 
     # Get bounds of model
     centerlineBounds  = centerline.GetBounds()
-    radiusArrayBounds = centerline.GetPointData().GetArray(_radiusArrayName).GetValueRange()
+    radiusArrayBounds = centerline.GetPointData().GetArray(names.VascularRadiusArrayName).GetValueRange()
     maxSphereRadius   = radiusArrayBounds[1]
 
     # To enlarge the box: could be a fraction of maxSphereRadius
@@ -261,12 +258,12 @@ def ComputeTubeSurface(
     enlargeBoxBounds  = maxSphereRadius
 
     modelBounds = np.array(centerlineBounds) + \
-                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
+                  np.array(const.nSpatialDimensions*[-enlargeBoxBounds, enlargeBoxBounds])
 
     # Extract image with tube function from model
     modeller = vtkvmtk.vtkvmtkPolyBallModeller()
     modeller.SetInputData(centerline)
-    modeller.SetRadiusArrayName(_radiusArrayName)
+    modeller.SetRadiusArrayName(names.VascularRadiusArrayName)
 
     # This needs to be 'on' for centerline
     modeller.UsePolyBallLineOn()
@@ -296,17 +293,17 @@ def ComputeVoronoiEnvelope(
     """Compute the envelope surface of a Voronoi diagram."""
 
     VoronoiBounds     = voronoi_surface.GetBounds()
-    radiusArrayBounds = voronoi_surface.GetPointData().GetArray(_radiusArrayName).GetValueRange()
+    radiusArrayBounds = voronoi_surface.GetPointData().GetArray(names.VascularRadiusArrayName).GetValueRange()
     maxSphereRadius   = radiusArrayBounds[1]
     enlargeBoxBounds  = maxSphereRadius
 
     modelBounds = np.array(VoronoiBounds) + \
-                  np.array(_dimensions*[-enlargeBoxBounds, enlargeBoxBounds])
+                  np.array(const.nSpatialDimensions*[-enlargeBoxBounds, enlargeBoxBounds])
 
     # Building the envelope image function
     modeller = vtkvmtk.vtkvmtkPolyBallModeller()
     modeller.SetInputData(voronoi_surface)
-    modeller.SetRadiusArrayName(_radiusArrayName)
+    modeller.SetRadiusArrayName(names.VascularRadiusArrayName)
 
     # This needs to be off for surfaces
     modeller.UsePolyBallLineOff()
@@ -353,7 +350,7 @@ def ComputeClPatchEndPointParameters(
         point1 = np.array(cell.GetPoints().GetPoint(beforeLastpointId))
 
         radius0 = patch_centerlines.GetPointData().GetArray(
-                      _radiusArrayName
+                      names.VascularRadiusArrayName
                   ).GetTuple1(cell.GetPointId(lastPointId))
 
         tan = point1 - point0
@@ -364,7 +361,7 @@ def ComputeClPatchEndPointParameters(
         point0 = np.array(cell.GetPoints().GetPoint(0))
         point1 = np.array(cell.GetPoints().GetPoint(1))
         radius0 = patch_centerlines.GetPointData().GetArray(
-                      _radiusArrayName
+                      names.VascularRadiusArrayName
                   ).GetTuple1(cell.GetPointId(0))
 
         tan = point1 - point0

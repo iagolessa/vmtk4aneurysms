@@ -38,11 +38,6 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
-from . import wallmotion as wm
-
-_dimensions = int(const.three)
-_initialAneurysmArrayName = names.AneurysmalRegionArrayName
-
 def _bifurcation_aneurysm_clipping_points(
         vascular_surface: names.polyDataType,
         aneurysm_point: tuple
@@ -574,7 +569,7 @@ def _mark_aneurysmal_region(
         surface_model: names.polyDataType,
         aneurysm_envelope: names.polyDataType,
         parent_tube: names.polyDataType,
-        result_clip_array: str = _initialAneurysmArrayName
+        result_clip_array: str = names.AneurysmalRegionArrayName
     )   -> names.polyDataType:
     """Compute the aneurysmal region surface from the original vascular model.
 
@@ -671,7 +666,7 @@ def _sac_centerline(
         nContourCells  = contour.GetNumberOfCells()
 
         if nContourPoints > 0 and nContourCells > 0:
-            barycenter = _dimensions*[0]
+            barycenter = const.nSpatialDimensions*[0]
 
             vtkvmtk.vtkvmtkBoundaryReferenceSystems.ComputeBoundaryBarycenter(
                 contourPoints,
@@ -839,7 +834,7 @@ def _extract_aneurysmal_region(
         vascular_surface: names.polyDataType,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        aneurysmal_region_array: str=_initialAneurysmArrayName,
+        aneurysmal_region_array: str=names.AneurysmalRegionArrayName,
         aneurysm_type: str=""
     )   -> names.polyDataType:
     """Marks the aneurysmal region with an array and extract the vessel portion
@@ -1186,14 +1181,14 @@ def ComputeAneurysmNeckPlane(
                             vascular_surface,
                             parent_vascular_surface=parent_vascular_surface,
                             parent_vascular_centerline=parent_vascular_centerline,
-                            aneurysmal_region_array=_initialAneurysmArrayName,
+                            aneurysmal_region_array=names.AneurysmalRegionArrayName,
                             aneurysm_type=aneurysm_type
                         )
 
     # Clip aneurysmal portion (scalars < 0)
     clippedAneurysmalSurface = tools.ClipWithScalar(
                                    aneurysmalSurface,
-                                   _initialAneurysmArrayName,
+                                   names.AneurysmalRegionArrayName,
                                    const.zero
                                )
 
@@ -1203,7 +1198,7 @@ def ComputeAneurysmNeckPlane(
                                )
 
     clippedAneurysmalSurface.GetPointData().RemoveArray(
-        _initialAneurysmArrayName
+        names.AneurysmalRegionArrayName
     )
 
     # Get the portion where the aneurysm grew

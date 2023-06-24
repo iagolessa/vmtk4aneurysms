@@ -24,8 +24,6 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
-from .vascular_operations import MarkAneurysmSacManually
-
 def DeformConfiguration(
         ref_config_obj,
         displ_field_name

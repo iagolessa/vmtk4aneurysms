@@ -37,6 +37,7 @@ oneHundred = 100.0
 
 degToRad = pi/180.0
 millimeterToMeterFactor = 1000.0
+nSpatialDimensions = int(three)
 
 # Name of the field defined on a vascular surface that identifies the aneurysm
 # with zero values and one the rest of the surface. The value 0.5, hence,
