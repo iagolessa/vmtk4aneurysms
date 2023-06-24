@@ -38,38 +38,6 @@ from vmtk4aneurysms.lib import polydatamath as pmath
 
 from vmtk4aneurysms.vascular_operations import MarkAneurysmSacManually
 
-
-def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
-    """Compute array marking the aneurysm' parent artery.
-
-    Given a vasculature with an aneurysm, prompt the user to draw a contour
-    that marks the separation between the aneurysm's parent artery and the rest
-    of the vasculature. An array (field) is then defined on the surface with
-    value 0 on the parent artery and 1 out of it. Return a copy of the vascular
-    surface with 'ParentArteryContourArray' field defined on it.
-
-    .. warning::
-        The smoothing array script works better on good quality triangle
-        surfaces, hence, it would be good to remesh the surface prior to use
-        it.
-    """
-
-    parentArteryDrawer = vmtkscripts.vmtkSurfaceRegionDrawing()
-    parentArteryDrawer.Surface = surface
-    parentArteryDrawer.InsideValue = 0.0
-    parentArteryDrawer.OutsideValue = 1.0
-    parentArteryDrawer.ContourScalarsArrayName = names.ParentArteryArrayName
-    parentArteryDrawer.Execute()
-
-    smoother = vmtkscripts.vmtkSurfaceArraySmoothing()
-    smoother.Surface = parentArteryDrawer.Surface
-    smoother.Connexity = 1
-    smoother.Iterations = 10
-    smoother.SurfaceArrayName = parentArteryDrawer.ContourScalarsArrayName
-    smoother.Execute()
-
-    return smoother.Surface
-
 def GenerateOstiumSurface(
         aneurysm_sac_surface: names.polyDataType,
         compute_normals: bool=True
@@ -92,7 +60,8 @@ def GenerateOstiumSurface(
     capper = vtkvmtk.vtkvmtkSmoothCapPolyData()
     capper.SetInputData(aneurysm_sac_surface)
 
-    # It is important to set cnostraint to zero to have 90 degrees angles on corners
+    # It is important to set cnostraint to zero to have 90 degrees angles on
+    # corners
     capper.SetConstraintFactor(0.0)
     capper.SetNumberOfRings(15)
     capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
@@ -134,7 +103,9 @@ def GenerateOstiumSurface(
     return ostiumSurface
 
 # Wallmotion-related functions that operate only on the aneurysm surface
-# Refactored here so canbe used directly inside the Aneurysm class
+# TODO: Refactored here so canbe used directly inside the Aneurysm class
+# this will depend on a better understanding of how I will include the 
+# wall motion fields
 def AneurysmPulsatility(
         displacement_surface: names.polyDataType,
         ps_displ_field_name: str,

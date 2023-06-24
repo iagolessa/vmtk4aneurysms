@@ -36,8 +36,6 @@ from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 from vmtk4aneurysms.lib import foamtovtk as fvtk
 
-from vmtk4aneurysms.aneurysms import SelectParentArtery
-
 # Default density used for WSS
 _density = 1056.0 # kg/m3
 
@@ -523,6 +521,37 @@ def PressureTemporalStats(
 # TODO: improve the WSS stats over the parent
 # artery by automatically computing a ring of the parent artery adjancent to
 # the aneurysm
+def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
+    """Compute array marking the aneurysm' parent artery.
+
+    Given a vasculature with an aneurysm, prompt the user to draw a contour
+    that marks the separation between the aneurysm's parent artery and the rest
+    of the vasculature. An array (field) is then defined on the surface with
+    value 0 on the parent artery and 1 out of it. Return a copy of the vascular
+    surface with 'ParentArteryContourArray' field defined on it.
+
+    .. warning::
+        The smoothing array script works better on good quality triangle
+        surfaces, hence, it would be good to remesh the surface prior to use
+        it.
+    """
+
+    parentArteryDrawer = vmtkscripts.vmtkSurfaceRegionDrawing()
+    parentArteryDrawer.Surface = surface
+    parentArteryDrawer.InsideValue = 0.0
+    parentArteryDrawer.OutsideValue = 1.0
+    parentArteryDrawer.ContourScalarsArrayName = names.ParentArteryArrayName
+    parentArteryDrawer.Execute()
+
+    smoother = vmtkscripts.vmtkSurfaceArraySmoothing()
+    smoother.Surface = parentArteryDrawer.Surface
+    smoother.Connexity = 1
+    smoother.Iterations = 10
+    smoother.SurfaceArrayName = parentArteryDrawer.ContourScalarsArrayName
+    smoother.Execute()
+
+    return smoother.Surface
+
 def WssParentVessel(
         parent_artery_surface: names.polyDataType,
         parent_artery_array: str = names.ParentArteryArrayName,
