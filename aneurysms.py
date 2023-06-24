@@ -104,7 +104,7 @@ def GenerateOstiumSurface(
 
 # Wallmotion-related functions that operate only on the aneurysm surface
 # TODO: Refactored here so canbe used directly inside the Aneurysm class
-# this will depend on a better understanding of how I will include the 
+# this will depend on a better understanding of how I will include the
 # wall motion fields
 def AneurysmPulsatility(
         displacement_surface: names.polyDataType,

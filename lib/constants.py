@@ -51,7 +51,9 @@ WlrLarge  = 0.088
 VesselMediumDiameter = 2.0
 VesselLargeDiameter  = 3.0
 
+# Physical "constants"
 lowWSS = 1.5 # Pa
+bloodDensity = 1056.0 # kg/m3
 
 # Structures holding constants
 

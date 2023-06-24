@@ -36,12 +36,9 @@ from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 from vmtk4aneurysms.lib import foamtovtk as fvtk
 
-# Default density used for WSS
-_density = 1056.0 # kg/m3
-
 def _wss_over_time(
         foam_case: str,
-        density: float=_density,
+        density: float=const.bloodDensity,
         field_name: str=names.foamWSS,
         patch: str=names.wallPatchName,
         multi_region: bool=False,
@@ -161,7 +158,7 @@ def Hemodynamics(
         foam_case: str,
         t_peak_systole: float,
         t_low_diastole: float,
-        density: float=_density,  # kg/m3
+        density: float=const.bloodDensity,
         field_name: str=names.foamWSS,
         patch: str=names.wallPatchName,
         compute_gon: bool=False,
@@ -477,7 +474,7 @@ def PressureTemporalStats(
         foam_case: str,
         t_peak_systole: float,
         t_low_diastole: float,
-        density: float=_density,  # kg/m3
+        density: float=const.bloodDensity,
         p_field_name: str="p",
         patch: str=names.wallPatchName,
         multi_region: bool=False,
@@ -595,7 +592,7 @@ def WssSurfaceAverage(
         neck_surface: names.polyDataType=None,
         neck_array_name: str=names.AneurysmNeckArrayName,
         neck_iso_value: float=const.NeckIsoValue,
-        density: float=_density,
+        density: float=const.bloodDensity,
         field_name: str=names.foamWSS,
         patch: str=names.wallPatchName,
         multi_region: bool=False,
@@ -677,7 +674,7 @@ def LsaInstant(
         low_wss: float,
         neck_array_name: str=names.AneurysmNeckArrayName,
         neck_iso_value: float=const.NeckIsoValue,
-        density: float=_density,
+        density: float=const.bloodDensity,
         field_name: str=names.foamWSS,
         patch: str=names.wallPatchName,
         multi_region: bool=False,
