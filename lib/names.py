@@ -95,3 +95,11 @@ normals = 'Normals'
 # Other attributes
 foamWSS = 'wallShearComponent'
 wallPatchName = 'wall'
+
+# List containing the main hemodynamic wall parameters (HWP)
+hwpList = [TAWSS, OSI,
+           RRT, AFI,
+           GON, WSSPI,
+           WSSTG, transWSS,
+           peakSystoleWSS,
+           lowDiastoleWSS]

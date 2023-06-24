@@ -217,6 +217,8 @@ class TestAneurysmModule(unittest.TestCase):
         methods.remove("GetSurface")
         methods.remove("GetOstiumSurface")
         methods.remove("GetHullSurface")
+        methods.remove("GetHemodynamicStats")
+        methods.remove("GetLowTAWSSArea")
 
         # Get methods of each aneurysm model
         print("Computing metrics of aneurysm models.", end="\n")

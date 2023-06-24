@@ -51,6 +51,8 @@ WlrLarge  = 0.088
 VesselMediumDiameter = 2.0
 VesselLargeDiameter  = 3.0
 
+lowWSS = 1.5 # Pa
+
 # Structures holding constants
 
 # Dictionary holding the IDs of each wall type

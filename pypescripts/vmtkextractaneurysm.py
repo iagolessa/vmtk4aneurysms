@@ -123,7 +123,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
                 {method.replace("Get", ''): attr}
             )
 
-        pp = PrettyPrinter(depth=2)
+        pp = PrettyPrinter(depth=3)
         pp.pprint(
             attributes
         )

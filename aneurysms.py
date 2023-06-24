@@ -133,86 +133,6 @@ def GenerateOstiumSurface(
 
     return ostiumSurface
 
-# Hemodynamics-related functions that operate only on the aneurysm surface
-# Refactored here so canbe used directly inside the Aneurysm class
-def AneurysmStats(
-        neck_surface: names.polyDataType,
-        array_name: str,
-        neck_array_name: str=names.AneurysmNeckArrayName,
-        n_percentile: float=99,
-        neck_iso_value: float=const.NeckIsoValue
-    )   -> dict:
-    """Compute fields statistics over aneurysm surface.
-
-    Given a surface with the fields of WSS hemodynamics variables defined on
-    it, computes the average, maximum, minimum, percetile (value passed as
-    optional by the user) and the surface-average over the aneurysm surface.
-    Return a dictionary with the statistics.
-
-    .. note::
-        Assumes that the surface also contain a field name 'neck_array_name'
-        that indicates the aneurysm portion with 0 and 1 on the rest of the
-        vasculature. The function uses this array to clip the aneurysm portion.
-        If this is not present on the surface, the function prompts the user to
-        delineate the aneurysm neck.
-    """
-
-    pointArrays = tools.GetPointArrays(neck_surface)
-    cellArrays  = tools.GetCellArrays(neck_surface)
-
-    neckArrayInSurface = neck_array_name in pointArrays or \
-                         neck_array_name in cellArrays
-
-    if not neckArrayInSurface:
-        # Compute neck array
-        neck_surface = MarkAneurysmSacManually(neck_surface)
-
-    # Get aneurysm
-    aneurysmSurface = tools.ClipWithScalar(
-                          neck_surface,
-                          neck_array_name,
-                          neck_iso_value
-                      )
-
-    return pmath.SurfaceFieldStatistics(
-               aneurysmSurface,
-               array_name,
-               n_percentile=n_percentile
-           )
-
-def LsaAverage(
-        neck_surface: names.polyDataType,
-        lowWSS: float,
-        neck_array_name: str=names.AneurysmNeckArrayName,
-        neck_iso_value: float=const.NeckIsoValue,
-        avgMagWSSArray: str=names.TAWSS
-    )   -> float:
-    """Computes the LSA based on the time-averaged WSS (TAWSS) field.
-
-    Calculates the LSA (low WSS area ratio) for aneurysms. The input is a
-    surface with the time-averaged WSS over the surface and an array defined on
-    it indicating the aneurysm neck.  The function then calculates the aneurysm
-    surface area and the area where the WSS is lower than a reference value
-    provided by the user.
-    """
-    try:
-        # Try to read if file name is given
-        surface = tools.ReadSurface(neck_surface)
-    except:
-        surface = neck_surface
-
-    # Get aneurysm
-    aneurysm = tools.ClipWithScalar(surface, neck_array_name, neck_iso_value)
-
-    # Get aneurysm area
-    aneurysmArea = geo.Surface.Area(aneurysm)
-
-    # Get low shear area
-    lsaPortion = tools.ClipWithScalar(aneurysm, avgMagWSSArray, lowWSS)
-    lsaArea = geo.Surface.Area(lsaPortion)
-
-    return lsaArea/aneurysmArea
-
 # Wallmotion-related functions that operate only on the aneurysm surface
 # Refactored here so canbe used directly inside the Aneurysm class
 def AneurysmPulsatility(
@@ -920,3 +840,46 @@ class Aneurysm:
                 "MLN": MLN,
                 "GLN": GLN,
                 "HGLN": HGLN}
+
+    def GetHemodynamicStats(
+            self,
+            n_percentile: float=99
+        ) -> dict:
+        """Compute the statistics of hemodynamic fields.
+
+        If the loaded aneurysm surface contains the fields of hemodynamic
+        variables, returns its descriptive statistics as a dict with the
+        following statistics: average, maximum, minimum, percetile (value
+        passed as optional by the user) and the surface-average over the
+        aneurysm surface.
+        """
+
+        return {hwp: pmath.SurfaceFieldStatistics(
+                         self._aneurysm_surface,
+                         hwp,
+                         n_percentile=n_percentile
+                     )
+                for hwp in names.hwpList
+                if hwp in tools.GetCellArrays(self._aneurysm_surface)}
+
+    def GetLowTAWSSArea(
+            self
+        )   -> float:
+        """Computes the LSA based on the time-averaged WSS (TAWSS) field."""
+
+        if names.TAWSS in tools.GetCellArrays(self._aneurysm_surface):
+
+            # Compute low shear area
+            lsaPortion = tools.ClipWithScalar(
+                             self._aneurysm_surface,
+                             names.TAWSS,
+                             const.lowWSS
+                         )
+
+            lsaArea = geo.Surface.Area(lsaPortion)
+
+            return lsaArea/self._surface_area
+
+        else:
+
+            return None
