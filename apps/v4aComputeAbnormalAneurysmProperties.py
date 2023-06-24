@@ -26,7 +26,7 @@ from vmtk import vmtkscripts
 from vmtk4aneurysms.pypescripts import v4aScripts
 
 import vmtk4aneurysms.lib.polydatatools as tools
-import vmtk4aneurysms.wallmotion as wm
+import vmtk4aneurysms.vascular_operations as vscop
 
 def generate_arg_parser():
     """Creates and return a parser object for this app."""
@@ -167,7 +167,7 @@ def wallTypeHemoClassification(
     """
 
     # Compute WallType array
-    wallTypeSurface = wm.WallTypeClassification(hemo_surface)
+    wallTypeSurface = vscop.WallTypeClassification(hemo_surface)
 
     # Debug
     if inspectWallType:

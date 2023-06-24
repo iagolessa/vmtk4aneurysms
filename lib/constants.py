@@ -49,3 +49,11 @@ WlrMedium = 0.07
 WlrLarge  = 0.088
 VesselMediumDiameter = 2.0
 VesselLargeDiameter  = 3.0
+
+# Structures holding constants
+
+# Dictionary holding the IDs of each wall type
+# See docstring of func vascular_operations.WallTypeClassification
+IaWallTypes = {"RegularWall": 0,
+               "AtheroscleroticWall": 1,
+               "RedWall": 2}
