@@ -181,7 +181,7 @@ def _set_portion_in_cl_patch(
 
     tubeFunction = vtkvmtk.vtkvmtkPolyBallLine()
     tubeFunction.SetInput(patch)
-    tubeFunction.SetPolyBallRadiusArrayName(cl._radiusArrayName)
+    tubeFunction.SetPolyBallRadiusArrayName(names.VascularRadiusArrayName)
 
     lastSphere = vtk.vtkSphere()
     lastSphere.SetRadius(radius*1.5)
