@@ -36,7 +36,7 @@ from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 
-from vmtk4aneurysms.vascular_operations import MarkAneurysmSacManually
+from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
 
 def GenerateOstiumSurface(
         aneurysm_sac_surface: names.polyDataType,
@@ -181,9 +181,10 @@ def AneurysmPulsatility2(
     if aneurysm_neck_array_name not in tools.GetPointArrays(lumenSurface):
         print("Neck array name not in surface. Computing it.")
 
-        lumenSurface = MarkAneurysmSacManually(
+        lumenSurface = ComputeGeodesicDistanceToAneurysmNeck(
                            lumenSurface,
-                           aneurysm_neck_array_name=aneurysm_neck_array_name
+                           mode="interactive",
+                           gdistance_to_neck_array_name=aneurysm_neck_array_name
                        )
 
     else:

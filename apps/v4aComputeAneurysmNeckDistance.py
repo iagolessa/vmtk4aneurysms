@@ -116,12 +116,11 @@ clipper.Execute()
 parentSurface = clipper.Surface
 
 # Compute aneurysm neck plane
-aneurysmalSurface = vscop.MarkAneurysmalRegion(
+aneurysmalSurface = vscop.ComputeGeodesicDistanceToAneurysmNeck(
                        clippedVascSurface,
-                       parent_vascular_surface=parentSurface,
+                       mode="automatic",
                        aneurysm_type=aneurysmType,
-                       aneurysm_point=domePoint,
-                       aneurysmal_region_array="DistanceToNeckArray"
+                       parent_vascular_surface=parentSurface
                    )
 
 # White files

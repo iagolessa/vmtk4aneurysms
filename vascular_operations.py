@@ -376,7 +376,6 @@ def HealthyVesselReconstruction(
 
     return clipper.Surface
 
-
 def _transf_normal(
         normal: tuple,
         tilt: float,
@@ -395,7 +394,6 @@ def _transf_normal(
                         np.cos(tilt)]])
 
     return tuple(np.dot(matrix, normal))
-
 
 def _bifurcation_aneurysm_influence_region(
         vascular_surface: names.polyDataType,
@@ -719,7 +717,6 @@ def _sac_centerline(
     else:
         sys.exit("No barycenters found for sac centerline construction.")
 
-
 def _search_neck_plane(
         aneurysm_sac: names.polyDataType,
         centers: np.ndarray,
@@ -893,7 +890,7 @@ def _extract_aneurysmal_region(
 
     return aneurysmalSurface
 
-def MarkAneurysmSacManually(
+def _mark_aneurysm_sac_interactively(
         surface: names.polyDataType,
         aneurysm_neck_array_name: str=names.DistanceToNeckArrayName
     )   -> names.polyDataType:
@@ -920,32 +917,7 @@ def MarkAneurysmSacManually(
 
     return surface
 
-def ClipVasculature(
-        vascular_surface: names.polyDataType
-    )   -> names.polyDataType:
-    """Clip a vascular surface segment, by selecting end points.
-
-    Given a vascular surface, the user is prompted to select points
-    on the surface that 1) identifies the surface's bulk and 2) where the
-    vasculature should be clipped. Uses, internally, the
-    'vmtksurfaceendclipper' script.
-    """
-
-    centerlines = cl.GenerateCenterlines(vascular_surface)
-    geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
-
-    FrenetTangentArrayName = "FrenetTangent"
-
-    surfaceEndClipper = vmtkscripts.vmtkSurfaceEndClipper()
-    surfaceEndClipper.Surface = vascular_surface
-    surfaceEndClipper.CenterlineNormals = 1
-    surfaceEndClipper.Centerlines = geoCenterlines
-    surfaceEndClipper.FrenetTangentArrayName = FrenetTangentArrayName
-    surfaceEndClipper.Execute()
-
-    return surfaceEndClipper.Surface
-
-def MarkAneurysmalRegion(
+def _geo_distance_to_aneurysmal_region_neck(
         vascular_surface: names.polyDataType,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
@@ -1106,6 +1078,31 @@ def MarkAneurysmalRegion(
                        )
 
     return vascular_surface
+
+def ClipVasculature(
+        vascular_surface: names.polyDataType
+    )   -> names.polyDataType:
+    """Clip a vascular surface segment, by selecting end points.
+
+    Given a vascular surface, the user is prompted to select points
+    on the surface that 1) identifies the surface's bulk and 2) where the
+    vasculature should be clipped. Uses, internally, the
+    'vmtksurfaceendclipper' script.
+    """
+
+    centerlines = cl.GenerateCenterlines(vascular_surface)
+    geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
+
+    FrenetTangentArrayName = "FrenetTangent"
+
+    surfaceEndClipper = vmtkscripts.vmtkSurfaceEndClipper()
+    surfaceEndClipper.Surface = vascular_surface
+    surfaceEndClipper.CenterlineNormals = 1
+    surfaceEndClipper.Centerlines = geoCenterlines
+    surfaceEndClipper.FrenetTangentArrayName = FrenetTangentArrayName
+    surfaceEndClipper.Execute()
+
+    return surfaceEndClipper.Surface
 
 def ComputeAneurysmNeckPlane(
         vascular_surface: names.polyDataType,
@@ -1282,6 +1279,64 @@ def ComputeAneurysmNeckPlane(
 
     return neckCenter, neckNormal
 
+def ComputeGeodesicDistanceToAneurysmNeck(
+        vascular_surface: names.polyDataType,
+        mode: str="interactive",
+        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
+        aneurysm_type: str="",
+        parent_vascular_surface: names.polyDataType=None,
+        parent_vascular_centerline: names.polyDataType=None
+    )   -> names.polyDataType:
+    """Mark the aneurysm neck contour and compute the geodesic distance to it.
+
+    Given a vascular surface with an aneurysm, computes the geodesic distance
+    to the aneurysm neck by three different methods:
+
+        *   'interactive': the user is prompted to interactively draw the
+            aneurysm contour;
+
+        *   'automatic': automatically marks a 3D contour on the aneurysm
+            surface that separates the sac from the vasculature (see
+            '_geo_distance_to_aneurysmal_region_neck' function);
+
+        *   'plane': computes an approximate neck plane, based on Piccinelli's
+            publication (see 'ComputeAneurysmNeckPlane' function).
+
+    The automatic mode uses the parent vessels surface to estimate the neck
+    contour, if this surface is not passed, it will be computed and the user
+    will be prompted to clip its inlet and outlets.
+    """
+
+    if mode == "interactive":
+
+        vascular_surface = _mark_aneurysm_sac_interactively(
+                               vascular_surface,
+                               aneurysm_neck_array_name=gdistance_to_neck_array_name
+                           )
+
+    elif mode == "automatic":
+
+        vascular_surface = _geo_distance_to_aneurysmal_region_neck(
+                               vascular_surface,
+                               parent_vascular_surface=parent_vascular_surface,
+                               gdistance_to_neck_array_name=gdistance_to_neck_array_name
+                           )
+
+    elif mode == "plane":
+        raise NotImplementedError(
+                  "Clipping by the neck plane not yet implemented."
+              )
+
+    else:
+        raise ValueError(
+                  """Neck computation mode either 'interactive'
+                  or 'automatic'. {} passed.""".format(
+                      neck_comp_mode
+                  )
+              )
+
+    return vascular_surface
+
 def ExtractAneurysmSacSurface(
         vascular_surface: names.polyDataType,
         mode: str="interactive",
@@ -1292,15 +1347,9 @@ def ExtractAneurysmSacSurface(
     """Clip the aneurysm sac surface from the vascular surface model.
 
     Given the vascular model with an aneurysm, clip the aneurysm sac surface
-    with one of three methods:
-
-        - Manually, by interactively placing seeds that form the aneurysm neck
-          contour;
-
-        - Automatically, by using Piccinelli's procedure to clip the aneurysm
-          neck. This option extracts the aneurysmal portion;
-
-        - Automatically but using the neck plane procedure by Piccinelli et al.
+    based on the neck contour computed via the function
+    'ComputeGeodesicDistanceToAneurysmNeck' (see its docstring for the
+    available methods of defining the aneurysm neck contour.)
 
     Arguments
     ---------
@@ -1333,7 +1382,7 @@ def ExtractAneurysmSacSurface(
     # vascular_surface = tools.CleanupArrays(vascular_surface)
 
     # Based on the available methods, mark the surface with the neck array
-    markedSurface = ComputeDistanceToAneurysmNeck(
+    markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
                         vascular_surface,
                         mode=mode,
                         parent_vascular_surface=parent_vascular_surface,
@@ -1548,7 +1597,7 @@ def WallTypeClassification(
     if distance_to_neck_array not in arraysInSurface:
         print("Distance to neck array name not in surface. Computing it.")
 
-        surface = MarkAneurysmSacManually(
+        surface = _mark_aneurysm_sac_interactively(
                       surface,
                       aneurysm_neck_array_name=distance_to_neck_array
                   )
@@ -1700,7 +1749,7 @@ def ComputeVasculatureThicknessWithAneurysm(
     it will prompt the user to select the neck line, which will be stored on
     the surface. Alternatively, the user may select the option "neck_comp_mode"
     as 'automatic', which estimates a neck line (see function
-    'MarkAneurysmalRegion').
+    '_geo_distance_to_aneurysmal_region_neck').
 
     The aneurysm sac thickness may be estimated as 'uniform', the default
     behavior, or using the abnormal wall thickness based on the adjacent
@@ -1743,7 +1792,7 @@ def ComputeVasculatureThicknessWithAneurysm(
 
     # Compute the distance to neck array
     if gdistance_to_neck_array_name not in tools.GetPointArrays(vascular_surface):
-        vascular_surface = ComputeDistanceToAneurysmNeck(
+        vascular_surface = ComputeGeodesicDistanceToAneurysmNeck(
                                vascular_surface,
                                mode=neck_comp_mode,
                                aneurysm_type=aneurysm_type,
@@ -1809,36 +1858,36 @@ def ComputeVasculatureThicknessWithAneurysm(
     return vascular_surface
 
 
-def ComputeVasculatureThicknessWithNAneurysms(
-        vascular_surface: names.polyDataType,
-        centerlines: names.polyDataType=None,
-        thickness_field_name: str=names.ThicknessArrayName,
-        set_uniform_wlr: bool=False,
-        uniform_wlr_value: float=const.WlrMedium,
-        naneurysms: int=1,
-        aneurysm_type: str="",
-        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
-        neck_comp_mode: str="interactive",
-        parent_vascular_surface: names.polyDataType=None,
-        dome_point: tuple=None
-    )   -> names.polyDataType:
-    #this version will account for more than one aneurysm case
-    raise NotImplementedError("Not yet implemented.")
+# def ComputeVasculatureThicknessWithNAneurysms(
+#         vascular_surface: names.polyDataType,
+#         centerlines: names.polyDataType=None,
+#         thickness_field_name: str=names.ThicknessArrayName,
+#         set_uniform_wlr: bool=False,
+#         uniform_wlr_value: float=const.WlrMedium,
+#         naneurysms: int=1,
+#         aneurysm_type: str="",
+#         gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
+#         neck_comp_mode: str="interactive",
+#         parent_vascular_surface: names.polyDataType=None,
+#         dome_point: tuple=None
+#     )   -> names.polyDataType:
+#     #this version will account for more than one aneurysm case
+#     raise NotImplementedError("Not yet implemented.")
 
-    # import re
-    # # Check if there is any 'DistanceToNeck<i>' array in points arrays
-    # # where 'i' indicates that more than one aneurysm are present on
-    # # the surface.
-    # r = re.compile(gdistance_to_neck_array_name + ".*")
+#     # import re
+#     # # Check if there is any 'DistanceToNeck<i>' array in points arrays
+#     # # where 'i' indicates that more than one aneurysm are present on
+#     # # the surface.
+#     # r = re.compile(gdistance_to_neck_array_name + ".*")
 
-    # distanceToNeckArrayNames = list(filter(r.match, pointArrays))
+#     # distanceToNeckArrayNames = list(filter(r.match, pointArrays))
 
-    # for id_ in range(naneurysms):
+#     # for id_ in range(naneurysms):
 
-    #     # Update neck array name if more than one aneurysm
-    #     arrayName = gdistance_to_neck_array_name + str(id_ + 1) \
-    #                 if naneurysms > 1 \
-    #                 else gdistance_to_neck_array_name
+#     #     # Update neck array name if more than one aneurysm
+#     #     arrayName = gdistance_to_neck_array_name + str(id_ + 1) \
+#     #                 if naneurysms > 1 \
+#     #                 else gdistance_to_neck_array_name
 
 def ComputeVasculatureElasticityWithAneurysm(
         vascular_surface: names.polyDataType,
@@ -1872,7 +1921,8 @@ def ComputeVasculatureElasticityWithAneurysm(
     have the 'DistanceToNeck' scalar array, then it will prompt the user to
     select the neck line, which will be stored on the surface. Alternatively,
     the user may select the option "neck_comp_mode" as 'automatic', which
-    estimates a neck line (see function 'MarkAneurysmalRegion').
+    estimates a neck line (see function
+    '_geo_distance_to_aneurysmal_region_neck').
 
     The option 'abnormal_elasticity' allows for the automatic update of the
     aneurysm elasticity based on the adjacent hemodynamics to the aneurysm
@@ -1905,7 +1955,7 @@ def ComputeVasculatureElasticityWithAneurysm(
 
     # Compute the distance to neck array (here serving only as a neck contour)
     if gdistance_to_neck_array_name not in tools.GetPointArrays(vascular_surface):
-        vascular_surface = ComputeDistanceToAneurysmNeck(
+        vascular_surface = ComputeGeodesicDistanceToAneurysmNeck(
                                vascular_surface,
                                mode=neck_comp_mode,
                                aneurysm_type=aneurysm_type,
@@ -1986,63 +2036,5 @@ def ComputeVasculatureElasticityWithAneurysm(
                            elasticity_field_name,
                            niterations=nsmooth_iterations
                        )
-
-    return vascular_surface
-
-def ComputeDistanceToAneurysmNeck(
-        vascular_surface: names.polyDataType,
-        mode: str="interactive",
-        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
-        aneurysm_type: str="",
-        parent_vascular_surface: names.polyDataType=None,
-        parent_vascular_centerline: names.polyDataType=None
-    )   -> names.polyDataType:
-    """Compute the geodesic distance to an aneurysm neck.
-
-    Given a vascular surface with an aneurysm, computes the geodesic distance
-    to the aneurysm neck by thre different methods:
-
-        *   'interactive': the user is prompted to interactively draw the
-            aneurysm contour;
-
-        *   'automatic': automatically marks a 3D contour on the aneurysm
-            surface that separates the sac from the vasculature (see
-            'MarkAneurysmalRegion' function);
-
-        *   'plane': computes an approximate neck plane, based on Piccinelli's
-            publication (see 'ComputeAneurysmNeckPlane' function).
-
-    The automatic mode uses the parent vessels surface to estimate the neck
-    contour, if this surface is not passed, it will be computed and the user
-    will be prompted to clip its inlet and outlets.
-    """
-
-    if mode == "interactive":
-
-        vascular_surface = MarkAneurysmSacManually(
-                               vascular_surface,
-                               aneurysm_neck_array_name=gdistance_to_neck_array_name
-                           )
-
-    elif mode == "automatic":
-
-        vascular_surface = MarkAneurysmalRegion(
-                               vascular_surface,
-                               parent_vascular_surface=parent_vascular_surface,
-                               gdistance_to_neck_array_name=gdistance_to_neck_array_name
-                           )
-
-    elif mode == "plane":
-        raise NotImplementedError(
-                  "Clipping by the neck plane not yet implemented."
-              )
-
-    else:
-        raise ValueError(
-                  """Neck computation mode either 'interactive'
-                  or 'automatic'. {} passed.""".format(
-                      neck_comp_mode
-                  )
-              )
 
     return vascular_surface
