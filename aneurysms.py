@@ -36,6 +36,9 @@ from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 
+from vmtk4aneurysms.vascular_operations import MarkAneurysmSacManually
+
+
 def SelectParentArtery(surface: names.polyDataType) -> names.polyDataType:
     """Compute array marking the aneurysm' parent artery.
 
@@ -129,6 +132,191 @@ def GenerateOstiumSurface(
     # ostiumSurface = tools.SmoothSurface(ostiumSurface)
 
     return ostiumSurface
+
+# Hemodynamics-related functions that operate only on the aneurysm surface
+# Refactored here so canbe used directly inside the Aneurysm class
+def AneurysmStats(
+        neck_surface: names.polyDataType,
+        array_name: str,
+        neck_array_name: str=names.AneurysmNeckArrayName,
+        n_percentile: float=99,
+        neck_iso_value: float=const.NeckIsoValue
+    )   -> dict:
+    """Compute fields statistics over aneurysm surface.
+
+    Given a surface with the fields of WSS hemodynamics variables defined on
+    it, computes the average, maximum, minimum, percetile (value passed as
+    optional by the user) and the surface-average over the aneurysm surface.
+    Return a dictionary with the statistics.
+
+    .. note::
+        Assumes that the surface also contain a field name 'neck_array_name'
+        that indicates the aneurysm portion with 0 and 1 on the rest of the
+        vasculature. The function uses this array to clip the aneurysm portion.
+        If this is not present on the surface, the function prompts the user to
+        delineate the aneurysm neck.
+    """
+
+    pointArrays = tools.GetPointArrays(neck_surface)
+    cellArrays  = tools.GetCellArrays(neck_surface)
+
+    neckArrayInSurface = neck_array_name in pointArrays or \
+                         neck_array_name in cellArrays
+
+    if not neckArrayInSurface:
+        # Compute neck array
+        neck_surface = MarkAneurysmSacManually(neck_surface)
+
+    # Get aneurysm
+    aneurysmSurface = tools.ClipWithScalar(
+                          neck_surface,
+                          neck_array_name,
+                          neck_iso_value
+                      )
+
+    return pmath.SurfaceFieldStatistics(
+               aneurysmSurface,
+               array_name,
+               n_percentile=n_percentile
+           )
+
+def LsaAverage(
+        neck_surface: names.polyDataType,
+        lowWSS: float,
+        neck_array_name: str=names.AneurysmNeckArrayName,
+        neck_iso_value: float=const.NeckIsoValue,
+        avgMagWSSArray: str=names.TAWSS
+    )   -> float:
+    """Computes the LSA based on the time-averaged WSS (TAWSS) field.
+
+    Calculates the LSA (low WSS area ratio) for aneurysms. The input is a
+    surface with the time-averaged WSS over the surface and an array defined on
+    it indicating the aneurysm neck.  The function then calculates the aneurysm
+    surface area and the area where the WSS is lower than a reference value
+    provided by the user.
+    """
+    try:
+        # Try to read if file name is given
+        surface = tools.ReadSurface(neck_surface)
+    except:
+        surface = neck_surface
+
+    # Get aneurysm
+    aneurysm = tools.ClipWithScalar(surface, neck_array_name, neck_iso_value)
+
+    # Get aneurysm area
+    aneurysmArea = geo.Surface.Area(aneurysm)
+
+    # Get low shear area
+    lsaPortion = tools.ClipWithScalar(aneurysm, avgMagWSSArray, lowWSS)
+    lsaArea = geo.Surface.Area(lsaPortion)
+
+    return lsaArea/aneurysmArea
+
+# Wallmotion-related functions that operate only on the aneurysm surface
+# Refactored here so canbe used directly inside the Aneurysm class
+def AneurysmPulsatility(
+        displacement_surface: names.polyDataType,
+        ps_displ_field_name: str,
+        ld_displ_field_name: str,
+        aneurysm_neck_array_name: str=names.DistanceToNeckArrayName
+    )   -> float:
+    """Return an aneurysm's wall pulsatility.
+
+    The pulsatility, :math:`\delta_v`, of a cerebral aneurysm is defined as
+    (Sanchez et al. (2014)):
+
+    .. math::
+        \delta_v = (V_{ps}/V_{ld}) - 1
+
+    where "ld" indicates low diastole and "ps" indicates peak systole values,
+    and V is the aneurysm sac volume. It uses the the lumen surface with the
+    peak systole and low diastole displacement field on the surface.
+
+    .. note::
+        The input surface must alread have the aneurysm neck array, otherwise
+        the function prompts the user to select the aneurysm neck contour.
+    """
+
+    # Warp whole surface at peak systole and low diastole
+    ldLumenSurface = geo.WarpPolydata(displacement_surface,
+                                      ld_displ_field_name)
+
+    psLumenSurface = geo.WarpPolydata(displacement_surface,
+                                      ps_displ_field_name)
+
+    # With the surfaces warped by the displacement field,
+    # now we just need to clip the aneurysm sac region.
+    ldAneurysmSurface = tools.ClipWithScalar(ldLumenSurface,
+                                             aneurysm_neck_array_name,
+                                             const.NeckIsoValue)
+
+    psAneurysmSurface = tools.ClipWithScalar(psLumenSurface,
+                                             aneurysm_neck_array_name,
+                                             const.NeckIsoValue)
+
+    ldAneurysm = Aneurysm(ldAneurysmSurface)
+    psAneurysm = Aneurysm(psAneurysmSurface)
+
+    return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
+
+def AneurysmPulsatility2(
+        lumen_surface: names.polyDataType,
+        displacement_over_time: dict,
+        peak_systole_instant: float,
+        low_diastole_instant: float,
+        aneurysm_neck_array_name: str=names.DistanceToNeckArrayName
+    )   -> float:
+    """Compute aneurysm wall pulsatility (alternative version).
+
+    Alternative version of the aneurysm pulsatility computation by using the
+    lumen surface and the dictionary with the displacement field computed with
+    the GetPatchFieldOverTime function. The input surface must alread have the
+    aneurysm neck array, otherwise the function prompts the user to select the
+    aneurysm neck contour.
+    """
+
+    ldDisplField = displacement_over_time.get(low_diastole_instant)
+    psDisplField = displacement_over_time.get(peak_systole_instant)
+
+    # Add both field to the surfaces, separately
+    npLumenSurface = dsa.WrapDataObject(lumen_surface)
+    npLumenSurface.GetCellData().append(ldDisplField, lowDiastoleDisplFieldName)
+    npLumenSurface.GetCellData().append(psDisplField, peakSystoleDisplFieldName)
+
+    lumenSurface = npLumenSurface.VTKObject
+
+    # Project aneurysm neck contour to the surface
+    if aneurysm_neck_array_name not in tools.GetPointArrays(lumenSurface):
+        print("Neck array name not in surface. Computing it.")
+
+        lumenSurface = MarkAneurysmSacManually(
+                           lumenSurface,
+                           aneurysm_neck_array_name=aneurysm_neck_array_name
+                       )
+
+    else:
+        pass
+
+    # Warp whole surface at peak systole and low diastole
+    ldLumenSurface = geo.WarpPolydata(lumenSurface, lowDiastoleDisplFieldName)
+    psLumenSurface = geo.WarpPolydata(lumenSurface, peakSystoleDisplFieldName)
+
+    # Clip aneurysm
+    ldAneurysmSurface = tools.ClipWithScalar(ldLumenSurface,
+                                             aneurysm_neck_array_name,
+                                             const.NeckIsoValue)
+
+    psAneurysmSurface = tools.ClipWithScalar(psLumenSurface,
+                                             aneurysm_neck_array_name,
+                                             const.NeckIsoValue)
+
+    # Initiate aneurysm model
+    ldAneurysm = Aneurysm(ldAneurysmSurface)
+    psAneurysm = Aneurysm(psAneurysmSurface)
+
+    # Compute pulsatility
+    return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
 
 class Aneurysm:
     """Representation for saccular cerebral aneurysms.

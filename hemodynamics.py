@@ -36,7 +36,6 @@ from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 from vmtk4aneurysms.lib import foamtovtk as fvtk
 
-from vmtk4aneurysms.vascular_operations import MarkAneurysmSacManually
 from vmtk4aneurysms.aneurysms import SelectParentArtery
 
 # Default density used for WSS
@@ -515,85 +514,6 @@ def PressureTemporalStats(
               )
 
     return surface
-
-def AneurysmStats(
-        neck_surface: names.polyDataType,
-        array_name: str,
-        neck_array_name: str=names.AneurysmNeckArrayName,
-        n_percentile: float=99,
-        neck_iso_value: float=const.NeckIsoValue
-    )   -> dict:
-    """Compute fields statistics over aneurysm surface.
-
-    Given a surface with the fields of WSS hemodynamics variables defined on
-    it, computes the average, maximum, minimum, percetile (value passed as
-    optional by the user) and the surface-average over the aneurysm surface.
-    Return a dictionary with the statistics.
-
-    .. note::
-        Assumes that the surface also contain a field name 'neck_array_name'
-        that indicates the aneurysm portion with 0 and 1 on the rest of the
-        vasculature. The function uses this array to clip the aneurysm portion.
-        If this is not present on the surface, the function prompts the user to
-        delineate the aneurysm neck.
-    """
-
-    pointArrays = tools.GetPointArrays(neck_surface)
-    cellArrays  = tools.GetCellArrays(neck_surface)
-
-    neckArrayInSurface = neck_array_name in pointArrays or \
-                         neck_array_name in cellArrays
-
-    if not neckArrayInSurface:
-        # Compute neck array
-        neck_surface = MarkAneurysmSacManually(neck_surface)
-
-    # Get aneurysm
-    aneurysmSurface = tools.ClipWithScalar(
-                          neck_surface,
-                          neck_array_name,
-                          neck_iso_value
-                      )
-
-    return pmath.SurfaceFieldStatistics(
-               aneurysmSurface,
-               array_name,
-               n_percentile=n_percentile
-           )
-
-def LsaAverage(
-        neck_surface: names.polyDataType,
-        lowWSS: float,
-        neck_array_name: str=names.AneurysmNeckArrayName,
-        neck_iso_value: float=const.NeckIsoValue,
-        avgMagWSSArray: str=names.TAWSS
-    )   -> float:
-    """Computes the LSA based on the time-averaged WSS (TAWSS) field.
-
-    Calculates the LSA (low WSS area ratio) for aneurysms. The input is a
-    surface with the time-averaged WSS over the surface and an array defined on
-    it indicating the aneurysm neck.  The function then calculates the aneurysm
-    surface area and the area where the WSS is lower than a reference value
-    provided by the user.
-    """
-    try:
-        # Try to read if file name is given
-        surface = tools.ReadSurface(neck_surface)
-    except:
-        surface = neck_surface
-
-    # Get aneurysm
-    aneurysm = tools.ClipWithScalar(surface, neck_array_name, neck_iso_value)
-
-    # Get aneurysm area
-    aneurysmArea = geo.Surface.Area(aneurysm)
-
-    # Get low shear area
-    lsaPortion = tools.ClipWithScalar(aneurysm, avgMagWSSArray, lowWSS)
-    lsaArea = geo.Surface.Area(lsaPortion)
-
-    return lsaArea/aneurysmArea
-
 
 # This calculation depends on the WSS defined only on the parent artery
 # surface. I think the easiest way to com- pute that is by drawing the artery
