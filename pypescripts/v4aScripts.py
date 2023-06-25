@@ -11,6 +11,7 @@ __all__ = [
     '.vmtksurfacehealthyvasculature',
     '.vmtksurfaceprojectcellfield',
     '.vmtksurfaceprojectpointfield',
+    '.vmtksurfacevasculatureinfo',
     '.vmtksurfacevasculaturesections',
     '.vmtksurfacevasculaturethickness',
     '.vmtksurfacevasculaturetransform',
