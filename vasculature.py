@@ -19,6 +19,7 @@ import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
+from numpy import delete, where
 from vtk.numpy_interface import dataset_adapter as dsa
 from vmtk4aneurysms.aneurysms import Aneurysm
 from vmtk4aneurysms.vascular_operations import ExtractAneurysmSacSurface
@@ -65,7 +66,6 @@ class Branch():
 
         return length
 
-
 class Bifurcation:
     """Model of a bifurcation of a vascular network.
 
@@ -78,45 +78,111 @@ class Bifurcation:
     the VMTK library.
     """
 
-    def __init__(self, referenceSystem, vectors):
-        try:
-            self.center = referenceSystem.GetPoints().GetPoint(0)
-            self.normal = referenceSystem.GetPointData().GetArray(
-                'Normal'
-            ).GetTuple(0)
+    def __init__(
+            self,
+            referenceSystem,
+            vectors
+        ):
 
-            self.upnormal = referenceSystem.GetPointData().GetArray(
-                'UpNormal'
-            ).GetTuple(0)
+        self._bif_reference_system = referenceSystem
+        self._bif_vectors_object = vectors
 
-            self.numberOfBranches = vectors.GetPoints().GetNumberOfPoints()
+        # Characterize bifurcation plane
+        self._bif_center = referenceSystem.GetPoints().GetPoint(0)
 
-            # Collect point and vectors
-            points = vectors.GetPoints()
-            pointData = vectors.GetPointData()
+        self._bif_plane_normal = referenceSystem.GetPointData().GetArray(
+                                     'Normal'
+                                 ).GetTuple(0)
 
-            self.points = [
-                points.GetPoint(i)
-                for i in range(self.numberOfBranches)
-            ]
 
-            self.vectors = [
-                pointData.GetArray('BifurcationVectors').GetTuple(index)
-                for index in range(self.numberOfBranches)
-            ]
+        self._bif_plane_normal = referenceSystem.GetPointData().GetArray(
+                                     'UpNormal'
+                                 ).GetTuple(0)
 
-            self.inPlaneVectors = [
-                pointData.GetArray('InPlaneBifurcationVectors').GetTuple(i)
-                for i in range(self.numberOfBranches)
-            ]
+        # Characterize branches directions in bifurcation
+        npBifVectors = dsa.WrapDataObject(vectors)
+        bifPointData = npBifVectors.GetPointData()
 
-        except AttributeError:
-            # TODO: improve this init
-            errorMessage = "Error building bifurcation!" + \
-                "It seems you did not pass me a vtkPolyData."
+        self._nbranches = vectors.GetPoints().GetNumberOfPoints()
+        self._branches_ids = bifPointData.GetArray(
+                                 "GroupIds"
+                             )
 
-            print(errorMessage)
+        # Collect points and vectors (in plane and out plane)
+        self._bif_points  = npBifVectors.GetPoints()
 
+        self._bif_vectors = bifPointData.GetArray(
+                                "BifurcationVectors"
+                            )
+
+        # In plane vector are the bif vectors projected in the bif plane
+        self._inplane_bif_vectors = bifPointData.GetArray(
+                                        "InPlaneBifurcationVectors"
+                                    )
+        self._outplane_bif_vectors = bifPointData.GetArray(
+                                        "OutOfPlaneBifurcationVectors"
+                                    )
+
+        # In plane vector are the bif vectors projected in the bif plane
+        self._inplane_bif_angles = bifPointData.GetArray(
+                                        "InPlaneBifurcationVectorAngles"
+                                    )
+
+        self._outplane_bif_angles = bifPointData.GetArray(
+                                        "OutOfPlaneBifurcationVectorAngles"
+                                    )
+
+    def GetBifurcationReferenceSystem(self):
+        """Get the bifurcation reference system."""
+
+        return self._bif_reference_system
+
+    def GetBifurcationVectorsObject(self):
+        """Get the bifurcation vector object."""
+
+        return self._bif_vectors_object
+
+    def GetBifurcationPlaneAngles(self):
+        """Get the bifurcation vectors."""
+
+        return self._inplane_bif_angles
+
+    def GetBifurcationVectors(self):
+        """Get the bifurcation vectors."""
+
+        return self._bif_vectors
+
+    def GetBifurcationPlane(self):
+        """Get the bifurcation plane."""
+
+        bifPlane = vtk.vtkPlane()
+        bifPlane.SetOrigin(self._bif_center)
+        bifPlane.SetNormal(self._bif_plane_normal)
+
+        return bifPlane
+
+    # def GetDaugtherBranchesAngle(self):
+    #     """Return the angle between daughter branches (for two-branched
+    #     bifurcations)."""
+
+    #     # Get the two largest values of the GroupIds array, that identifies the
+    #     # branches departing from a bifurcation
+    #     if self._nbranches == 3:
+
+    #         daughterIds = np.delete(
+    #                             self._branches_ids,
+    #                             where(
+    #                                 self._branches_ids == min(self._branches_ids)
+    #                             )
+    #                         )
+
+
+
+        # else:
+        #     raise NotImplementedError(
+        #               "Angle between branches not implemented for bifurcations "\
+        #               "with more than two daugther branches."
+        #           )
 
 class Vasculature:
     """Representation of a vascular network tree model.
@@ -349,7 +415,6 @@ class Vasculature:
                 self._bifurcations.append(
                     Bifurcation(system, vectors)
                 )
-
 
     def _split_branches(self):
         """Split vasculature into branches.
