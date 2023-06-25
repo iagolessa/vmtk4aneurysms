@@ -173,7 +173,6 @@ class Vasculature:
         type, status, label.
         """
 
-        print('Initiating model.', end='\n')
         self._surface_model   = None
         self._centerlines     = None
         self._inlet_centers   = None
@@ -197,8 +196,6 @@ class Vasculature:
 
         # Morphology first to avoid some weird bug when using the array Normals
         # inside the computation of the open centers
-        print('Computing centerlines.', end='\n')
-
         self._centerlines = cnt.GenerateCenterlines(
                                 vtk_poly_data
                             )
@@ -210,12 +207,14 @@ class Vasculature:
         # Initiate surface model
         self._surface_model  = geo.Surface(vtk_poly_data)
 
-        print('Collecting bifurcations and branches.', end='\n')
+        # Compute branches and the array for branch splitting
+        self._extract_branches()
+
+        # Collecting bifurcations and branches.'
         self._compute_bifurcations_geometry()
         self._split_branches()
 
         if self._with_aneurysm:
-            print("Extracting aneurysm surface.")
 
             aneurysmType = aneurysm_prop["aneurysm_type"]
 
@@ -252,7 +251,28 @@ class Vasculature:
 
     def _extract_branches(self):
         """Split the vasculature centerlines into branches."""
-        pass
+        # Split centerline into branches
+        branches = vmtkscripts.vmtkBranchExtractor()
+        branches.Centerlines = self._centerlines
+        branches.Execute()
+
+        # The centerlines object with the arrays defining the branches portions
+        self._branched_centerlines = branches.Centerlines
+
+        # Array Names
+        self._radius_array_name   = branches.RadiusArrayName
+
+        # Defines the branches and the bifurcations
+        self._blanking_array_name = branches.BlankingArrayName
+
+        # Defines *each* branch and bifurcations
+        self._group_ids_array_name = branches.GroupIdsArrayName
+
+        # Roughly defines the before and after the bifurcations
+        self._tract_ids_array_name = branches.TractIdsArrayName
+
+        # Centerline ids array
+        self._centerlines_ids_array_name = branches.CenterlineIdsArrayName
 
     def _compute_bifurcations_geometry(self):
         """Collect bifurcations and computes their geometry.
@@ -261,24 +281,13 @@ class Vasculature:
         information in a list of bifurcations.
         """
 
-        # Split centerline into branches
-        branches = vmtkscripts.vmtkBranchExtractor()
-        branches.Centerlines = self._centerlines
-        branches.Execute()
-
-        # Array Names
-        radiusArrayName   = branches.RadiusArrayName
-        blankingArrayName = branches.BlankingArrayName
-        groupIdsArrayName = branches.GroupIdsArrayName
-        tractIdsArrayName = branches.TractIdsArrayName
-
         # Computing the bifurcation reference system
         bifsRefSystem = vmtkscripts.vmtkBifurcationReferenceSystems()
 
-        bifsRefSystem.Centerlines       = branches.Centerlines
-        bifsRefSystem.RadiusArrayName   = radiusArrayName
-        bifsRefSystem.BlankingArrayName = blankingArrayName
-        bifsRefSystem.GroupIdsArrayName = groupIdsArrayName
+        bifsRefSystem.Centerlines       = self._branched_centerlines
+        bifsRefSystem.RadiusArrayName   = self._radius_array_name
+        bifsRefSystem.BlankingArrayName = self._blanking_array_name
+        bifsRefSystem.GroupIdsArrayName = self._group_ids_array_name
         bifsRefSystem.Execute()
 
         # Get bifuraction list
@@ -286,25 +295,23 @@ class Vasculature:
         self._nbifurcations = referenceSystems.GetPoints().GetNumberOfPoints()
 
         bifsIdsArray = referenceSystems.GetPointData().GetArray(
-                           groupIdsArrayName
+                           self._group_ids_array_name
                        )
 
-        bifurcationsIds = [
-            bifsIdsArray.GetValue(index)
-            for index in range(self._nbifurcations)
-        ]
+        bifurcationsIds = [bifsIdsArray.GetValue(index)
+                           for index in range(self._nbifurcations)]
 
         if self._nbifurcations > const.zero:
             # Compute bifurcation
             bifVectors = vmtkscripts.vmtkBifurcationVectors()
 
             bifVectors.ReferenceSystems  = bifsRefSystem.ReferenceSystems
-            bifVectors.Centerlines       = branches.Centerlines
-            bifVectors.RadiusArrayName   = radiusArrayName
-            bifVectors.GroupIdsArrayName = groupIdsArrayName
-            bifVectors.TractIdsArrayName = tractIdsArrayName
-            bifVectors.BlankingArrayName = blankingArrayName
-            bifVectors.CenterlineIdsArrayName = branches.CenterlineIdsArrayName
+            bifVectors.Centerlines       = self._branched_centerlines
+            bifVectors.RadiusArrayName   = self._radius_array_name
+            bifVectors.GroupIdsArrayName = self._group_ids_array_name
+            bifVectors.TractIdsArrayName = self._tract_ids_array_name
+            bifVectors.BlankingArrayName = self._blanking_array_name
+            bifVectors.CenterlineIdsArrayName = self._centerlines_ids_array_name
 
             bifVectors.ReferenceSystemsNormalArrayName   = \
                     bifsRefSystem.ReferenceSystemsNormalArrayName
@@ -319,7 +326,7 @@ class Vasculature:
                 # Filter bifurcation reference system to get only one
                 # bifurcation
                 bifsRefSystem.ReferenceSystems.GetPointData().SetActiveScalars(
-                    groupIdsArrayName
+                    self._group_ids_array_name
                 )
 
                 bifurcationSystem = vtk.vtkThresholdPoints()
@@ -348,47 +355,36 @@ class Vasculature:
         """Split vasculature into branches.
 
         Given the vasculature centerlines, slits it into its constituent
-        branches. Return a list of branch objects.
+        branches. Generates a list of branch objects.
         """
-        # Split centerline into branches
-        branches = vmtkscripts.vmtkBranchExtractor()
-        branches.Centerlines = self._centerlines
-        branches.Execute()
-
-        # Array Names
-        radiusArrayName = branches.RadiusArrayName
-
-        # Defines the branches and the bifurcations
-        blankingArrayName = branches.BlankingArrayName
-
-        # Defines *each* branch and bifurcations
-        groupIdsArrayName = branches.GroupIdsArrayName
-
-        # Roughly defines the before and after the bifurcations
-        tractIdsArrayName = branches.TractIdsArrayName
-
         # Extract only the branches portion
         # (the blanking array separates the branches from the bifurcations)
         branchesId = 0
         branches = tools.ExtractPortion(
-                       branches.Centerlines,
-                       blankingArrayName,
+                       self._branched_centerlines,
+                       self._blanking_array_name,
                        branchesId
                    )
 
         # Get only the branch group ids
         npBranches = dsa.WrapDataObject(branches)
-        branchesIds = set(npBranches.GetCellData().GetArray(groupIdsArrayName))
+        branchesIds = set(
+                          npBranches.GetCellData().GetArray(
+                              self._group_ids_array_name
+                          )
+                      )
 
         for branchId in branchesIds:
             try:
                 branch = tools.ExtractPortion(
                              branches,
-                             groupIdsArrayName,
+                             self._group_ids_array_name,
                              branchId
                          )
 
-                self._branches.append(Branch(branch))
+                self._branches.append(
+                    Branch(branch)
+                )
 
             except(ValueError):
                 pass
