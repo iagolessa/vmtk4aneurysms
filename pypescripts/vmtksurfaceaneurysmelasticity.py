@@ -40,9 +40,9 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
         self.Surface = None
         self.AneurysmElasticityMode = "uniform"
-        self.ElasticityArrayName = names.ElasticityArrayName
-        self.ArteriesElasticity = 5e6
-        self.AneurysmElasticity = 2e6
+        self.ElasticityArrayName = [names.ElasticityArrayName]
+        self.ArteriesElasticity = [5e6]
+        self.AneurysmElasticity = [2e6]
         self.SmoothingIterations = 5
 
         self.NeckComputationMode = "interactive"
@@ -60,7 +60,7 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
         self.SetScriptName('vmtksurfaceaneurysmelasticity')
         self.SetScriptDoc(
             """Adds an array of elasticities on a vascular surface with an
-            aneurysm. """
+            aneurysm. More than one array can be added at the same time."""
         )
 
         self.SetInputMembers([
@@ -71,15 +71,17 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
                 '["uniform", "linear"]',
                 'indicates uniform aneurysm elasticity'],
 
-            ['ElasticityArrayName', 'elasticityarray', 'str', 1, '',
-                'name of the resulting elasticity array'],
+            ['ElasticityArrayName', 'elasticityarray', 'str', -1, '',
+                'names of the elasticity arrays (more than one can be passed)'],
 
-            ['ArteriesElasticity', 'arterieselasticity', 'float', 1, '',
-                'elasticity of the arteries (and aneurysm neck)'],
+            ['ArteriesElasticity', 'arterieselasticity', 'float', -1, '',
+                'elasticity of the arteries (and aneurysm neck) for each '\
+                'field name passed'],
 
-            ['AneurysmElasticity', 'aneurysmelasticity', 'float', 1, '',
+            ['AneurysmElasticity', 'aneurysmelasticity', 'float', -1, '',
                 'aneurysm elasticity, if uniform, or it is the aneurysm fundus'\
-                'elasticity, if the linear varying option is enabled.'],
+                'elasticity, if the linear varying option is enabled. Values'\
+                'must be passed for each elasticity field informed'],
 
             ['SmoothingIterations', 'iterations', 'int', 1, '',
                 'number of iterations for array smoothing'],
@@ -147,22 +149,30 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
         self.Surface = triangulate.GetOutput()
 
-        self.Surface = vscop.ComputeVasculatureElasticityWithAneurysm(
-                           self.Surface,
-                           elasticity_field_name=self.ElasticityArrayName,
-                           aneurysm_elasticity_mode=self.AneurysmElasticityMode,
-                           arteries_elasticity=self.ArteriesElasticity,
-                           aneurysm_elasticity=self.AneurysmElasticity,
-                           neck_comp_mode=self.NeckComputationMode,
-                           gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
-                           aneurysm_type=self.AneurysmType,
-                           parent_vascular_surface=self.ParentVesselSurface,
-                           dome_point=self.DomePoint,
-                           abnormal_elasticity=self.AbnormalHemodynamicsRegions,
-                           atherosclerotic_factor=self.AtheroscleroticFactor,
-                           red_regions_factor=self.RedRegionsFactor,
-                           nsmooth_iterations=self.SmoothingIterations
-                       )
+        elasticityValues = zip(
+                               self.ElasticityArrayName,
+                               self.AneurysmElasticity,
+                               self.ArteriesElasticity
+                           )
+
+        for fieldName, iaValue, bValue in elasticityValues:
+
+            self.Surface = vscop.ComputeVasculatureElasticityWithAneurysm(
+                               self.Surface,
+                               elasticity_field_name=fieldName,
+                               aneurysm_elasticity_mode=self.AneurysmElasticityMode,
+                               arteries_elasticity=bValue,
+                               aneurysm_elasticity=iaValue,
+                               neck_comp_mode=self.NeckComputationMode,
+                               gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
+                               aneurysm_type=self.AneurysmType,
+                               parent_vascular_surface=self.ParentVesselSurface,
+                               dome_point=self.DomePoint,
+                               abnormal_elasticity=self.AbnormalHemodynamicsRegions,
+                               atherosclerotic_factor=self.AtheroscleroticFactor,
+                               red_regions_factor=self.RedRegionsFactor,
+                               nsmooth_iterations=self.SmoothingIterations
+                           )
 
         # Get all arrays
         newCellArrays  = [arr for arr in tools.GetCellArrays(self.Surface)
