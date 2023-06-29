@@ -26,6 +26,7 @@ from vmtk import vmtkscripts
 from vmtk import vtkvmtk
 
 from vmtk4aneurysms.lib import centerlines as cl
+from vmtk4aneurysms.lib import polydatatools as tools
 
 vmtksurfacevasculaturesections = 'vmtkSurfaceVasculatureSections'
 
@@ -153,6 +154,8 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         sections.NumberOfDistanceSpheres = self.SpheresDistance
         sections.Execute()
 
+        # Branch sections are single-disk cells. Triangulate and remesh to
+        # interpolate fields
         triangulater = vmtkscripts.vmtkSurfaceTriangle()
         triangulater.Surface = sections.BranchSections
         triangulater.Execute()
@@ -165,14 +168,10 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
             self.ClipModel()
 
         if self.Remesh:
-            # Remeshing the surface with quality triangles
-            remesher = vmtkscripts.vmtkSurfaceRemeshing()
-            remesher.Surface = self.Surface
-            remesher.ElementSizeMode = "area"
-            remesher.TargetArea = self.ElementAreaSize
-            remesher.Execute()
-
-            self.Surface = remesher.Surface
+            self.Surface = tools.RemeshSurface(
+                               self.Surface,
+                               self.ElementAreaSize
+                           )
 
 if __name__=='__main__':
     main = pypes.pypeMain()
