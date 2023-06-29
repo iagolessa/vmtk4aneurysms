@@ -4,6 +4,7 @@ __all__ = [
     '.vmtkextractaneurysm',
     '.vmtkextractrawsurface',
     '.vmtkextractembolizedaneurysmsurface'
+    '.vmtkfoamcomputehemodynamics',
     '.vmtkmeshpointdatatocelldata',
     '.vmtksurfaceclipaddflowextension',
     '.vmtksurfaceremeshwithresolution',

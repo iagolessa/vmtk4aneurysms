@@ -27,7 +27,7 @@ from vmtk4aneurysms.lib import polydatatools as tools
 
 vmtksurfacehealthyvasculature = 'vmtkSurfaceHealthyVasculature'
 
-class vmtksurfacehealthyvasculature(pypes.pypeScript):
+class vmtkSurfaceHealthyVasculature(pypes.pypeScript):
 
     # Constructor
     def __init__(self):
