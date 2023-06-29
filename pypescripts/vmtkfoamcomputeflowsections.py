@@ -24,6 +24,7 @@ from vmtk import pypes
 from vmtk4aneurysms.lib import constants as const
 from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import foamtovtk as fvtk
+from vmtk4aneurysms.hemodynamics import GetCardiacCyclePeakAndDiastoleInstants
 from vmtk4aneurysms.pypescripts import v4aScripts
 
 vmtkfoamcomputeflowsections = 'vmtkFoamComputeFlowSections'
@@ -83,33 +84,12 @@ class vmtkFoamComputeFlowSections(pypes.pypeScript):
              'vmtksurfacewriter']
         ])
 
-    def _folders_in(self, path_to_parent):
-        """List directories in a path."""
-
-        for fname in os.listdir(path_to_parent):
-            if os.path.isdir(os.path.join(path_to_parent,fname)):
-                yield fname
-
-    def _get_peak_instant(self, case_folder):
-        """Get peak and low diastole instants of aneurysm simulation."""
-
-        timeFolders = list(self._folders_in(case_folder))
-
-        if '2' in timeFolders:
-            return (2, 2.81)
-
-        elif '1.06' in timeFolders:
-            return (1.06, 1.87)
-
-        else:
-            return (0.12, 0.93)
-
     def Execute(self):
         if self.FoamMultiRegion and not self.RegionName:
             raise NameError("Provide valid region name.")
 
         # Get peak systole and low diastole instant per case
-        peakSystoleInstant, lowDiastoleInstant = self._get_peak_instant(
+        peakSystoleInstant, lowDiastoleInstant = GetCardiacCyclePeakAndDiastoleInstants(
                                                      os.path.dirname(self.FoamCasePath)
                                                  )
 

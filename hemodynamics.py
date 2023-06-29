@@ -154,6 +154,32 @@ def _compute_gon(
     setArray(avgGVecArray, names.WSSSG)
     setArray(avgMagGVecArray, names.WSSSGmag)
 
+def _folders_in(path_to_parent):
+    """List directories in a path."""
+
+    for fname in os.listdir(path_to_parent):
+        if os.path.isdir(os.path.join(path_to_parent,fname)):
+            yield fname
+
+# TODO: is there a way to generalize this function? i.e. make it independent of
+# the OF case folder
+def GetCardiacCyclePeakAndDiastoleInstants(case_folder):
+    """Get peak and low diastole instants of aneurysm simulation by reading the
+    OpenFOAM case folder with the time steps."""
+
+    timeFolders = list(
+                      _folders_in(case_folder)
+                  )
+
+    if '2' in timeFolders:
+        return (2, 2.81)
+
+    elif '1.06' in timeFolders:
+        return (1.06, 1.87)
+
+    else:
+        return (0.12, 0.93)
+
 def Hemodynamics(
         foam_case: str,
         t_peak_systole: float,

@@ -18,6 +18,7 @@
 
 import argparse
 from vmtk4aneurysms.lib.names import AneurysmNeckArrayName
+from vmtk4aneurysms.hemodynamics import GetCardiacCyclePeakAndDiastoleInstants
 
 def generate_arg_parser():
     """Creates and return a parser object for this app."""
@@ -136,25 +137,6 @@ import vmtk4aneurysms.lib.foamtovtk as fvtk
 import vmtk4aneurysms.hemodynamics as hm
 import vmtk4aneurysms.wallmotion as wm
 
-def folders_in(path_to_parent):
-    """List directories in a path."""
-
-    for fname in os.listdir(path_to_parent):
-        if os.path.isdir(os.path.join(path_to_parent,fname)):
-            yield fname
-
-def get_peak_instant(case_folder):
-    timeFolders = list(folders_in(case_folder))
-
-    if '2' in timeFolders:
-        return (2, 2.81)
-
-    elif '1.06' in timeFolders:
-        return (1.06, 1.87)
-
-    else:
-        return (0.12, 0.93)
-
 # Names
 foamFolder       = args.case
 surfacePatchName = "" if args.patch == "volumeMesh" else args.patch
@@ -189,7 +171,7 @@ foamFile = os.path.join(foamFolder, "case.foam")
 Path(foamFile).touch(exist_ok=True)
 
 # Get peak systole and low diastole instant per case
-peakSystoleInstant, lowDiastoleInstant = get_peak_instant(foamFolder)
+peakSystoleInstant, lowDiastoleInstant = GetCardiacCyclePeakAndDiastoleInstants(foamFolder)
 
 print(
     "Peak and diastole instants {}s {}s".format(
