@@ -120,9 +120,10 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         for bid, branch in enumerate(vascularModel.GetBranches()):
 
             pp.pprint(
-                "Length of branch {}: {}".format(
+                "Branch {}: length {}| area {}".format(
                     bid,
-                    branch.GetLength()
+                    branch.GetLength(),
+                    branch.GetSurfaceArea()
                 )
             )
 

@@ -30,41 +30,57 @@ from vmtk4aneurysms.lib import constants as const
 from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 
-from .pypescripts import v4aScripts
+# from vmtk4aneurysms.pypescripts import v4aScripts
 
 class Branch():
     """Branch segment representation."""
 
-    def __init__(self, polydata):
+    def __init__(self, centerline, surface):
         """Initialize from branch vtkPolyData."""
 
-        self._branch = polydata
+        self._branch_centerline = centerline
+        self._branch_surface = surface
 
-    def GetBranch(self):
+        self._branch_length = self._compute_length()
+        self._branch_area = geo.Surface.Area(self._branch_surface)
+
+    def GetCenterline(self):
         """Return branch vtkPolyData."""
-        return self._branch
+        return self._branch_centerline
 
-    def GetLength(self):
-        """Compute length of branch."""
+    def _compute_length(self):
         # Get arrays
-        pointArrays = tools.GetPointArrays(self._branch)
+        pointArrays = tools.GetPointArrays(self._branch_centerline)
         abscissasArray = "Abscissas"
 
         if abscissasArray not in pointArrays:
             attributes = vmtkscripts.vmtkCenterlineAttributes()
-            attributes.Centerlines = self._branch
+            attributes.Centerlines = self._branch_centerline
             attributes.Execute()
 
-            self._branch = attributes.Centerlines
+            self._branch_centerline = attributes.Centerlines
 
         # Compute length by Abscissas array
-        distanceRange = self._branch.GetPointData().GetArray(
-            abscissasArray
-        ).GetRange()
+        distanceRange = self._branch_centerline.GetPointData().GetArray(
+                            abscissasArray
+                        ).GetRange()
 
-        length = max(distanceRange) - min(distanceRange)
+        return max(distanceRange) - min(distanceRange)
 
-        return length
+    def GetLength(self):
+        """Return the length of branch."""
+
+        return self._branch_length
+
+    def GetSurface(self):
+        """Return branch surface."""
+
+        return self._branch_surface
+
+    def GetSurfaceArea(self):
+        """Return the branch surface area."""
+
+        return self._branch_area
 
 class Bifurcation:
     """Model of a bifurcation of a vascular network.
@@ -241,7 +257,7 @@ class Vasculature:
         type, status, label.
         """
 
-        self._surface_model   = None
+        self._vascular_surface = vtk_poly_data
         self._centerlines     = None
         self._inlet_centers   = None
         self._outlet_centers  = None
@@ -341,6 +357,16 @@ class Vasculature:
 
         # Centerline ids array
         self._centerlines_ids_array_name = branches.CenterlineIdsArrayName
+
+        # Branch the vascular surface
+        # Here, it is important that the aneurysm centerline be taken into
+        # account. For that the aneurysm dome point have to be accounted too
+        surfaceBranches = vmtkscripts.vmtkBranchClipper()
+        surfaceBranches.Surface = self._vascular_surface
+        surfaceBranches.Centerlines = self._branched_centerlines
+        surfaceBranches.Execute()
+
+        self._branched_surface = surfaceBranches.Surface
 
     def _compute_bifurcations_geometry(self):
         """Collect bifurcations and computes their geometry.
@@ -449,8 +475,19 @@ class Vasculature:
                              branchId
                          )
 
+                # The surface branches do not have a "bifurcation patch"
+                # Hence can use directly the branches id obtained above
+                surfaceBranch = tools.ExtractPortion(
+                                    self._branched_surface,
+                                    self._group_ids_array_name,
+                                    branchId
+                                )
+
                 self._branches.append(
-                    Branch(branch)
+                    Branch(
+                        branch,
+                        surfaceBranch
+                    )
                 )
 
             except(ValueError):
