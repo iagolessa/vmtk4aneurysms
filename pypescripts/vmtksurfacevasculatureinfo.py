@@ -135,9 +135,9 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
             bifurcation = vascularModel.GetBifurcations()[bif_id]
 
             pp.pprint(
-                "Bifurcation {} vectors: {}".format(
+                "Angle between branches -> bif. {}: {} deg.".format(
                     bif_id,
-                    bifurcation.GetBifurcationVectors()
+                    bifurcation.GetDaugtherBranchesAngle()
                 )
             )
 

@@ -161,28 +161,30 @@ class Bifurcation:
 
         return bifPlane
 
-    # def GetDaugtherBranchesAngle(self):
-    #     """Return the angle between daughter branches (for two-branched
-    #     bifurcations)."""
+    def GetDaugtherBranchesAngle(self):
+        """Return the angle between daughter branches (for two-branched
+        bifurcations)."""
 
-    #     # Get the two largest values of the GroupIds array, that identifies the
-    #     # branches departing from a bifurcation
-    #     if self._nbranches == 3:
+        if self._nbranches == int(const.three):
 
-    #         daughterIds = np.delete(
-    #                             self._branches_ids,
-    #                             where(
-    #                                 self._branches_ids == min(self._branches_ids)
-    #                             )
-    #                         )
+            # Get the two largest values of the GroupIds array, that identifies
+            # the branches departing from a bifurcation
+            daughterIds = where(
+                              self._branches_ids != min(self._branches_ids)
+                          )[0]
 
 
+            return const.radToDeg*vtk.vtkMath.AngleBetweenVectors(
+                       self._bif_vectors[daughterIds][0],
+                       self._bif_vectors[daughterIds][1]
+                   )
 
-        # else:
-        #     raise NotImplementedError(
-        #               "Angle between branches not implemented for bifurcations "\
-        #               "with more than two daugther branches."
-        #           )
+
+        else:
+            raise NotImplementedError(
+                      "Angle between branches not implemented for bifurcations "\
+                      "with more than two daugther branches."
+                  )
 
 class Vasculature:
     """Representation of a vascular network tree model.
