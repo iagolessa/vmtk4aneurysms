@@ -1205,6 +1205,42 @@ def SelectSurfacePoint(
 
     return pickPoint.PickedSeeds.GetPoint(0)
 
+def GetClosestContourOnSurface(
+        surface: names.polyDataType,
+        contour: names.polyDataType
+    )   -> names.idList:
+    """Computes the closest contour on a surface based on another
+    contour.
+
+    Given a surface and a contour on space, the function looks for the closest
+    points on the surface of the given contour. Return the point ids of the
+    given surface."""
+
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(surface)
+    locator.BuildLocator()
+    locator.Update()
+
+    # Get points on the surface that are closest to the neck points
+    allClosestPointsIds = [locator.FindClosestPoint(
+                               contour.GetPoint(pointId)
+                           )
+                           for pointId in range(contour.GetNumberOfPoints())]
+
+    # Remove duplicates while keeping its order
+    closestPointsIds = sorted(
+                           set(allClosestPointsIds),
+                           key=lambda x: allClosestPointsIds.index(x)
+                       )
+
+    # Build ID list of points on the surface
+    pointIds = vtk.vtkIdList()
+
+    for pointId in closestPointsIds:
+        pointIds.InsertNextId(pointId)
+
+    return pointIds
+
 class SelectContourPointsIds():
     """Select closed contour points on a surface."""
 

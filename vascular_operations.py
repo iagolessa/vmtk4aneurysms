@@ -1043,28 +1043,10 @@ def _geo_distance_to_aneurysmal_region_neck(
     neckContour = boundaryExtractor.GetOutput()
 
     # Locator to find closest points
-    locator = vtk.vtkPointLocator()
-    locator.SetDataSet(vascular_surface)
-    locator.BuildLocator()
-    locator.Update()
-
-    # Get points on the surface that are closest to the neck points
-    allClosestPointsIds = [locator.FindClosestPoint(
-                               neckContour.GetPoint(pointId)
-                           )
-                           for pointId in range(neckContour.GetNumberOfPoints())]
-
-    # Remove duplicates while keeping its order
-    closestPointsIds = sorted(
-                           set(allClosestPointsIds),
-                           key=lambda x: allClosestPointsIds.index(x)
-                       )
-
-    # Build ID list of points on the surface
-    pointIds = vtk.vtkIdList()
-
-    for pointId in closestPointsIds:
-        pointIds.InsertNextId(pointId)
+    pointIds = tools.GetClosestContourOnSurface(
+                   vascular_surface,
+                   neckContour
+               )
 
     # Compute the geodesic distance  from the approximate neck contour
     vascular_surface = geo.SurfaceGeodesicDistanceToContour(
@@ -1177,28 +1159,10 @@ def _geo_distance_to_aneurysm_plane_neck(
     neckContour = boundaryExtractor.GetOutput()
 
     # Locator to find closest points
-    locator = vtk.vtkPointLocator()
-    locator.SetDataSet(vascular_surface)
-    locator.BuildLocator()
-    locator.Update()
-
-    # Get points on the surface that are closest to the neck points
-    allClosestPointsIds = [locator.FindClosestPoint(
-                               neckContour.GetPoint(pointId)
-                           )
-                           for pointId in range(neckContour.GetNumberOfPoints())]
-
-    # Remove duplicates while keeping its order
-    closestPointsIds = sorted(
-                           set(allClosestPointsIds),
-                           key=lambda x: allClosestPointsIds.index(x)
-                       )
-
-    # Build ID list of points on the surface
-    pointIds = vtk.vtkIdList()
-
-    for pointId in closestPointsIds:
-        pointIds.InsertNextId(pointId)
+    pointIds = tools.GetClosestContourOnSurface(
+                   vascular_surface,
+                   neckContour
+               )
 
     # Compute the geodesic distance  from the approximate neck contour
     vascular_surface = geo.SurfaceGeodesicDistanceToContour(
