@@ -387,8 +387,11 @@ class Vasculature:
         # Branch the vascular surface
         # Here, it is important that the aneurysm centerline be taken into
         # account. For that the aneurysm dome point have to be accounted too
+        surfaceToBranch = self._vascular_surface_no_aneurysm \
+                          if self._with_aneurysm else self._vascular_surface
+
         surfaceBranches = vmtkscripts.vmtkBranchClipper()
-        surfaceBranches.Surface = self._vascular_surface_no_aneurysm
+        surfaceBranches.Surface = surfaceToBranch
         surfaceBranches.Centerlines = self._branched_centerlines
         surfaceBranches.Execute()
 
