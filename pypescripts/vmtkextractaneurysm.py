@@ -157,6 +157,8 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         # Get ostium surface
         self.OstiumSurface = RemeshSurface(aneurysm.GetOstiumSurface())
 
+        self.OutputText("Dome point {}".format(aneurysm.GetDomeTipPoint()))
+
 
 if __name__ == '__main__':
     main = pypes.pypeMain()

@@ -143,7 +143,8 @@ class TestAneurysmModule(unittest.TestCase):
             "BottleneckFactor": 1.0,
             "AspectRatio": 0.5,
             "HullSurfaceArea": hemiSurfaceArea,
-            "ConicityParameter": 0.5#,
+            "ConicityParameter": 0.5,
+            "DomeTipPoint": (0,0,4)#,
             # "GLN": 1.0
         }
 
@@ -174,7 +175,8 @@ class TestAneurysmModule(unittest.TestCase):
             "BottleneckFactor": 1.0,
             "AspectRatio": 1.0,
             "HullSurfaceArea": heSurfaceArea,
-            "ConicityParameter": 0.5
+            "ConicityParameter": 0.5,
+            "DomeTipPoint": (0,0,8)
         }
 
         # Three-fourth ellipsoid
@@ -204,7 +206,8 @@ class TestAneurysmModule(unittest.TestCase):
             "BottleneckFactor": 2.0/np.sqrt(3),
             "AspectRatio": 3.0/np.sqrt(3),
             "HullSurfaceArea": tfeSurfaceArea,
-            "ConicityParameter": 0.1667
+            "ConicityParameter": 0.1667,
+            "DomeTipPoint": (0,0,12)
         }
 
 
@@ -219,6 +222,7 @@ class TestAneurysmModule(unittest.TestCase):
         methods.remove("GetHullSurface")
         methods.remove("GetHemodynamicStats")
         methods.remove("GetLowTAWSSArea")
+        methods.remove("GetDomeTipPoint")
 
         # Get methods of each aneurysm model
         print("Computing metrics of aneurysm models.", end="\n")

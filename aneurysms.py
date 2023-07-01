@@ -311,7 +311,12 @@ class Aneurysm:
 
         # 1D size definitions
         self._neck_diameter = self._compute_neck_diameter()
-        self._max_normal_height = self._compute_max_normal_height()
+
+        # Computes the maximum normal height and dome point
+        self._dome_point = None
+        self._max_normal_height = None
+        self._compute_max_normal_height_vector_and_dome_point()
+
         self._max_diameter, self._bulge_height = self._compute_max_diameter()
 
     def _cap_aneurysm(self):
@@ -426,44 +431,44 @@ class Aneurysm:
 
         return tuple(neckNormalsVector)
 
-    def _max_normal_height_vector(self):
-        """Compute vector along the maximum normal height.
+    def _compute_max_normal_height_vector_and_dome_point(self):
+        """Compute vector along the maximum normal height and its corresponding
+        point.
 
-        Compute the vector from the neck contour barycenter and the fartest
+        Compute the vector from the neck contour barycenter and the farthest
         point on the aneurysm surface that have the maximum normal distance
-        from the ostium surface normal.
+        from the ostium surface normal. The farthest point is interpreted as a
+        dome point that may identify the aneurysm in a vasculature, for
+        example.
         """
 
         vecNormal = -1*np.array(self._ostium_normal_vector)
         barycenter = np.array(self._neck_barycenter())
 
-        # Get point in which distance to neck line baricenter is maximum
-        maxDistance = const.zero
-        maxVertex = None
-
-        nVertices = self._aneurysm_surface.GetPoints().GetNumberOfPoints()
-
         # Get distance between every point and store it as dict to get maximum
         # distance later
-        pointDistances = {}
+        npAneurysmSurface = dsa.WrapDataObject(self._aneurysm_surface)
 
-        for index in range(nVertices):
-            # Get surface vertex
-            vertex = np.array(self._aneurysm_surface.GetPoint(index))
+        # Build lists of normal distances and distance vectors for each
+        # aneurysm vertex
+        distanceVectors = np.array([
+                              np.subtract(vertex, barycenter)
+                              for vertex in npAneurysmSurface.GetPoints()
+                          ])
 
-            # Compute vector joinign barycenter to vertex
-            distVector = np.subtract(vertex, barycenter)
+        normalDistances = np.array([
+                              abs(
+                                  vtk.vtkMath.Dot(
+                                      distVector,
+                                      vecNormal
+                                  )
+                              )
+                              for distVector in distanceVectors
+                          ])
 
-            # Compute the normal height
-            normalHeight = abs(vtk.vtkMath.Dot(distVector, vecNormal))
-
-            # Convert Np array to tuple (np array is unhashable)
-            pointDistances[tuple(distVector)] = normalHeight
-
-        # Get the key with the max item
-        maxNHeightVector = max(pointDistances, key=pointDistances.get)
-
-        return maxNHeightVector
+        self._max_normal_height = max(normalDistances)
+        self._dome_point = npAneurysmSurface.GetPoints()[normalDistances.argmax()]
+        self._max_normal_height_vector = distanceVectors[normalDistances.argmax()]
 
     # 1D Size Indices
     def _compute_neck_diameter(self):
@@ -474,14 +479,6 @@ class Aneurysm:
         """
 
         return geo.ContourAverageDiameter(self._neck_contour)
-
-    def _compute_max_normal_height(self):
-        """Return the maximum normal height."""
-
-        vecMaxHeight = self._max_normal_height_vector()
-        vecNormal = self._ostium_normal_vector
-
-        return abs(vtk.vtkMath.Dot(vecMaxHeight, vecNormal))
 
     def _compute_max_diameter(self):
         """Find the maximum diameter of aneurysm sections.
@@ -552,6 +549,10 @@ class Aneurysm:
         return maxDiameter, bulgeHeight
 
     # Public interface
+    def GetDomeTipPoint(self) -> tuple:
+        """Return the aneurysm surface."""
+        return tuple(self._dome_point)
+
     def GetSurface(self) -> names.polyDataType:
         """Return the aneurysm surface."""
         return self._aneurysm_surface
