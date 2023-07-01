@@ -106,13 +106,6 @@ class vmtkExtractAneurysm(pypes.pypeScript):
                            parent_vascular_surface=self.ParentVesselSurface
                        )
 
-        # Add a little bit of smoothing on the neck distance field
-        self.Surface = SmoothSurfacePointField(
-                            self.Surface,
-                            names.DistanceToNeckArrayName,
-                            niterations=10
-                        )
-
         # Clip the aneurysm sac (aneurysm marked with negative values)
         self.AneurysmSurface = ClipWithScalar(
                                    self.Surface,

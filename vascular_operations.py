@@ -1287,7 +1287,8 @@ def ComputeGeodesicDistanceToAneurysmNeck(
         gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
         aneurysm_type: str="",
         parent_vascular_surface: names.polyDataType=None,
-        parent_vascular_centerline: names.polyDataType=None
+        parent_vascular_centerline: names.polyDataType=None,
+        nsmoothing_iterations: int=10
     )   -> names.polyDataType:
     """Mark the aneurysm neck contour and compute the geodesic distance to it.
 
@@ -1307,6 +1308,12 @@ def ComputeGeodesicDistanceToAneurysmNeck(
     The automatic mode uses the parent vessels surface to estimate the neck
     contour, if this surface is not passed, it will be computed and the user
     will be prompted to clip its inlet and outlets.
+
+    .. warning::
+        Adds a little bit of smoothing in the resulting distance field to avoid
+        discontnuities in the original field due to its dependency on the
+        underlying discretization of the surface. This may be controlled with
+        the 'nsmoothing_iterations' function argument.
     """
 
     if mode == "interactive":
@@ -1326,6 +1333,8 @@ def ComputeGeodesicDistanceToAneurysmNeck(
                            )
 
     elif mode == "plane":
+        # TODO: when implementing the plane mode, assess whether the smoothing
+        # will destroy the plane
         raise NotImplementedError(
                   "Clipping by the neck plane not yet implemented."
               )
@@ -1338,7 +1347,12 @@ def ComputeGeodesicDistanceToAneurysmNeck(
                   )
               )
 
-    return vascular_surface
+    # Add a little bit of smoothing in the field to avoid discontinuities
+    return tools.SmoothSurfacePointField(
+               vascular_surface,
+               gdistance_to_neck_array_name,
+               niterations=nsmoothing_iterations
+           )
 
 def ExtractAneurysmSacSurface(
         vascular_surface: names.polyDataType,
@@ -1390,13 +1404,6 @@ def ExtractAneurysmSacSurface(
                         mode=mode,
                         parent_vascular_surface=parent_vascular_surface,
                         aneurysm_type=aneurysm_type
-                    )
-
-    # Add a little bit of smoothing on the neck distance field
-    markedSurface = tools.SmoothSurfacePointField(
-                        markedSurface,
-                        names.DistanceToNeckArrayName,
-                        niterations=10
                     )
 
     # Clip the aneurysm sac (aneurysm marked with negative values)
@@ -1965,7 +1972,6 @@ def ComputeVasculatureElasticityWithAneurysm(
                                parent_vascular_surface=parent_vascular_surface
                            )
 
-
     # Surface with thickness and distnce to neck
     npDistanceSurface = dsa.WrapDataObject(vascular_surface)
 
@@ -2033,7 +2039,7 @@ def ComputeVasculatureElasticityWithAneurysm(
                                red_regions_factor=red_regions_factor
                            )
 
-    # After array created, smooth it hard
+    # After array created, smooth it hard to remove discontinuity
     vascular_surface = tools.SmoothSurfacePointField(
                            vascular_surface,
                            elasticity_field_name,

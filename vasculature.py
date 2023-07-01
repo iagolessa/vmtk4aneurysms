@@ -298,7 +298,7 @@ class Vasculature:
             aneurysmType = aneurysm_prop["aneurysm_type"]
 
             # Get aneurysm contour explicitly and clip the aneurysm and rest of
-            # the vessel 
+            # the vessel
             markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
                                 self._vascular_surface,
                                 mode=self._clip_aneurysm_mode,
@@ -307,12 +307,6 @@ class Vasculature:
                             )
 
             # Add a little bit of smoothing on the neck distance field
-            markedSurface = tools.SmoothSurfacePointField(
-                                markedSurface,
-                                names.DistanceToNeckArrayName,
-                                niterations=10
-                            )
-
             # Clip the aneurysm sac (aneurysm marked with negative values)
             aneurysm_surface = tools.ClipWithScalar(
                                            markedSurface,
