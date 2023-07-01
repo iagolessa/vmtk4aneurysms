@@ -22,7 +22,7 @@ from vmtk import vmtkscripts
 from numpy import delete, where
 from vtk.numpy_interface import dataset_adapter as dsa
 from vmtk4aneurysms.aneurysms import Aneurysm
-from vmtk4aneurysms.vascular_operations import ExtractAneurysmSacSurface
+from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
 
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import centerlines as cnt
@@ -257,7 +257,7 @@ class Vasculature:
         type, status, label.
         """
 
-        self._vascular_surface = vtk_poly_data
+        self._vascular_surface = tools.Cleaner(vtk_poly_data)
         self._centerlines     = None
         self._inlet_centers   = None
         self._outlet_centers  = None
@@ -274,22 +274,72 @@ class Vasculature:
         self._bifurcations   = []
         self._branches       = []
 
+        # Initiate surface model
+        self._surface_model  = geo.Surface(self._vascular_surface)
+
         self._inlet_centers, self._outlet_centers = cnt.ComputeOpenCenters(
-                                                        vtk_poly_data
+                                                        self._vascular_surface
                                                     )
 
         # Morphology first to avoid some weird bug when using the array Normals
         # inside the computation of the open centers
         self._centerlines = cnt.GenerateCenterlines(
-                                vtk_poly_data
+                                self._vascular_surface,
+                                source_points=self._inlet_centers,
+                                target_points=self._outlet_centers
                             )
 
         self._centerlines = cnt.ComputeCenterlineGeometry(
                                 self._centerlines
                             )
 
-        # Initiate surface model
-        self._surface_model  = geo.Surface(vtk_poly_data)
+        if self._with_aneurysm:
+
+            aneurysmType = aneurysm_prop["aneurysm_type"]
+
+            # Get aneurysm contour explicitly and clip the aneurysm and rest of
+            # the vessel 
+            markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
+                                self._vascular_surface,
+                                mode=self._clip_aneurysm_mode,
+                                parent_vascular_surface=self._parent_vascular_surface,
+                                aneurysm_type=aneurysmType
+                            )
+
+            # Add a little bit of smoothing on the neck distance field
+            markedSurface = tools.SmoothSurfacePointField(
+                                markedSurface,
+                                names.DistanceToNeckArrayName,
+                                niterations=10
+                            )
+
+            # Clip the aneurysm sac (aneurysm marked with negative values)
+            aneurysm_surface = tools.ClipWithScalar(
+                                           markedSurface,
+                                           names.DistanceToNeckArrayName,
+                                           const.zero
+                                       )
+
+            # Needed for the surface branching procedure
+            self._vascular_surface_no_aneurysm = tools.ClipWithScalar(
+                                                     markedSurface,
+                                                     names.DistanceToNeckArrayName,
+                                                     const.zero,
+                                                     inside_out=False
+                                                 )
+
+            aneurysm_surface.GetPointData().RemoveArray(
+                names.DistanceToNeckArrayName
+            )
+            self._vascular_surface_no_aneurysm.GetPointData().RemoveArray(
+                names.DistanceToNeckArrayName
+            )
+
+            # Build aneurysm model
+            self._aneurysm_model = Aneurysm(
+                                        aneurysm_surface,
+                                        **aneurysm_prop
+                                    )
 
         # Compute branches and the array for branch splitting
         self._extract_branches()
@@ -297,24 +347,6 @@ class Vasculature:
         # Collecting bifurcations and branches.'
         self._compute_bifurcations_geometry()
         self._split_branches()
-
-        if self._with_aneurysm:
-
-            aneurysmType = aneurysm_prop["aneurysm_type"]
-
-            # This function already computes the parent vessels
-            # but then the type is required here
-            aneurysm_surface = ExtractAneurysmSacSurface(
-                                   self._surface_model.GetSurfaceObject(),
-                                   mode=self._clip_aneurysm_mode,
-                                   parent_vascular_surface=self._parent_vascular_surface,
-                                   aneurysm_type=aneurysmType
-                               )
-
-            self._aneurysm_model = Aneurysm(
-                                        aneurysm_surface,
-                                        **aneurysm_prop
-                                    )
 
     @classmethod
     def from_file(
@@ -362,7 +394,7 @@ class Vasculature:
         # Here, it is important that the aneurysm centerline be taken into
         # account. For that the aneurysm dome point have to be accounted too
         surfaceBranches = vmtkscripts.vmtkBranchClipper()
-        surfaceBranches.Surface = self._vascular_surface
+        surfaceBranches.Surface = self._vascular_surface_no_aneurysm
         surfaceBranches.Centerlines = self._branched_centerlines
         surfaceBranches.Execute()
 
