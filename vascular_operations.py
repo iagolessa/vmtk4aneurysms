@@ -751,6 +751,7 @@ def _search_neck_plane(
     globalMinimumAreas = {} # can be used for debug
     previousArea = 0.0
 
+    # These normals point to the aneurysm direction
     for center, normal in zip(map(tuple, centers), map(tuple, normals)):
 
         # More readable option
@@ -1081,6 +1082,140 @@ def _geo_distance_to_aneurysmal_region_neck(
 
     return vascular_surface
 
+def _geo_distance_to_aneurysm_plane_neck(
+        vascular_surface: names.polyDataType,
+        parent_vascular_surface: names.polyDataType=None,
+        parent_vascular_centerline: names.polyDataType=None,
+        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
+        aneurysm_type: str="",
+        aneurysm_point: tuple=None
+    )   -> names.polyDataType:
+    """Marks the aneurysmal region with an array of (geodesic) distances to the
+    neck plane contour.
+
+    Similar to '_geo_distance_to_aneurysmal_region_neck', this function
+    marks the vascular model passed with an array whose zero value marks the
+    contour of the neck plane, compute with 'ComputeAneurysmNeckPlane'.  The
+    rest of the array is given by the geodesic distance of the point to the
+    neck contour.
+
+    .. warning::
+        Negative distance values are used inside the aneurysm neck contour
+        (i.e., it marks the aneurysm sac) and positive values elsewhere.
+
+    .. warning::
+        Better results are expected if you "reduce" the vascular surface to
+        only the region where the aneurysm is, ie clip the surface so only the
+        parent vessel and the daughter branches are left.
+
+    .. warning::
+        This function destroys any arrays in the passing surface.
+
+    Arguments
+    ---------
+    vascular_surface (names.polyDataType) -- the original vasculature surface
+    with the aneurysm
+
+    Optional
+    parent_vascular_surface (names.polyDataType, default: None) --
+    reconstructed parent vasculature
+
+    parent_vascular_centerline (names.polyDataType, default: None) -- instead
+    of the parent (hypothetically healthy) vascular surface, its centerline can
+    be passed
+
+    gdistance_to_neck_array_name (str) -- name of the array defined on the
+    surface to mark the aneurysm
+
+    aneurysm_point (tuple) -- point at the tip of the aneurysm dome, for
+    aneurysm identification.
+
+    Return
+    surface (vtkPolyData) -- vascular surface with an array defined on it
+    marking the aneurysmal region contour.
+    """
+
+    # Clean up any arrays on the surface
+    vascular_surface = tools.Cleaner(vascular_surface)
+
+    # Copy the original surface and store it so the final array is interpolated
+    # back to it
+    copiedSurface = tools.CopyVtkObject(vascular_surface)
+
+    # Perform the procedure on a clean surface
+    vascular_surface = tools.CleanupArrays(vascular_surface)
+
+    # Get plane neck and aneurysm clipped
+    neckPlane, aneurysmSurface = ComputeAneurysmNeckPlane(
+                                     vascular_surface,
+                                     aneurysm_type=aneurysm_type,
+                                     parent_vascular_surface=parent_vascular_surface,
+                                     min_variable="area",
+                                     aneurysm_point=aneurysm_point
+                                 )
+
+    # The next algorithm needs to use a poly data result of a CLIP!
+    # That is the case with the ComputeAneurysmNeckPlane algorithm
+    # The best approach I found to extract the closest path with the surface
+    # model points was through the clip: the clip used subsequentely wtih the
+    # boundary extractor provides a set of points that are ORIENTED along the
+    # neck line. On the other hand, The initial tests I did were with the
+    # contour filter, which, as far as I could assess, generates a polyline
+    # that does not have its points oriented along the path, which inhibited
+    # the use of the selection filter to get the aneurysmal region and change
+    # the sign of the geodeseic distance to neck array (note, the coumputation
+    # of the geodesic distance per se did not require the points to be
+    # oriented).
+
+    # Extract the bounday of the cutted cells
+    # This provides a rough approximation of where the neck contour
+    # cuts the surface
+    boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
+    boundaryExtractor.SetInputData(aneurysmSurface)
+    boundaryExtractor.Update()
+
+    neckContour = boundaryExtractor.GetOutput()
+
+    # Locator to find closest points
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(vascular_surface)
+    locator.BuildLocator()
+    locator.Update()
+
+    # Get points on the surface that are closest to the neck points
+    allClosestPointsIds = [locator.FindClosestPoint(
+                               neckContour.GetPoint(pointId)
+                           )
+                           for pointId in range(neckContour.GetNumberOfPoints())]
+
+    # Remove duplicates while keeping its order
+    closestPointsIds = sorted(
+                           set(allClosestPointsIds),
+                           key=lambda x: allClosestPointsIds.index(x)
+                       )
+
+    # Build ID list of points on the surface
+    pointIds = vtk.vtkIdList()
+
+    for pointId in closestPointsIds:
+        pointIds.InsertNextId(pointId)
+
+    # Compute the geodesic distance  from the approximate neck contour
+    vascular_surface = geo.SurfaceGeodesicDistanceToContour(
+                           vascular_surface,
+                           pointIds,
+                           gdistance_array_name=gdistance_to_neck_array_name
+                       )
+
+    # Interpolate the distance array to the original surface
+    vascular_surface = tools.ProjectPointArray(
+                           copiedSurface,
+                           vascular_surface,
+                           gdistance_to_neck_array_name
+                       )
+
+    return vascular_surface
+
 def ClipVasculature(
         vascular_surface: names.polyDataType
     )   -> names.polyDataType:
@@ -1169,6 +1304,9 @@ def ComputeAneurysmNeckPlane(
     its normal vector
     """
 
+    # Operate on copy
+    vascular_surface = tools.CopyVtkObject(vascular_surface)
+
     # Clean up any arrays on the surface
     vascular_surface = tools.Cleaner(vascular_surface)
     vascular_surface = tools.CleanupArrays(vascular_surface)
@@ -1240,52 +1378,46 @@ def ComputeAneurysmNeckPlane(
                 )
 
     # 8) Detach aneurysm sac from parent vasculature
+    # It is impotant to clip the aneurysm here to clip only the aneurysmal
+    # region surface
     neckCenter = neckPlane.GetOrigin()
     neckNormal = neckPlane.GetNormal()
 
-    # # Clip final aneurysm surface: the side to where the normal point
-    # surf1 = tools.ClipWithPlane(
-    #             aneurysmalSurface,
-    #             neckCenter,
-    #             neckNormal
-    #         )
+    # How to clip the aneurysm and get the correct plne neck contour to compute
+    # the distance to i too I could use what they do in the vmtkbranchclipper
+    # script where they clip the surface exaclty on that value wth remeshing of
+    # elements there
 
-    # surf2 = tools.ClipWithPlane(
-    #             aneurysmalSurface,
-    #             neckCenter,
-    #             neckNormal,
-    #             inside_out=True
-    #         )
+    # Clip final aneurysm surface: the side to where the normal point
+    aneurysmSacSurface = tools.ClipWithPlane(
+                             aneurysmalSurface,
+                             neckCenter,
+                             neckNormal,
+                             inside_out=False
+                         )
 
-    # # Check which output is farthest from clipped tube (the actual aneurysm
-    # # surface should be farther)
-    # tubePoints  = dsa.WrapDataObject(aneurysmInceptionPortion).GetPoints()
-    # surf1Points = dsa.WrapDataObject(surf1).GetPoints()
-    # surf2Points = dsa.WrapDataObject(surf2).GetPoints()
+    # If disconnected, get the portion closest to the middle point between the
+    # neck center and the dome point
+    closestPoint = np.array(
+                        [list(aneurysm_point),
+                         list(neckCenter)]
+                    ).mean(axis=0) if aneurysm_point is not None \
+                    else neckCenter
 
-    # tubeCentroid  = tubePoints.mean(axis=0)
-    # surf1Centroid = surf1Points.mean(axis=0)
-    # surf2Centroid = surf2Points.mean(axis=0)
+    aneurysmSacSurface = tools.ExtractConnectedRegion(
+                             aneurysmSacSurface,
+                             method="closest",
+                             closest_point=closestPoint
+                         )
 
-    # surf1Distance = vtk.vtkMath.Distance2BetweenPoints(
-    #                     tubeCentroid,
-    #                     surf1Centroid
-    #                 )
-
-    # surf2Distance = vtk.vtkMath.Distance2BetweenPoints(
-    #                     tubeCentroid,
-    #                     surf2Centroid
-    #                 )
-
-    # aneurysmPlaneNeckSurface = surf1 if surf1Distance > surf2Distance else surf2
-
-    return neckCenter, neckNormal
+    return neckPlane, aneurysmSacSurface
 
 def ComputeGeodesicDistanceToAneurysmNeck(
         vascular_surface: names.polyDataType,
         mode: str="interactive",
         gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName,
         aneurysm_type: str="",
+        aneurysm_point: tuple=None,
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
         nsmoothing_iterations: int=10
@@ -1312,8 +1444,15 @@ def ComputeGeodesicDistanceToAneurysmNeck(
     .. warning::
         Adds a little bit of smoothing in the resulting distance field to avoid
         discontnuities in the original field due to its dependency on the
-        underlying discretization of the surface. This may be controlled with
-        the 'nsmoothing_iterations' function argument.
+        underlying discretization of the surface. For the 'plane' mode, it may
+        distance the neck contour plane from an actual plane. This may be
+        controlled with the 'nsmoothing_iterations' function argument.
+
+    .. warning::
+        If using the 'plane' mode, as the smoothing may render the plane
+        actually not a perfect plane, if you really need to use a plane, than
+        use directly the function 'ComputeAneurysmNeckPlane', which returns the
+        neck plane as a vtkPlane and the clipped aneurysm sac by that plane.
     """
 
     if mode == "interactive":
@@ -1333,16 +1472,18 @@ def ComputeGeodesicDistanceToAneurysmNeck(
                            )
 
     elif mode == "plane":
-        # TODO: when implementing the plane mode, assess whether the smoothing
-        # will destroy the plane
-        raise NotImplementedError(
-                  "Clipping by the neck plane not yet implemented."
-              )
+        # The smoohing here alters a little bit the 'plane'
+        vascular_surface = _geo_distance_to_aneurysm_plane_neck(
+                               vascular_surface,
+                               parent_vascular_surface=parent_vascular_surface,
+                               aneurysm_type=aneurysm_type,
+                               aneurysm_point=aneurysm_point
+                           )
 
     else:
         raise ValueError(
-                  """Neck computation mode either 'interactive'
-                  or 'automatic'. {} passed.""".format(
+                  """Neck computation mode either 'interactive', 'automatic',
+                  or 'plane'; {} passed.""".format(
                       neck_comp_mode
                   )
               )
@@ -1368,6 +1509,13 @@ def ClipAneurysmSacSurface(
     'ComputeGeodesicDistanceToAneurysmNeck' (see its docstring for the
     available methods of defining the aneurysm neck contour). Returns a tuple
     with the aneurysm and the rest of the surface clipped.
+
+    .. warning::
+        If using the 'plane' mode, as the smoothing of the distance field may
+        render the plane actually not a perfect plane, if you really need to
+        use a plane, than use directly the function 'ComputeAneurysmNeckPlane',
+        which returns the neck plane as a vtkPlane and the clipped aneurysm sac
+        by that plane.
 
     Arguments
     ---------

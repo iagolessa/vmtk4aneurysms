@@ -25,8 +25,6 @@ import pandas as pd
 import vasculature as vsc
 from lib import polydatatools as tools
 
-modelFile = "/home/iloliveira/repos/vmtk4aneurysms/testing/example-data/aneurysm/bifurcation/aneurysm_vascular_model.stl"
-modelHealthyFile = "/home/iloliveira/repos/vmtk4aneurysms/testing/example-data/aneurysm/bifurcation/aneurysm_model_healthy_vasculature.stl"
 
 class TestVasculatureModule(unittest.TestCase):
 

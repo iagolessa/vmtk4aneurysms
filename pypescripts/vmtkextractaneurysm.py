@@ -26,7 +26,8 @@ from pprint import PrettyPrinter
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
 from vmtk4aneurysms.aneurysms import Aneurysm
-from vmtk4aneurysms.lib.polydatatools import RemeshSurface, ClipWithScalar, SmoothSurfacePointField
+from vmtk4aneurysms.lib.polydatatools import RemeshSurface, ClipWithScalar
+
 from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
 
 vmtkextractaneurysm = 'vmtkExtractAneurysm'
@@ -43,6 +44,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.OstiumSurface   = None
         self.AneurysmType    = None
         self.AneurysmStatus  = None
+        self.DomePoint       = None
 
         self.ComputationMode = "interactive"
         self.ParentVesselSurface = None
@@ -59,6 +61,9 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
             ['AneurysmStatus','status', 'str', 1, '["ruptured", "unruptured"]',
                 'rupture status'],
+
+            ['DomePoint', 'domepoint', 'float', -1, '',
+                'coordinates of aneurysm dome point'],
 
             ['ComputationMode','mode', 'str', 1,
                 '["interactive", "automatic", "plane"]',
@@ -103,6 +108,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
                            self.Surface,
                            mode=self.ComputationMode,
                            aneurysm_type=self.AneurysmType,
+                           aneurysm_point=self.DomePoint,
                            parent_vascular_surface=self.ParentVesselSurface
                        )
 
@@ -150,8 +156,9 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         # Get ostium surface
         self.OstiumSurface = RemeshSurface(aneurysm.GetOstiumSurface())
 
-        self.OutputText("Dome point {}".format(aneurysm.GetDomeTipPoint()))
-
+        self.OutputText(
+            "Dome point {}".format(aneurysm.GetDomeTipPoint())
+        )
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
