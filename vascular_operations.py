@@ -1354,7 +1354,7 @@ def ComputeGeodesicDistanceToAneurysmNeck(
                niterations=nsmoothing_iterations
            )
 
-def ExtractAneurysmSacSurface(
+def ClipAneurysmSacSurface(
         vascular_surface: names.polyDataType,
         mode: str="interactive",
         parent_vascular_surface: names.polyDataType=None,
@@ -1366,7 +1366,8 @@ def ExtractAneurysmSacSurface(
     Given the vascular model with an aneurysm, clip the aneurysm sac surface
     based on the neck contour computed via the function
     'ComputeGeodesicDistanceToAneurysmNeck' (see its docstring for the
-    available methods of defining the aneurysm neck contour.)
+    available methods of defining the aneurysm neck contour). Returns a tuple
+    with the aneurysm and the rest of the surface clipped.
 
     Arguments
     ---------
@@ -1390,8 +1391,9 @@ def ExtractAneurysmSacSurface(
     it is used in its computation
 
     Return
-    aneurysm sac surface (names.polyDataType) -- the surface of the aneurysm
-    sac clipped from the vascular surface model
+    (aneurysm sac surface, clipped surface) (tuple) -- the surface of the
+    aneurysm sac clipped from the vascular surface model and the vascular model
+    surface clipped.
     """
 
     # Clean up any arrays on the surface
@@ -1408,16 +1410,27 @@ def ExtractAneurysmSacSurface(
 
     # Clip the aneurysm sac (aneurysm marked with negative values)
     clippedAneurysmSurface = tools.ClipWithScalar(
-                                   markedSurface,
-                                   names.DistanceToNeckArrayName,
-                                   const.zero
-                               )
+                                 markedSurface,
+                                 names.DistanceToNeckArrayName,
+                                 const.zero
+                             )
+
+    # Needed for the surface branching procedure
+    vascularSurfaceNoAneurysm = tools.ClipWithScalar(
+                                    markedSurface,
+                                    names.DistanceToNeckArrayName,
+                                    const.zero,
+                                    inside_out=False
+                                )
 
     clippedAneurysmSurface.GetPointData().RemoveArray(
         names.DistanceToNeckArrayName
     )
+    vascularSurfaceNoAneurysm.GetPointData().RemoveArray(
+        names.DistanceToNeckArrayName
+    )
 
-    return clippedAneurysmSurface
+    return clippedAneurysmSurface, vascularSurfaceNoAneurysm
 
 def _compute_local_wlr(diameter):
     if diameter > const.VesselLargeDiameter:

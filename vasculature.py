@@ -22,7 +22,7 @@ from vmtk import vmtkscripts
 from numpy import delete, where
 from vtk.numpy_interface import dataset_adapter as dsa
 from vmtk4aneurysms.aneurysms import Aneurysm
-from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
+from vmtk4aneurysms.vascular_operations import ClipAneurysmSacSurface
 
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import centerlines as cnt
@@ -249,7 +249,7 @@ class Vasculature:
 
         clip_aneurysm_mode (str, default: 'interactive') -- the method to clip
         the aneurysm, if present. Use the function
-        'vascular_operations.ExtractAneurysmSacSurface', hence the options are:
+        'vascular_operations.ClipAneurysmSacSurface', hence the options are:
         'interactive', 'automatic', or 'plane'.  Only enabled if the
         'with_aneurysm' arguments is True.  (default False).
 
@@ -299,35 +299,16 @@ class Vasculature:
 
             # Get aneurysm contour explicitly and clip the aneurysm and rest of
             # the vessel
-            markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
-                                self._vascular_surface,
-                                mode=self._clip_aneurysm_mode,
-                                parent_vascular_surface=self._parent_vascular_surface,
-                                aneurysm_type=aneurysmType
-                            )
+            clippedSurfaceTuple = ClipAneurysmSacSurface(
+                                      self._vascular_surface,
+                                      mode=self._clip_aneurysm_mode,
+                                      parent_vascular_surface=self._parent_vascular_surface,
+                                      aneurysm_type=aneurysmType
+                                  )
 
             # Add a little bit of smoothing on the neck distance field
             # Clip the aneurysm sac (aneurysm marked with negative values)
-            aneurysm_surface = tools.ClipWithScalar(
-                                           markedSurface,
-                                           names.DistanceToNeckArrayName,
-                                           const.zero
-                                       )
-
-            # Needed for the surface branching procedure
-            self._vascular_surface_no_aneurysm = tools.ClipWithScalar(
-                                                     markedSurface,
-                                                     names.DistanceToNeckArrayName,
-                                                     const.zero,
-                                                     inside_out=False
-                                                 )
-
-            aneurysm_surface.GetPointData().RemoveArray(
-                names.DistanceToNeckArrayName
-            )
-            self._vascular_surface_no_aneurysm.GetPointData().RemoveArray(
-                names.DistanceToNeckArrayName
-            )
+            aneurysm_surface, self._vascular_surface_no_aneurysm = clippedSurfaceTuple
 
             # Build aneurysm model
             self._aneurysm_model = Aneurysm(
@@ -338,7 +319,7 @@ class Vasculature:
         # Compute branches and the array for branch splitting
         self._extract_branches()
 
-        # Collecting bifurcations and branches.'
+        # Collecting bifurcations and branches.
         self._compute_bifurcations_geometry()
         self._split_branches()
 

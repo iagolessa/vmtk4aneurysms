@@ -98,7 +98,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
         # Only mark the aneurysm and compute the geodesic distance to it
         # (this code portion reproduces part of the functionality in
-        # ExtractAneurysmSacSurface)
+        # ClipAneurysmSacSurface, but here I need to keep the distance field)
         self.Surface = ComputeGeodesicDistanceToAneurysmNeck(
                            self.Surface,
                            mode=self.ComputationMode,
