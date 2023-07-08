@@ -27,7 +27,6 @@ from vtk.numpy_interface import dataset_adapter as dsa
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
-from scipy.spatial import ConvexHull
 
 # Local modules
 from vmtk4aneurysms.lib import names
@@ -306,10 +305,8 @@ class Aneurysm:
         # ... and volume
         self._volume = geo.Surface.Volume(self._cap_aneurysm())
 
-        # Computing hull properties
-        self._hull_surface_area = 0.0
-        self._hull_volume = 0.0
-        self._hull_surface = self._aneurysm_convex_hull()
+        # Computing hull surface and properties
+        self._compute_aneurysm_convex_hull()
 
         # 1D size definitions
         self._neck_diameter = self._compute_neck_diameter()
@@ -336,13 +333,7 @@ class Aneurysm:
 
         return appendFilter.GetOutput()
 
-    def _make_vtk_id_list(self, it):
-        vil = vtk.vtkIdList()
-        for i in it:
-            vil.InsertNextId(int(i))
-        return vil
-
-    def _aneurysm_convex_hull(self):
+    def _compute_aneurysm_convex_hull(self):
         """Compute convex hull of closed surface.
 
         Given an open surface, compute the convex hull set of a surface and
@@ -350,50 +341,31 @@ class Aneurysm:
         internally the scipy.spatial package.
         """
 
-        # Convert surface points to numpy array
-        nPoints = self._aneurysm_surface.GetNumberOfPoints()
-        vertices = list()
+        # Compute convex hull of open aneurysm surface
+        self._hull_surface = geo.SurfaceConvexHull(
+                                 self._aneurysm_surface,
+                                 constraint_contour=self._neck_contour
+                             )
 
-        for index in range(nPoints):
-            vertex = self._aneurysm_surface.GetPoint(index)
-            vertices.append(list(vertex))
+        self._hull_surface_area = geo.Surface.Area(self._hull_surface)
 
-        vertices = np.array(vertices)
+        # Closed it with the ostium surface to compute volume
+        appendFilter = vtk.vtkAppendPolyData()
+        appendFilter.AddInputData(self._hull_surface)
+        appendFilter.AddInputData(self._ostium_surface)
+        appendFilter.Update()
 
-        # Compute convex hull of points
-        aneurysmHull = ConvexHull(vertices)
+        # Force the volume computation to use the normals computed here (see
+        # documentation of geo.SurfaceConvexHull)
+        # Here the surface is closed, so auto orient on
+        aneurysmHullCapped = geo.Surface.Normals(
+                                 appendFilter.GetOutput(),
+                                 auto_orient_if_closed=True
+                             )
 
-        # Get hull properties
-        self._hull_volume = aneurysmHull.volume
+        # Compute volume
+        self._hull_volume = geo.Surface.Volume(aneurysmHullCapped)
 
-        # Need to subtract neck area to
-        # compute correct hull surface area
-        self._hull_surface_area = aneurysmHull.area - self._ostium_area
-
-        # Intantiate poly data
-        polyData = vtk.vtkPolyData()
-
-        # Get points
-        points = vtk.vtkPoints()
-
-        for xyzPoint in aneurysmHull.points:
-            points.InsertNextPoint(xyzPoint)
-
-        polyData.SetPoints(points)
-
-        # Get connectivity matrix
-        cellDataArray = vtk.vtkCellArray()
-
-        for cellId in aneurysmHull.simplices:
-            if type(cellId) is np.ndarray:
-                cellDataArray.InsertNextCell(self._make_vtk_id_list(cellId))
-            else:
-                for cell in cellId:
-                    cellDataArray.InsertNextCell(self._make_vtk_id_list(cell))
-
-        polyData.SetPolys(cellDataArray)
-
-        return polyData
 
     def _compute_neck_contour(self):
         """Return boundary of aneurysm surface (== neck contour)"""

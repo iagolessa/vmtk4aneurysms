@@ -253,7 +253,7 @@ def WriteSpline(points, tangents, file_name):
 
 def BuildPolyDataPoints(
         point_coords: Union[ndarray, list],
-        point_fields: dict
+        point_fields: dict=None
     )   -> names.polyDataType:
     """Build VTK Polydata composed of points and fields.
 
@@ -271,15 +271,57 @@ def BuildPolyDataPoints(
     pointsData.SetPoints(points)
 
     # Add point fields to polydata
-    npPointsData = dsa.WrapDataObject(pointsData)
+    if point_fields:
+        npPointsData = dsa.WrapDataObject(pointsData)
 
-    for pfield_name, pfield in point_fields.items():
-        npPointsData.PointData.append(
-            pfield,
-            pfield_name
+        for pfield_name, pfield in point_fields.items():
+            npPointsData.PointData.append(
+                pfield,
+                pfield_name
+            )
+
+        pointsData = npPointsData.VTKObject
+
+    return pointsData
+
+def _make_vtk_id_list(it):
+
+    vil = vtk.vtkIdList()
+    for i in it:
+        vil.InsertNextId(int(i))
+
+    return vil
+
+def BuildPolyData(
+        point_coords: Union[ndarray, list],
+        cells: Union[ndarray, list]
+    )   -> names.polyDataType:
+    """Build VTK Polydata based on its points and cells.
+
+    Pass the points coordinates as a list or numpy array and a list or numpy
+    array with its cells made of a list of point ids.
+    """
+
+    points = vtk.vtkPoints()
+
+    for point in point_coords:
+        points.InsertNextPoint(point)
+
+    polydata = vtk.vtkPolyData()
+    polydata.SetPoints(points)
+
+    # Get connectivity matrix
+    cellDataArray = vtk.vtkCellArray()
+
+    for cellIds in cells:
+
+        cellDataArray.InsertNextCell(
+            _make_vtk_id_list(cellIds)
         )
 
-    return npPointsData.VTKObject
+    polydata.SetPolys(cellDataArray)
+
+    return polydata
 
 def SmoothSurface(
         surface: names.polyDataType,

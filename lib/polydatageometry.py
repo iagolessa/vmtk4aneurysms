@@ -20,6 +20,7 @@ import math
 import numpy as np
 from typing import Union
 from itertools import combinations
+from scipy.spatial import ConvexHull
 
 from vmtk import vtkvmtk
 from numpy import array, multiply, zeros, where
@@ -498,6 +499,118 @@ def _get_cell_Poincare_matrices(
                     for lst in fieldVecComb]
 
     return cellMatrices
+
+def SurfaceConvexHull(
+        surface: names.polyDataType,
+        constraint_contour: names.polyDataType=None,
+        compute_normals: bool=False
+    )   -> names.polyDataType:
+    """Computes the convex hull of surface.
+
+    Given an open or closed surface, compute its convex hull set and returns a
+    triangulated surface representation of it.  It uses internally the
+    scipy.spatial package.
+
+    If the surface passed is not closed, than the resulting convex hull should
+    'start' from the open boundary contour of the passed surface, i.e. it have
+    to share this same boundary contour. This case is performed by the function
+    by passing the contour polydata too as the 'constraint_contour' argument.
+
+    .. warning::
+        The current algorithm may result in clipped triangles near the open
+        boundary, if this is the surface case. Always inspect the resultin hull
+        surface in this case.
+
+    .. warning::
+        The cell connectivity orientation returned by the ConvexHull function
+        do not necessarily orients the normals outwards, as expected since the
+        hull computation returns a closed surface.  If using the Surface.Volume
+        function to compute the hull volume, then it is recommended to compute
+        its normal vectors explicitly first and using the 'auto-orient'
+        functionality on (argument 'auto_orient_if_closed' with
+        Surface.Normals). This can also be accomplished here by turning the
+        argument 'compute_normals' to True.
+    """
+
+    # Get vertices only
+    vertices = np.array(
+                   [surface.GetPoint(index)
+                    for index in range(surface.GetNumberOfPoints())]
+               )
+
+    # Compute convex hull of points
+    surfaceHull = ConvexHull(vertices)
+
+    # Build poly data for convex hull
+    hullSurface = tools.BuildPolyData(
+                      surfaceHull.points,
+                      surfaceHull.simplices
+                  )
+
+    # Compute normals before remove the constraint
+    if compute_normals:
+        # The hull is closed at this point
+        hullSurface = Surface.Normals(
+                          hullSurface,
+                          auto_orient_if_closed=True
+                      )
+
+    if constraint_contour:
+        # Locator to find closest points to neck contour on hull surface
+        hullConstraintPointIds = tools.GetClosestContourOnSurface(
+                                     hullSurface,
+                                     constraint_contour
+                                 )
+
+        # Best procedure that I got working so far was to extract the hull only
+        # by computing the geodesic distance directly. the selectionFilter of
+        # VTK did not work with this kind of triangulation.
+        # Compute geodesic distance
+        geodesicFastMarching = vtkvmtk.vtkvmtkNonManifoldFastMarching()
+        geodesicFastMarching.SetInputData(hullSurface)
+
+        # Set F(x) == 1 to obtain the geodesic distance
+        geodesicFastMarching.UnitSpeedOn()
+        geodesicFastMarching.SetSolutionArrayName(names.GeodesicDistanceArrayName)
+        geodesicFastMarching.SetInitializeFromScalars(0)
+        geodesicFastMarching.SeedsBoundaryConditionsOn()
+        geodesicFastMarching.SetSeeds(hullConstraintPointIds)
+        geodesicFastMarching.PolyDataBoundaryConditionsOff()
+        geodesicFastMarching.Update()
+
+        hullSurface = tools.PointFieldToCellField(
+                          geodesicFastMarching.GetOutput(),
+                      )
+
+        # How to filter it? Numpy? Hard removing of zeroed-value cells?
+        npHullSurface = dsa.WrapDataObject(hullSurface)
+
+        # Convert zeros to -1 and >0 to 1 to extract the > 0 region
+        # Zeroed values mark the region inside the constraint contour
+        # TODO: assess the robustness of this procedure
+        distField = npHullSurface.GetCellData().GetArray(
+                        names.GeodesicDistanceArrayName
+                    )
+
+        distField[distField == const.zero] = -const.one
+        distField[distField >  const.zero] = const.one
+
+        hullSurface = npHullSurface.VTKObject
+        hullSurface.GetPointData().RemoveArray(names.GeodesicDistanceArrayName)
+
+        hullSurface = tools.ExtractPortion(
+                          hullSurface,
+                          names.GeodesicDistanceArrayName,
+                          const.one
+                      )
+
+        hullSurface.GetCellData().RemoveArray(names.GeodesicDistanceArrayName)
+
+        # Remesh it: so far no, because it may slightly change the hull voluem and
+        # surface area
+        # hullSurface = tools.RemeshSurface(hullSurface)
+
+    return hullSurface
 
 def ComputeSurfaceVectorFixedPoints(
         surface: names.polyDataType,
