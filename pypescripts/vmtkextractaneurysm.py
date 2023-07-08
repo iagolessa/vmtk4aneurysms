@@ -42,6 +42,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.AneurysmSurface = None
         self.VesselSurface   = None
         self.OstiumSurface   = None
+        self.HullSurface     = None
         self.AneurysmType    = None
         self.AneurysmStatus  = None
         self.DomePoint       = None
@@ -49,29 +50,34 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         self.ComputationMode = "interactive"
         self.ParentVesselSurface = None
 
+        self.ShowAneurysm = False
+
         self.SetScriptName('vmtkextractaneurysm')
         self.SetScriptDoc('extract aneurysm from vascular surface')
 
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '',
-                'the input surface', 'vmtksurfacereader'],
+             'the input surface', 'vmtksurfacereader'],
 
             ['AneurysmType','type', 'str', 1, '["lateral", "bifurcation"]',
-                'aneurysm type'],
+             'aneurysm type'],
 
             ['AneurysmStatus','status', 'str', 1, '["ruptured", "unruptured"]',
-                'rupture status'],
+             'rupture status'],
 
             ['DomePoint', 'domepoint', 'float', -1, '',
-                'coordinates of aneurysm dome point'],
+             'coordinates of aneurysm dome point'],
 
             ['ComputationMode','mode', 'str', 1,
-                '["interactive", "automatic", "plane"]',
-                'mode of neck ostium computation'],
+             '["interactive", "automatic", "plane"]',
+             'mode of neck ostium computation'],
 
             ['ParentVesselSurface', 'iparentvessel', 'vtkPolyData', 1, '',
-                'the parent vessel surface (if not passed, computed externally)',
-                'vmtksurfacereader']
+             'the parent vessel surface (if not passed, computed externally)',
+             'vmtksurfacereader'],
+
+            ['ShowAneurysm','showaneurysm','bool', 1, '',
+             'toggle visualization of the aneurysm, hull, and ostium surfaces']
         ])
 
         self.SetOutputMembers([
@@ -83,6 +89,10 @@ class vmtkExtractAneurysm(pypes.pypeScript):
              'the aneurysm sac surface', 'vmtksurfacewriter'],
 
             ['OstiumSurface','oostium','vtkPolyData',1,'',
+             'the ostium surface generated from the contour scalar neck',
+             'vmtksurfacewriter'],
+
+            ['HullSurface','ohull','vtkPolyData',1,'',
              'the ostium surface generated from the contour scalar neck',
              'vmtksurfacewriter'],
         ])
@@ -155,10 +165,40 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
         # Get ostium surface
         self.OstiumSurface = RemeshSurface(aneurysm.GetOstiumSurface())
+        self.HullSurface = aneurysm.GetHullSurface()
 
         self.OutputText(
             "Dome point {}".format(aneurysm.GetDomeTipPoint())
         )
+
+        if self.ShowAneurysm:
+            # Render surfaces
+            self.vmtkRenderer = vmtkscripts.vmtkRenderer()
+            self.vmtkRenderer.Initialize()
+
+            surfaceViewer1 = vmtkscripts.vmtkSurfaceViewer()
+            surfaceViewer1.vmtkRenderer = self.vmtkRenderer
+            surfaceViewer1.Surface = self.AneurysmSurface
+            surfaceViewer1.Opacity = 1.0
+            surfaceViewer1.Color = [1.0, 0.0, 0.0]
+            surfaceViewer1.Display = 0
+            surfaceViewer1.BuildView()
+
+            surfaceViewer2 = vmtkscripts.vmtkSurfaceViewer()
+            surfaceViewer2.vmtkRenderer = self.vmtkRenderer
+            surfaceViewer2.Surface = self.OstiumSurface
+            surfaceViewer2.Opacity = 1
+            surfaceViewer2.Color = [0.0, 1.0, 0.0]
+            surfaceViewer2.Display = 0
+            surfaceViewer2.BuildView()
+
+            surfaceViewer3 = vmtkscripts.vmtkSurfaceViewer()
+            surfaceViewer3.vmtkRenderer = self.vmtkRenderer
+            surfaceViewer3.Surface = self.HullSurface
+            surfaceViewer3.Opacity = 0.4
+            surfaceViewer3.Color = [0.0, 0.0, 0.0]
+            surfaceViewer3.Display = 1
+            surfaceViewer3.BuildView()
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
