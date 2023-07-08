@@ -657,16 +657,35 @@ class Surface():
         return volume.GetVolume()
 
     @staticmethod
-    def Normals(surface_object: names.polyDataType) -> names.polyDataType:
-        """Compute outward surface normals."""
+    def Normals(
+            surface_object: names.polyDataType,
+            auto_orient_if_closed=False,
+            flip=False
+        )   -> names.polyDataType:
+        """Compute (outward) surface normals.
+
+        .. warning::
+            Set 'auto_orient_if_closed' to True if the surface is closed.
+        """
 
         normals = vtk.vtkPolyDataNormals()
 
-        normals.ComputeCellNormalsOn()
-        normals.ComputePointNormalsOff()
-        # normals.AutoOrientNormalsOff()
-        # normals.FlipNormalsOn()
         normals.SetInputData(surface_object)
+        normals.ComputeCellNormalsOn()
+        normals.ComputePointNormalsOn()
+
+        if auto_orient_if_closed:
+            normals.AutoOrientNormalsOn()
+
+        else:
+            normals.AutoOrientNormalsOff()
+
+        if flip:
+            normals.FlipNormalsOn()
+
+        else:
+            normals.FlipNormalsOff()
+
         normals.Update()
 
         return normals.GetOutput()

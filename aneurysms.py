@@ -74,8 +74,10 @@ def GenerateOstiumSurface(
     triangulate.PassVertsOff()
     triangulate.Update()
 
-    surface = geo.Surface.Normals(triangulate.GetOutput()) \
-              if compute_normals else triangulate.GetOutput()
+    surface = geo.Surface.Normals(
+                  triangulate.GetOutput(),
+                  auto_orient_if_closed=True
+              ) if compute_normals else triangulate.GetOutput()
 
     # Get maximum id of the surfaces
     ostiumId = max(
