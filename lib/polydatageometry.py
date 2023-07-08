@@ -639,22 +639,38 @@ class Surface():
         with VTK, so it assumes that the surface is closed.
         """
 
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(surface_object)
+        cleaner.Update()
+
         triangulate = vtk.vtkTriangleFilter()
-        triangulate.SetInputData(surface_object)
+        triangulate.SetInputConnection(cleaner.GetOutputPort())
         triangulate.Update()
 
-        # Cap surface (mass properties requires it closed)
-        surfaceCapper = vtkvmtk.vtkvmtkCapPolyData()
-        surfaceCapper.SetInputConnection(triangulate.GetOutputPort())
-        surfaceCapper.SetDisplacement(const.zero)
-        surfaceCapper.SetInPlaneDisplacement(const.zero)
-        surfaceCapper.Update()
+        measureVolume = vtk.vtkMassProperties()
+        measureVolume.SetInputConnection(triangulate.GetOutputPort())
+        measureVolume.Update()
 
-        volume = vtk.vtkMassProperties()
-        volume.SetInputData(surfaceCapper.GetOutput())
-        volume.Update()
+        # Check whether there was any error in the surface based on the
+        # GeProjectedVolume output (according to the documentation of
+        # vtkMassProperties)
+        volTol = 1.0e-5 # according to the doc. should be 1e-5...
 
-        return volume.GetVolume()
+        volume = measureVolume.GetVolume()
+        projectedVolume = measureVolume.GetVolumeProjected()
+
+        normError = abs(volume - projectedVolume)/volume
+
+        if normError > volTol:
+            print(
+                "Warning: the volume was returned, but check the surface input.\n"\
+                "Either the polydata is not closed or the polydata \n"\
+                "contains triangles that are flipped. Therefore, the volume \n"\
+                "computation could be impaired."
+            )
+
+        return measureVolume.GetVolume()
+
 
     @staticmethod
     def Normals(
