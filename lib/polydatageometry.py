@@ -717,8 +717,62 @@ class Surface():
                 "computation could be impaired."
             )
 
+        # TODO for tomorrow.
+        # for the hull, this will occurs because in the real aneurysms
+        # cases the hull procedure may leave complete holes on the surface.
+        # Ideally I should pass the volume compute but add a warning
+        # message that the user should inspect the hull surface for the
+        # hole and eventually compute the voluem better. I should then add
+        # and exception here to be catched in the Aneurysm class, hull
+        # computations.
+
+        # This also brings me to the next correction I should make: how to
+        # close this hull surface
+
         return measureVolume.GetVolume()
 
+    @staticmethod
+    def Volume2(surface_object: names.polyDataType) -> float:
+        """Alternative explict computation of the volume."""
+
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(surface_object)
+        cleaner.Update()
+
+        triangulate = vtk.vtkTriangleFilter()
+        triangulate.SetInputConnection(cleaner.GetOutputPort())
+        triangulate.Update()
+
+        surface = triangulate.GetOutput()
+
+        if names.normals not in tools.GetPointArrays(surface):
+            surface = Surface.Normals(
+                          surface,
+                          auto_orient_if_closed
+                      )
+
+            surface = tools.CellFieldToPointField(surface)
+
+        cellCenters = vtk.vtkCellCenters()
+        cellCenters.SetInputData(surface)
+        cellCenters.Update()
+
+        npSurface = dsa.WrapDataObject(cellCenters.GetOutput())
+
+        normals = npSurface.GetPointData().GetArray(names.normals)
+        centers = npSurface.GetPoints()
+
+        cellAreas = dsa.VTKArray([
+                        surface.GetCell(idx).ComputeArea()
+                        for idx in range(surface.GetNumberOfCells())
+                    ])
+
+        cellVectors = normals*cellAreas.reshape((len(cellAreas), 1))
+
+        return dsa.VTKArray([
+                   np.dot(x, dA)
+                   for x, dA in zip(centers, cellVectors)
+               ]).sum()/3.0
 
     @staticmethod
     def Normals(
