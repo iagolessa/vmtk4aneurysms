@@ -232,6 +232,7 @@ class Vasculature:
             vtk_poly_data: names.polyDataType,
             with_aneurysm: bool=False,
             clip_aneurysm_mode: str="interactive",
+            aneurysm_point: tuple=None,
             parent_vascular_surface: names.polyDataType=None,
             aneurysm_prop: dict={}
         ):
@@ -253,6 +254,10 @@ class Vasculature:
         'interactive', 'automatic', or 'plane'.  Only enabled if the
         'with_aneurysm' arguments is True.  (default False).
 
+        aneurysm_point (tuple, optional, default 'None') -- tuple with
+        coordinates of a point on the aneurysm dome (used only with the 'plane'
+        mode to extract the aneurysm).
+
         aneurysm_prop -- optional dictionary with properties of the aneurysms:
         type, status, label.
         """
@@ -261,7 +266,7 @@ class Vasculature:
         self._centerlines     = None
         self._inlet_centers   = None
         self._outlet_centers  = None
-        self._aneurysm_point  = None
+        self._aneurysm_point  = aneurysm_point
         self._aneurysm_model  = None
         self._with_aneurysm   = with_aneurysm
         self._clip_aneurysm_mode = clip_aneurysm_mode
@@ -303,7 +308,8 @@ class Vasculature:
                                       self._vascular_surface,
                                       mode=self._clip_aneurysm_mode,
                                       parent_vascular_surface=self._parent_vascular_surface,
-                                      aneurysm_type=aneurysmType
+                                      aneurysm_type=aneurysmType,
+                                      aneurysm_point=self._aneurysm_point
                                   )
 
             # Add a little bit of smoothing on the neck distance field

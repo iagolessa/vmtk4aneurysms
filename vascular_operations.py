@@ -1464,7 +1464,8 @@ def ClipAneurysmSacSurface(
         mode: str="interactive",
         parent_vascular_surface: names.polyDataType=None,
         parent_vascular_centerline: names.polyDataType=None,
-        aneurysm_type: str=""
+        aneurysm_type: str="",
+        aneurysm_point: tuple=None
     )   -> names.polyDataType:
     """Clip the aneurysm sac surface from the vascular surface model.
 
@@ -1517,7 +1518,8 @@ def ClipAneurysmSacSurface(
                         vascular_surface,
                         mode=mode,
                         parent_vascular_surface=parent_vascular_surface,
-                        aneurysm_type=aneurysm_type
+                        aneurysm_type=aneurysm_type,
+                        aneurysm_point=aneurysm_point
                     )
 
     # Clip the aneurysm sac (aneurysm marked with negative values)
