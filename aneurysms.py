@@ -27,6 +27,7 @@ from vtk.numpy_interface import dataset_adapter as dsa
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
+from scipy.spatial import ConvexHull
 
 # Local modules
 from vmtk4aneurysms.lib import names
@@ -36,6 +37,27 @@ from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 
 from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
+
+def _simple_cap(surface):
+    """Cap a surface with an open profile with a simple centerpoint
+    triangulation.
+
+    Used to compute close the aneurysm and aneurysm convex hull surfaces with
+    the same cap to measure their volume. Also computes the outwards normals.
+    """
+
+    capper = vtkvmtk.vtkvmtkCapPolyData()
+    capper.SetInputData(surface)
+    capper.SetDisplacement(0.0)
+    capper.SetInPlaneDisplacement(0.0)
+    capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
+    capper.SetCellEntityIdOffset(-1) # The cap surface will be 0
+    capper.Update()
+
+    return geo.Surface.Normals(
+               capper.GetOutput(),
+               auto_orient_if_closed=True
+           )
 
 def GenerateOstiumSurface(
         aneurysm_sac_surface: names.polyDataType,
@@ -290,6 +312,7 @@ class Aneurysm:
 
         self._aneurysm_surface = tools.Cleaner(surface)
         self._neck_contour = self._compute_neck_contour()
+
         self._ostium_surface = GenerateOstiumSurface(
                                    self._aneurysm_surface,
                                    compute_normals=True
@@ -303,7 +326,9 @@ class Aneurysm:
         self._ostium_area = geo.Surface.Area(self._ostium_surface)
 
         # ... and volume
-        self._volume = geo.Surface.Volume(self._cap_aneurysm())
+        self._volume = geo.Surface.Volume(
+                           _simple_cap(self._aneurysm_surface)
+                       )
 
         # Computing hull surface and properties
         self._compute_aneurysm_convex_hull()
@@ -341,30 +366,78 @@ class Aneurysm:
         internally the scipy.spatial package.
         """
 
-        # Compute convex hull of open aneurysm surface
-        self._hull_surface = geo.SurfaceConvexHull(
-                                 self._aneurysm_surface,
-                                 constraint_contour=self._neck_contour
-                             )
+        # Get vertices only
+        npIaSurface = dsa.WrapDataObject(self._aneurysm_surface)
 
+        # Compute convex hull of points
+        surfaceHull = ConvexHull(npIaSurface.GetPoints())
+
+        # Build poly data for convex hull
+        hullSurface = tools.BuildPolyData(
+                          surfaceHull.points,
+                          surfaceHull.simplices
+                      )
+
+        # The hull is closed at this point
+        hullSurface = geo.Surface.Normals(
+                          hullSurface,
+                          auto_orient_if_closed=True
+                      )
+
+        # Best alternatve so far: to compute the signed distance beteen the
+        # hull CELL CENTERS and the ostium
+        distanceToOstiumArrayName = "DistanceVectors"
+
+        # Extract hull cell centers
+        hullCellCenters = vtk.vtkCellCenters()
+        hullCellCenters.SetInputData(hullSurface)
+        hullCellCenters.VertexCellsOn()
+        hullCellCenters.Update()
+
+        # Needs to compute the normals before if signed array is required
+        # Update that in v4a
+        surfaceDistance = vtkvmtk.vtkvmtkSurfaceDistance()
+        surfaceDistance.SetInputData(hullCellCenters.GetOutput())
+        surfaceDistance.SetReferenceSurface(self._ostium_surface)
+        surfaceDistance.SetDistanceVectorsArrayName(
+            distanceToOstiumArrayName
+        )
+        surfaceDistance.Update()
+
+        npHullCellDistance = dsa.WrapDataObject(surfaceDistance.GetOutput())
+
+        distanceVectors = npHullCellDistance.GetPointData().GetArray(
+                              distanceToOstiumArrayName
+                          )
+
+        # The size of this array is the same as the cell of the hull
+        ostiumSideArray = dsa.VTKArray(
+                                [vtk.vtkMath.Dot(
+                                    dVector,
+                                    self._ostium_normal_vector
+                                )   for dVector in distanceVectors]
+                            )
+
+        # Now get the cells IDS where OstiumSide > 0
+        # Note: = 0  means any cells that lie on the ostium surface
+        self._hull_surface = tools.BuildPolyData(
+                                  surfaceHull.points,
+                                  surfaceHull.simplices[ostiumSideArray > 0]
+                              )
+
+        self._hull_cap = tools.BuildPolyData(
+                              surfaceHull.points,
+                              surfaceHull.simplices[ostiumSideArray <= 0]
+                          )
+
+        # Split the aneurysm hull by the neck surface
+        # the result is if the hull 'started' by the neck contour
         self._hull_surface_area = geo.Surface.Area(self._hull_surface)
 
-        # Closed it with the ostium surface to compute volume
-        appendFilter = vtk.vtkAppendPolyData()
-        appendFilter.AddInputData(self._hull_surface)
-        appendFilter.AddInputData(self._ostium_surface)
-        appendFilter.Update()
-
-        # Force the volume computation to use the normals computed here (see
-        # documentation of geo.SurfaceConvexHull)
-        # Here the surface is closed, so auto orient on
-        aneurysmHullCapped = geo.Surface.Normals(
-                                 appendFilter.GetOutput(),
-                                 auto_orient_if_closed=True
-                             )
-
-        # Compute volume
-        self._hull_volume = geo.Surface.Volume(aneurysmHullCapped)
+        # Compute volume (capped hull)
+        self._hull_volume = geo.Surface.Volume(
+                                _simple_cap(self._hull_surface)
+                            )
 
 
     def _compute_neck_contour(self):
