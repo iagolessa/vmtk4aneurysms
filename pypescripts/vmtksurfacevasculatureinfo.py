@@ -40,6 +40,9 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         self.BifVectors = None
 
         self.ParentVesselSurface = None
+        self.AneurysmSurface     = None
+        self.OstiumSurface       = None
+        self.HullSurface         = None
 
         self.ShowVascularModel = False
 
@@ -78,6 +81,10 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
             ['BifVectors', 'obifvectors', 'vtkPolyData', 1, '',
              'the bifurcation vectors', 'vmtksurfacewriter'],
+
+            ['HullSurface','ohull','vtkPolyData',1,'',
+             'the ostium surface generated from the contour scalar neck',
+             'vmtksurfacewriter']
         ])
 
     def Execute(self):
@@ -133,28 +140,43 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
                 )
             )
 
-        # If more than opne bifiurcation, we have to append all data
-        # Append bifurcations together
-        appendFilter = vtk.vtkAppendPolyData()
+        if vascularModel.GetNumberOfBifurcations() > 1:
+            # If more than opne bifiurcation, we have to append all data
+            # Append bifurcations together
+            appendFilter = vtk.vtkAppendPolyData()
 
-        for bif_id in range(vascularModel.GetNumberOfBifurcations()):
+            for bif_id in range(vascularModel.GetNumberOfBifurcations()):
 
-            bifurcation = vascularModel.GetBifurcations()[bif_id]
+                bifurcation = vascularModel.GetBifurcations()[bif_id]
+
+                pp.pprint(
+                    "Angle between branches -> bif. {}: {} deg.".format(
+                        bif_id,
+                        bifurcation.GetDaugtherBranchesAngle()
+                    )
+                )
+
+                appendFilter.AddInputData(
+                    bifurcation.GetBifurcationVectorsObject()
+                )
+
+            appendFilter.Update()
+
+            self.BifVectors = appendFilter.GetOutput()
+
+        else:
+
+            # The append with a single input was probably yield the wrong
+            # result
+            bifurcation = vascularModel.GetBifurcations()[0]
 
             pp.pprint(
-                "Angle between branches -> bif. {}: {} deg.".format(
-                    bif_id,
+                "Angle between branches: {} deg.".format(
                     bifurcation.GetDaugtherBranchesAngle()
                 )
             )
 
-            appendFilter.AddInputData(
-                bifurcation.GetBifurcationVectorsObject()
-            )
-
-        appendFilter.Update()
-
-        self.BifVectors = appendFilter.GetOutput()
+            self.BifVectors = bifurcation.GetBifurcationVectorsObject()
 
         # Compute aneurysm properties
         self.OutputText("Computing metrics of aneurysm models.\n")
@@ -162,7 +184,8 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         aneurysmModel = vascularModel.GetAneurysm()
 
         self.AneurysmSurface = aneurysmModel.GetSurface()
-        self.OstiumSurface = RemeshSurface(aneurysmModel.GetOstiumSurface())
+        self.HullSurface = aneurysmModel.GetHullSurface()
+        self.OstiumSurface = aneurysmModel.GetOstiumSurface()
 
         # Print aneurysm indices and metrics
         methods = [param for param in dir(aneurysmModel)
@@ -211,7 +234,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
             surfaceViewer4 = vmtkscripts.vmtkSurfaceViewer()
             surfaceViewer4.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer4.Surface = aneurysmModel.GetHullSurface()
+            surfaceViewer4.Surface = self.HullSurface
             surfaceViewer4.Opacity = 0.4
             surfaceViewer4.Color = [1.0, 1.0, 1.0]
             surfaceViewer4.Display = 1
