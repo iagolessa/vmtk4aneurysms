@@ -502,7 +502,6 @@ def _get_cell_Poincare_matrices(
 
 def SurfaceConvexHull(
         surface: names.polyDataType,
-        constraint_contour: names.polyDataType=None,
         compute_normals: bool=False
     )   -> names.polyDataType:
     """Computes the convex hull of surface.
@@ -510,16 +509,6 @@ def SurfaceConvexHull(
     Given an open or closed surface, compute its convex hull set and returns a
     triangulated surface representation of it.  It uses internally the
     scipy.spatial package.
-
-    If the surface passed is not closed, than the resulting convex hull should
-    'start' from the open boundary contour of the passed surface, i.e. it have
-    to share this same boundary contour. This case is performed by the function
-    by passing the contour polydata too as the 'constraint_contour' argument.
-
-    .. warning::
-        The current algorithm may result in clipped triangles near the open
-        boundary, if this is the surface case. Always inspect the resultin hull
-        surface in this case.
 
     .. warning::
         The cell connectivity orientation returned by the ConvexHull function
@@ -550,65 +539,11 @@ def SurfaceConvexHull(
     # Compute normals before remove the constraint
     if compute_normals:
         # The hull is closed at this point
+        # AFFECTS THE CONTOUR EXTRACTION!
         hullSurface = Surface.Normals(
                           hullSurface,
                           auto_orient_if_closed=True
                       )
-
-    if constraint_contour:
-        # Locator to find closest points to neck contour on hull surface
-        hullConstraintPointIds = tools.GetClosestContourOnSurface(
-                                     hullSurface,
-                                     constraint_contour
-                                 )
-
-        # Best procedure that I got working so far was to extract the hull only
-        # by computing the geodesic distance directly. the selectionFilter of
-        # VTK did not work with this kind of triangulation.
-        # Compute geodesic distance
-        geodesicFastMarching = vtkvmtk.vtkvmtkNonManifoldFastMarching()
-        geodesicFastMarching.SetInputData(hullSurface)
-
-        # Set F(x) == 1 to obtain the geodesic distance
-        geodesicFastMarching.UnitSpeedOn()
-        geodesicFastMarching.SetSolutionArrayName(names.GeodesicDistanceArrayName)
-        geodesicFastMarching.SetInitializeFromScalars(0)
-        geodesicFastMarching.SeedsBoundaryConditionsOn()
-        geodesicFastMarching.SetSeeds(hullConstraintPointIds)
-        geodesicFastMarching.PolyDataBoundaryConditionsOff()
-        geodesicFastMarching.Update()
-
-        hullSurface = tools.PointFieldToCellField(
-                          geodesicFastMarching.GetOutput(),
-                      )
-
-        # How to filter it? Numpy? Hard removing of zeroed-value cells?
-        npHullSurface = dsa.WrapDataObject(hullSurface)
-
-        # Convert zeros to -1 and >0 to 1 to extract the > 0 region
-        # Zeroed values mark the region inside the constraint contour
-        # TODO: assess the robustness of this procedure
-        distField = npHullSurface.GetCellData().GetArray(
-                        names.GeodesicDistanceArrayName
-                    )
-
-        distField[distField == const.zero] = -const.one
-        distField[distField >  const.zero] = const.one
-
-        hullSurface = npHullSurface.VTKObject
-        hullSurface.GetPointData().RemoveArray(names.GeodesicDistanceArrayName)
-
-        hullSurface = tools.ExtractPortion(
-                          hullSurface,
-                          names.GeodesicDistanceArrayName,
-                          const.one
-                      )
-
-        hullSurface.GetCellData().RemoveArray(names.GeodesicDistanceArrayName)
-
-        # Remesh it: so far no, because it may slightly change the hull voluem and
-        # surface area
-        # hullSurface = tools.RemeshSurface(hullSurface)
 
     return hullSurface
 
