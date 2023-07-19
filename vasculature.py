@@ -548,3 +548,7 @@ class Vasculature:
     def GetBranches(self):
         """Return the vascular model's branches."""
         return self._branches
+
+    def GetAneurysmExtractionMode(self):
+        """Return the extraction model of the aneurysm."""
+        return self._clip_aneurysm_mode
