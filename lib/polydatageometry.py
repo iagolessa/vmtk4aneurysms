@@ -364,6 +364,51 @@ def WarpPolydata(
     # For backward compatibility
     return WarpVtkObject(polydata, field_name)
 
+def SurfaceEuclideanDistanceToContour(
+        surface: names.polyDataType,
+        id_list: vtk.vtkCommonCorePython.vtkIdList,
+        distance_array_name: str=names.EuclideanDistanceArrayName
+    )   -> names.polyDataType:
+    """Add the Euclidean distance from a loop of points defined on
+    the surface.
+
+    Given the list of ids of the points selected interactively by the user,
+    compute the Euclidean distance on the surface to the contour formed by
+    the points.  The set of points defined on the surface and the array
+    name must be passed.
+    """
+
+    # Convert ids to points
+    points = vtk.vtkPoints()
+    points.SetNumberOfPoints(id_list.GetNumberOfIds())
+
+    # Get points in surface
+    for i in range(id_list.GetNumberOfIds()):
+        pointId = id_list.GetId(i)
+
+        point = surface.GetPoint(pointId)
+        points.SetPoint(i, point)
+
+    selectionFilter = vtk.vtkSelectPolyData()
+    selectionFilter.SetInputData(surface)
+    selectionFilter.SetLoop(points)
+    selectionFilter.GenerateSelectionScalarsOn()
+    selectionFilter.SetSelectionModeToSmallestRegion()
+    selectionFilter.Update()
+
+    # Change name of scalars
+    selectionFilter.GetOutput().GetPointData().GetScalars().SetName(
+        distance_array_name
+    )
+
+    # Add a little bit of smoothing
+    surface = tools.SmoothSurfacePointField(
+                  selectionFilter.GetOutput(),
+                  distance_array_name
+              )
+
+    return surface
+
 def SurfaceGeodesicDistanceToContour(
         surface: names.polyDataType,
         id_list: vtk.vtkCommonCorePython.vtkIdList,

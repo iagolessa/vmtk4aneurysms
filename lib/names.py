@@ -51,16 +51,17 @@ min_ = '_minimum'
 max_ = '_maximum'
 
 # important fields names
-CellEntityIdsArrayName    = "CellEntityIds"
-AneurysmalRegionArrayName = "AneurysmalRegionArray"
-GeodesicDistanceArrayName = "GeodesicDistance"
-WallTypeArrayName         = "WallType"
-DistanceToNeckArrayName   = 'DistanceToNeck'
-ThicknessArrayName        = 'Thickness'
-VascularRadiusArrayName   = "MaximumInscribedSphereRadius"
-AbnormalFactorArrayName   = "AbnormalFactorArray"
-ElasticityArrayName       = "E"
-ParentArteryArrayName     = "ParentArteryContourArray"
+CellEntityIdsArrayName     = "CellEntityIds"
+AneurysmalRegionArrayName  = "AneurysmalRegionArray"
+GeodesicDistanceArrayName  = "GeodesicDistance"
+EuclideanDistanceArrayName = "EuclideanDistance"
+WallTypeArrayName          = "WallType"
+DistanceToNeckArrayName    = 'DistanceToNeck'
+ThicknessArrayName         = 'Thickness'
+VascularRadiusArrayName    = "MaximumInscribedSphereRadius"
+AbnormalFactorArrayName    = "AbnormalFactorArray"
+ElasticityArrayName        = "E"
+ParentArteryArrayName      = "ParentArteryContourArray"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility

@@ -509,22 +509,13 @@ class Vasculature:
             except(ValueError):
                 pass
 
-    # TODO: maybe evaluate suitability to turn this method into a classmethod
-    def ComputeWallThicknessArray(self):
-        """Add thickness array to the vascular surface."""
+    # TODO: now that the branchingof the surfaces work, implement function to
+    # select the parent artery of the cases with an aneurysm and compute the
+    # normalized to the parent artery metrics (I can select a portion of it
+    # only for the computations based on the distance along the centerline
+    # array)
 
-        vasculatureThickness = v4aScripts.vmtkSurfaceVasculatureThickness()
-        vasculatureThickness.Surface = self._surface_model.GetSurfaceObject()
-        vasculatureThickness.Centerlines = self._centerlines
-        vasculatureThickness.Aneurysm = self._with_aneurysm
-        vasculatureThickness.SelectAneurysmRegions = False
-
-        vasculatureThickness.SmoothingIterations = 20
-        vasculatureThickness.GenerateWallMesh = False
-        vasculatureThickness.Execute()
-
-        # Recomputes surface model
-        self._surface_model = geo.Surface(vasculatureThickness.Surface)
+    # TODO: add automatic computation of vascular thickness here?
 
     def GetSurface(self):
         """Return the vascular surface."""
