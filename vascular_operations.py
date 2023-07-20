@@ -1513,36 +1513,63 @@ def ClipAneurysmSacSurface(
     vascular_surface = tools.Cleaner(vascular_surface)
     # vascular_surface = tools.CleanupArrays(vascular_surface)
 
-    # Based on the available methods, mark the surface with the neck array
-    markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
-                        vascular_surface,
-                        mode=mode,
-                        parent_vascular_surface=parent_vascular_surface,
-                        aneurysm_type=aneurysm_type,
-                        aneurysm_point=aneurysm_point
-                    )
+    # Copy the original surface and store it so the final array is interpolated
+    # back to it
+    copiedSurface = tools.CopyVtkObject(vascular_surface)
 
-    # Clip the aneurysm sac (aneurysm marked with negative values)
-    clippedAneurysmSurface = tools.ClipWithScalar(
-                                 markedSurface,
-                                 names.DistanceToNeckArrayName,
-                                 const.zero
-                             )
+    # Perform the procedure on a clean surface
+    vascular_surface = tools.CleanupArrays(vascular_surface)
 
-    # Needed for the surface branching procedure
-    vascularSurfaceNoAneurysm = tools.ClipWithScalar(
-                                    markedSurface,
-                                    names.DistanceToNeckArrayName,
-                                    const.zero,
-                                    inside_out=False
-                                )
+    if mode == "plane":
 
-    clippedAneurysmSurface.GetPointData().RemoveArray(
-        names.DistanceToNeckArrayName
-    )
-    vascularSurfaceNoAneurysm.GetPointData().RemoveArray(
-        names.DistanceToNeckArrayName
-    )
+        # Get plane neck and aneurysm clipped
+        neckPlane, clippedAneurysmSurface = ComputeAneurysmNeckPlane(
+                                                vascular_surface,
+                                                aneurysm_type=aneurysm_type,
+                                                parent_vascular_surface=parent_vascular_surface,
+                                                min_variable="area",
+                                                aneurysm_point=aneurysm_point
+                                            )
+
+        # Clip the rest of the surface
+        vascularSurfaceNoAneurysm = tools.ClipWithPlane(
+                                        vascular_surface,
+                                        neckPlane.GetOrigin(),
+                                        neckPlane.GetNormal(),
+                                        inside_out=True
+                                    )
+
+    else:
+        # Based on the available methods, mark the surface with the neck array
+        markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
+                            vascular_surface,
+                            mode=mode,
+                            parent_vascular_surface=parent_vascular_surface,
+                            aneurysm_type=aneurysm_type,
+                            aneurysm_point=aneurysm_point
+                        )
+
+        # Clip the aneurysm sac (aneurysm marked with negative values)
+        clippedAneurysmSurface = tools.ClipWithScalar(
+                                     markedSurface,
+                                     names.DistanceToNeckArrayName,
+                                     const.zero
+                                 )
+
+        # Needed for the surface branching procedure
+        vascularSurfaceNoAneurysm = tools.ClipWithScalar(
+                                        markedSurface,
+                                        names.DistanceToNeckArrayName,
+                                        const.zero,
+                                        inside_out=False
+                                    )
+
+        clippedAneurysmSurface.GetPointData().RemoveArray(
+            names.DistanceToNeckArrayName
+        )
+        vascularSurfaceNoAneurysm.GetPointData().RemoveArray(
+            names.DistanceToNeckArrayName
+        )
 
     return clippedAneurysmSurface, vascularSurfaceNoAneurysm
 
