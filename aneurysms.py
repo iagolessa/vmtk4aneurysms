@@ -418,17 +418,37 @@ class Aneurysm:
                                 )   for dVector in distanceVectors]
                             )
 
+        # Further filter: remove cells that have all points on boundary
+        hullContourIds = tools.GetClosestContourOnSurface(
+                                hullSurface,
+                                self._neck_contour
+                            )
+
+        hullContourIdsArr = np.array([hullContourIds.GetId(idx)
+                                      for idx in range(hullContourIds.GetNumberOfIds())])
+
+        idInContour = np.asarray(
+                            [not np.all([idx in hullContourIdsArr
+                              for idx in simplex])
+                              for simplex in surfaceHull.simplices]
+                        )
+
         # Now get the cells IDS where OstiumSide > 0
         # Note: = 0  means any cells that lie on the ostium surface
         self._hull_surface = tools.BuildPolyData(
-                                  surfaceHull.points,
-                                  surfaceHull.simplices[ostiumSideArray > 0]
-                              )
+                                 surfaceHull.points,
+                                 surfaceHull.simplices[
+                                     np.logical_and(
+                                         ostiumSideArray > 0,
+                                         idInContour
+                                     )
+                                 ]
+                             )
 
-        self._hull_cap = tools.BuildPolyData(
-                              surfaceHull.points,
-                              surfaceHull.simplices[ostiumSideArray <= 0]
-                          )
+        # self._hull_cap = tools.BuildPolyData(
+        #                       surfaceHull.points,
+        #                       surfaceHull.simplices[ostiumSideArray <= 0]
+        #                   )
 
         # Split the aneurysm hull by the neck surface
         # the result is if the hull 'started' by the neck contour
@@ -438,7 +458,6 @@ class Aneurysm:
         self._hull_volume = geo.Surface.Volume(
                                 _simple_cap(self._hull_surface)
                             )
-
 
     def _compute_neck_contour(self):
         """Return boundary of aneurysm surface (== neck contour)"""
