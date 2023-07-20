@@ -39,7 +39,7 @@ class vmtkSurfaceProjectCellField(pypes.pypeScript):
 
         self.SetScriptName('vmtksurfaceprojectcellfield')
         self.SetScriptDoc(
-            """Project a Cell Field from a reference surface to another."""
+            """Project a cell field from a reference surface to another."""
         )
 
         self.SetInputMembers([
@@ -73,26 +73,11 @@ class vmtkSurfaceProjectCellField(pypes.pypeScript):
 
         self.Surface = cleaner.GetOutput()
 
-        # Remove spourious array from final surface
-        cellData  = self.ReferenceSurface.GetCellData()
-        cellArrays  = [cellData.GetArray(id_).GetName()
-                       for id_ in range(cellData.GetNumberOfArrays())]
-
-        if self.FieldName not in cellArrays:
-            self.PrintError(
-                "No field {} on the reference surface.".format(self.FieldName)
-            )
-
-        else:
-            # Then project the left one to new surface
-            projector = vtkvmtk.vtkvmtkSurfaceProjectCellArray()
-            projector.SetInputData(self.Surface)
-            projector.SetReferenceSurface(self.ReferenceSurface)
-            projector.SetProjectedArrayName(self.FieldName)
-            projector.SetDefaultValue(0.0)
-            projector.Update()
-
-            self.Surface = projector.GetOutput()
+        self.Surface = tools.ProjectCellArray(
+                           self.Surface,
+                           self.ReferenceSurface,
+                           self.FieldName
+                       )
 
 
 if __name__=='__main__':

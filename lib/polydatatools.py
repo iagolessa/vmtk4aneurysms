@@ -21,7 +21,7 @@ import math
 import pandas as pd
 from typing import Union
 from copy import copy
-from numpy import ndarray
+from numpy import ndarray, concatenate
 
 import vtk
 from vmtk import vtkvmtk
@@ -31,6 +31,7 @@ from vtk.numpy_interface import dataset_adapter as dsa
 
 from . import constants as const
 from . import names
+from . import polydatamath as pmath
 
 def UnsGridToPolyData(
         mesh: names.unstructuredGridType
@@ -576,33 +577,89 @@ def ProjectPointArray(
 def ProjectCellArray(
         surface: names.polyDataType,
         ref_surface: names.polyDataType,
-        field_name: str
+        field_name: str,
+        default_value: float=0.0,
+        distance_tol: float=1.0e-3
     )   -> names.polyDataType:
     """Project a cell field from a reference VTK polydata into another one.
 
     Given a vtkPolyData, project a cell field named 'field_name' from a
     reference VTK surface to the original object. Returns a copy of the
-    original input surface.
+    original input surface with the new field.
     """
 
     surface = CopyVtkObject(surface)
     surface = Cleaner(surface)
+
+    npRefSurface = dsa.WrapDataObject(ref_surface)
 
     if field_name not in GetCellArrays(ref_surface):
         raise ValueError(
                   "No field {} on the reference surface.".format(field_name)
               )
 
-    else:
-        # Then project the left one to new surface
+    fieldType = pmath.GetFieldType(npRefSurface.CellData.GetArray(field_name))
+
+    # Does not support vector fields or has a bug when vector fields are
+    # used
+    if fieldType == names.scalarFieldLabel:
         projector = vtkvmtk.vtkvmtkSurfaceProjectCellArray()
         projector.SetInputData(surface)
         projector.SetReferenceSurface(ref_surface)
         projector.SetProjectedArrayName(field_name)
-        projector.SetDefaultValue(0.0)
+        projector.SetDistanceTolerance(distance_tol)
+        projector.SetDefaultValue(default_value)
         projector.Update()
 
         return projector.GetOutput()
+
+    else:
+        # Split tensor field to components
+        tensorField = npRefSurface.GetCellData().GetArray(field_name)
+
+        # Get number of components
+        nComps = tensorField.shape[1]
+
+        for comp in range(nComps):
+            # Add to surface the components
+            npRefSurface.CellData.append(
+                tensorField[:, comp],
+                field_name + str(comp)
+            )
+
+            # Then project to original surface each component
+            projector = vtkvmtk.vtkvmtkSurfaceProjectCellArray()
+            projector.SetInputData(surface)
+            projector.SetReferenceSurface(npRefSurface.VTKObject)
+            projector.SetProjectedArrayName(field_name + str(comp))
+            projector.SetDistanceTolerance(distance_tol)
+            projector.SetDefaultValue(default_value)
+            projector.Update()
+
+            surface = projector.GetOutput()
+
+        # Now join the components
+        npSurface = dsa.WrapDataObject(surface)
+        cellData = npSurface.CellData
+
+        concatField = concatenate(
+                          [cellData.GetArray(field_name + str(comp)).reshape((-1, 1))
+                           for comp in range(nComps)],
+                           axis=1
+                      )
+
+        cellData.append(
+            concatField,
+            field_name
+        )
+
+        surface = npSurface.VTKObject
+
+        # Delete intermediate arrays
+        for comp in range(nComps):
+            surface.GetCellData().RemoveArray(field_name + str(comp))
+
+        return surface
 
 def ResampleFieldsToSurface(
         source_mesh: names.unstructuredGridType,
