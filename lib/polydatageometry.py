@@ -880,8 +880,9 @@ class Surface():
            = 0  = 0 Planar             8
            === ==== ================== =========
 
-        The name of the generated arrays are: "Mean_Curvature",
-        "Gauss_Curvature", and "Local_Shape_Type".
+        The name of the generated arrays are: "Mean_Curvature"
+        (names.MeanCurvatureArrayName), "Gauss_Curvature"
+        (names.GaussCurvatureArrayName), and "Local_Shape_Type".
         """
         # Compute mean curvature
         meanCurvature = vtk.vtkCurvatures()
@@ -912,8 +913,8 @@ class Surface():
         cellCurvatures.Update()
 
         npCurvatures   = dsa.WrapDataObject(cellCurvatures.GetOutput())
-        GaussCurvature = npCurvatures.GetCellData().GetArray('Gauss_Curvature')
-        meanCurvature  = npCurvatures.GetCellData().GetArray('Mean_Curvature')
+        GaussCurvature = npCurvatures.GetCellData().GetArray(names.GaussCurvatureArrayName)
+        meanCurvature  = npCurvatures.GetCellData().GetArray(names.MeanCurvatureArrayName)
 
         surfaceLocalShapes = {
             'ellipticalConvex' :

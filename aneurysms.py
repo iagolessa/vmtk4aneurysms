@@ -766,8 +766,8 @@ class Aneurysm:
         # Get arrays on the aneurysm surface
         arrayNames = tools.GetCellArrays(self._aneurysm_surface)
 
-        curvatureArrays = {'Mean': 'Mean_Curvature',
-                           'Gauss': 'Gauss_Curvature'}
+        curvatureArrays = {'Mean': names.MeanCurvatureArrayName,
+                           'Gauss': names.GaussCurvatureArrayName}
 
         # Check if there is any curvature array on the aneurysm surface
         if not all(array in arrayNames for array in curvatureArrays.values()):

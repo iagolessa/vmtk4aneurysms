@@ -62,6 +62,10 @@ VascularRadiusArrayName    = "MaximumInscribedSphereRadius"
 AbnormalFactorArrayName    = "AbnormalFactorArray"
 ElasticityArrayName        = "E"
 ParentArteryArrayName      = "ParentArteryContourArray"
+GaussCurvatureArrayName    = "Gauss_Curvature"
+MeanCurvatureArrayName     = "Mean_Curvature"
+MaxCurvatureArrayName      = "Maximum_Curvature"
+MinCurvatureArrayName      = "Minimum_Curvature"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility

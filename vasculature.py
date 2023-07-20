@@ -300,6 +300,11 @@ class Vasculature:
 
         if self._with_aneurysm:
 
+            # Compute curvature fields before extracting aneurysm
+            self._vascular_surface = geo.Surface.Curvatures(
+                                         self._vascular_surface
+                                     )
+
             aneurysmType = aneurysm_prop["aneurysm_type"]
 
             # Get aneurysm contour explicitly and clip the aneurysm and rest of
@@ -315,6 +320,24 @@ class Vasculature:
             # Add a little bit of smoothing on the neck distance field
             # Clip the aneurysm sac (aneurysm marked with negative values)
             aneurysm_surface, self._vascular_surface_no_aneurysm = clippedSurfaceTuple
+
+            # Project curvature fields to aneurysm surface
+            cellArrays = tools.GetCellArrays(self._vascular_surface)
+
+            if names.GaussCurvatureArrayName in cellArrays and \
+               names.MeanCurvatureArrayName  in cellArrays:
+
+                aneurysm_surface = tools.ProjectCellArray(
+                                       aneurysm_surface,
+                                       self._vascular_surface,
+                                       names.MeanCurvatureArrayName
+                                   )
+
+                aneurysm_surface = tools.ProjectCellArray(
+                                       aneurysm_surface,
+                                       self._vascular_surface,
+                                       names.GaussCurvatureArrayName
+                                   )
 
             # Build aneurysm model
             self._aneurysm_model = Aneurysm(
