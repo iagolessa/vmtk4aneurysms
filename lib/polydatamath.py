@@ -115,14 +115,8 @@ def TimeAverage(y_array, time_array):
 def SurfaceAverage(
         vtk_object: Union[names.polyDataType, names.unstructuredGridType],
         array_name: str
-    )   -> float:
-    """Compute area-averaged array over surface with first-order accuracy.
-
-    .. warning::
-        The computation requires scalar field only to be integrated. If a
-        vector or second-order symmstric tensors are passed, it first computes
-        the L2-norm of them. Higher-order tensor are still not supported.
-    """
+    )   -> Union[float, np.ndarray]:
+    """Compute area-averaged of a field over surface with first-order accuracy."""
 
     vtkObjectOriginalType = type(vtk_object)
 
@@ -158,24 +152,6 @@ def SurfaceAverage(
     npVtkObject   = dsa.WrapDataObject(vtk_object)
     arrayOnObject = npVtkObject.GetCellData().GetArray(array_name)
 
-    # Check type of field: vector or scalar
-    arrayType = GetFieldType(arrayOnObject)
-
-    if arrayType == names.vectorFieldLabel or \
-       arrayType == names.tensor2SymmFieldLabel:
-        # Compute a simple L2 norm, even for second-order symm tensors
-        arrayOnObject = NormL2(arrayOnObject, 1)
-
-        npVtkObject.CellData.append(arrayOnObject, array_name)
-
-    elif arrayType == names.scalarFieldLabel:
-        pass
-
-    else:
-        raise NotImplementedError(
-                  "Array of type " + arrayType + ". Norm not implemented, yet."
-              )
-
     # back to VTK interface
     vtk_object = npVtkObject.VTKObject
 
@@ -187,7 +163,7 @@ def SurfaceAverage(
                          for id_ in range(vtk_object.GetNumberOfCells())]
                     )
 
-        return np.sum(arrayOnObject*cellAreas)/geo.Surface.Area(vtk_object)
+        return np.sum(arrayOnObject*cellAreas, axis=0)/geo.Surface.Area(vtk_object)
 
     elif type(vtk_object) == names.unstructuredGridType:
 
@@ -200,7 +176,7 @@ def SurfaceAverage(
         npVtkObject = dsa.WrapDataObject(meshQuality.GetOutput())
         cellVolumes = npVtkObject.CellData.GetArray("Quality")
 
-        return np.sum(arrayOnObject*cellVolumes)/np.sum(cellVolumes)
+        return np.sum(arrayOnObject*cellVolumes, axis=0)/np.sum(cellVolumes)
 
     else:
         raise TypeError(

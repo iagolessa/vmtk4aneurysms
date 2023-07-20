@@ -318,7 +318,10 @@ class Aneurysm:
                                    compute_normals=True
                                )
 
-        self._ostium_normal_vector = self._compute_ostium_normal_vector()
+        self._ostium_normal_vector = pmath.SurfaceAverage(
+                                         self._ostium_surface,
+                                         names.normals
+                                     )
 
         # Compute ostium surface area
         # Compute areas...
@@ -472,30 +475,6 @@ class Aneurysm:
 
         # Get neck contour
         return geo.ContourBarycenter(self._neck_contour)
-
-    def _compute_ostium_normal_vector(self):
-        """Calculate the normal vector to the aneurysm ostium surface/plane.
-
-        The outwards normal unit vector to the ostium surface is computed by
-        summing the normal vectors to each cell of the ostium surface.
-        Rigorously, the neck plane vector should be computed with the actual
-        neck *plane*, however, there are other ways to compute the aneurysm
-        neck that are not based on a plane surface. In this scenario, it is
-        robust enough to employ the approach used here because it provides a
-        'sense of normal direction' to the neck line, be it a 3D curved path in
-        space.
-
-        In any case, if an actual plane is passed, the function will work.
-        """
-
-        # Use Numpy
-        npSurface = dsa.WrapDataObject(self._ostium_surface)
-
-        # Compute normalized sum of the normals
-        neckNormalsVector = npSurface.GetCellData().GetArray(names.normals).sum(axis=0)
-        neckNormalsVector /= np.linalg.norm(neckNormalsVector)
-
-        return tuple(neckNormalsVector)
 
     def _compute_max_normal_height_vector_and_dome_point(self):
         """Compute vector along the maximum normal height and its corresponding
