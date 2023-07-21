@@ -112,39 +112,52 @@ def GenerateOstiumSurface(
 
     # Close the aneurysm with the 'smooth' method, which was the best to fit a
     # generic 3D contour
+    # Generate a set of smooth surface areas: to select the minimum one
+    minArea = 1.0e10
+
     capper = vtkvmtk.vtkvmtkSmoothCapPolyData()
     capper.SetInputData(aneurysm_sac_surface)
 
-    # It is important to set cnostraint to zero to have 90 degrees angles on
-    # corners
-    capper.SetConstraintFactor(0.0)
-    capper.SetNumberOfRings(15)
-    capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
-    capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
-    capper.Update()
+    # Search minimum area ostium
+    for constraint in np.arange(-0.5,0.5,0.05):
+        constraint = 0.0
+        capper.SetConstraintFactor(constraint)
+        capper.SetNumberOfRings(15)
+        capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
+        capper.SetCellEntityIdOffset(-1) # The neck surface will be 0
+        capper.Update()
 
+        cappedAneurysm = capper.GetOutput()
+
+        # Aneurysm surface is constant: use total area then
+        totalArea = geo.Surface.Area(cappedAneurysm)
+
+        if totalArea < minArea:
+            minArea = totalArea
+
+        else:
+            break
+
+    # Triangulate minimum surface
     triangulate = vtk.vtkTriangleFilter()
-    triangulate.SetInputData(capper.GetOutput())
+    triangulate.SetInputData(cappedAneurysm)
     triangulate.PassLinesOff()
     triangulate.PassVertsOff()
     triangulate.Update()
 
-    surface = geo.Surface.Normals(
-                  triangulate.GetOutput(),
-                  auto_orient_if_closed=True
-              ) if compute_normals else triangulate.GetOutput()
+    cappedAneurysm = triangulate.GetOutput()
 
-    # Get maximum id of the surfaces
-    ostiumId = max(
-                   surface.GetCellData().GetArray(
-                       names.CellEntityIdsArrayName
-                   ).GetRange()
-               )
+    cappedAneurysm = geo.Surface.Normals(
+                         cappedAneurysm,
+                         auto_orient_if_closed=True
+                     ) if compute_normals else cappedAneurysm
+
+    entityIdsArray = cappedAneurysm.GetCellData().GetArray(names.CellEntityIdsArrayName)
 
     ostiumSurface = tools.ExtractPortion(
-                        surface,
+                        cappedAneurysm,
                         names.CellEntityIdsArrayName,
-                        ostiumId
+                        max(entityIdsArray.GetRange())
                     )
 
     # Removed remeshing as it was complicating the Normals addition with the
