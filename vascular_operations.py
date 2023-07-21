@@ -187,20 +187,33 @@ def _set_portion_in_cl_patch(
     lastSphere.SetRadius(radius*1.5)
     lastSphere.SetCenter(center)
 
-    for index, point in enumerate(npSurface.GetPoints()):
-        voronoiVector    = point - center
-        voronoiVectorDot = vtk.vtkMath.Dot(voronoiVector, tangent)
+    # Compute array on the surface to select point in the tube
+    points = npSurface.GetPoints()
+    voronoiVectors = points - center
 
-        tubevalue   = tubeFunction.EvaluateFunction(point)
-        spherevalue = lastSphere.EvaluateFunction(point)
+    voronoiVectorDots = dsa.VTKArray(
+                            [vtk.vtkMath.Dot(voronoiVector, tangent)
+                             for voronoiVector in voronoiVectors]
+                        )
 
-        # If outside the patch region
-        if spherevalue < 0.0 and voronoiVectorDot < 0.0:
-            continue
+    tubeValues = dsa.VTKArray(
+                    [tubeFunction.EvaluateFunction(point)
+                     for point in points]
+                )
 
-        # If inside the patch region and inside the tube
-        elif tubevalue <= 0.0:
-            inPatchArray[index] = 1
+    sphereValues = dsa.VTKArray(
+                        [lastSphere.EvaluateFunction(point)
+                         for point in points]
+                    )
+
+    # Set conditions
+    inTube = tubeValues <= 0.0
+    inSphere = sphereValues < 0.0
+    notOnPatch = voronoiVectorDots < 0.0
+
+    # Modify filter array
+    inPatchArray[inTube] = 1
+    inPatchArray[inSphere & notOnPatch] = 0
 
     return npSurface.VTKObject
 
