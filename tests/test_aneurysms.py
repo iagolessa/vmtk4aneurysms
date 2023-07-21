@@ -25,7 +25,7 @@ import pandas as pd
 import aneurysms as ia
 import lib.polydatageometry as geo
 
-from vascular_models import HemisphereAneurysm
+from vascular_models import HemisphereAneurysm, HemiEllipsoidAneurysm
 
 _SMALL = 1e-6
 
@@ -44,45 +44,6 @@ def sphericity_index(surface_area, volume):
 
     return 1.0 - aux*(volume**(2.0/3.0)/surface_area)
 
-def build_half_ellipsoid(minoraxis, majoraxis, center):
-
-    # Build hemisphere first
-    hemisphere = geo.GenerateHemisphereSurface(minoraxis, center)
-
-    # Scale it along major axis
-    zScaling = vtk.vtkTransform()
-    zScaling.Scale(1.0,1.0,majoraxis/minoraxis)
-    zScaling.Update()
-
-    halfEllipsoid = vtk.vtkTransformPolyDataFilter()
-    halfEllipsoid.SetInputData(hemisphere)
-    halfEllipsoid.SetTransform(zScaling)
-    halfEllipsoid.Update()
-
-    return halfEllipsoid.GetOutput()
-
-def build_three_fourth_ellipsoide(minoraxis, majoraxis, center):
-
-    threeFourthSphere = vtk.vtkSphereSource()
-    threeFourthSphere.SetCenter(center)
-    threeFourthSphere.SetRadius(minoraxis)
-    threeFourthSphere.SetPhiResolution(200)
-    threeFourthSphere.SetThetaResolution(200)
-    threeFourthSphere.SetEndPhi(120)
-    threeFourthSphere.Update()
-
-    # Scale it along major axis
-    zScaling = vtk.vtkTransform()
-    zScaling.Scale(1.0,1.0,majoraxis/minoraxis)
-    zScaling.Update()
-
-    threeFourthEllipsoid = vtk.vtkTransformPolyDataFilter()
-    threeFourthEllipsoid.SetInputData(threeFourthSphere.GetOutput())
-    threeFourthEllipsoid.SetTransform(zScaling)
-    threeFourthEllipsoid.Update()
-
-    return threeFourthEllipsoid.GetOutput()
-
 class TestAneurysmModule(unittest.TestCase):
 
     def test_ComputeMetrics(self):
@@ -91,25 +52,25 @@ class TestAneurysmModule(unittest.TestCase):
         center = (0, 0, 0)
 
         # Build aneurysm surface models
-        hemisphereModel = HemisphereAneurysm(
-                              radius,
-                              center
-                          )
+        hemisphereIaModel = HemisphereAneurysm(
+                                radius,
+                                center
+                            )
 
-        halfEllipsoid = build_half_ellipsoid(
-                            radius,
-                            majorAxis,
-                            center
-                        )
-
-        threeFourthEllipsoid = build_three_fourth_ellipsoide(
+        hemiEllipsoidIaModel = HemiEllipsoidAneurysm(
                                    radius,
                                    majorAxis,
                                    center
                                )
 
-        modelSurfaces = {"hemisphere": hemisphereModel.GetSurface(),
-                         "half-ellipsoid": halfEllipsoid,
+        threeFourthEllipsoid = geo.GenerateThreeFourthEllipsoid(
+                                   radius,
+                                   majorAxis,
+                                   center
+                               )
+
+        modelSurfaces = {"hemisphere": hemisphereIaModel.GetSurface(),
+                         "half-ellipsoid": hemiEllipsoidIaModel.GetSurface(),
                          "three-fourth-ellipsoid": threeFourthEllipsoid}
 
 
@@ -117,26 +78,22 @@ class TestAneurysmModule(unittest.TestCase):
         # Here, the correct values of the metrics assessed are computed analytically
 
         # HEMISPHERE
-        hemiVolume = hemisphereModel.GetAneurysmVolume()
-        hemiSurfaceArea = hemisphereModel.GetAneurysmSurfaceArea()
-
         hemisphereModel = {
-            "AneurysmSurfaceArea": hemiSurfaceArea,
-            "HullVolume": hemiVolume,
-            "NonSphericityIndex": hemisphereModel.GetNonSphericityIndex(),
-            "MaximumDiameter": hemisphereModel.GetMaximumDiameter(),
-            "NeckDiameter": hemisphereModel.GetNeckDiameter(),
-            "OstiumArea": hemisphereModel.GetOstiumArea(),
-            "EllipticityIndex": hemisphereModel.GetEllipticityIndex(),
-            "UndulationIndex": hemisphereModel.GetUndulationIndex(),
-            "MaximumNormalHeight": hemisphereModel.GetMaximumNormalHeight(),
-            "AneurysmVolume": hemiVolume,
-            "BottleneckFactor": hemisphereModel.GetBottleneckFactor(),
-            "AspectRatio": hemisphereModel.GetAspectRatio(),
-            "HullSurfaceArea": hemisphereModel.GetHullSurfaceArea(),
-            "ConicityParameter": hemisphereModel.GetConicityParameter(),
-            "DomeTipPoint": hemisphereModel.GetDomeTipPoint()#,
-            # "GLN": 1.0
+            "MaximumDiameter":     hemisphereIaModel.GetMaximumDiameter(),
+            "NeckDiameter":        hemisphereIaModel.GetNeckDiameter(),
+            "MaximumNormalHeight": hemisphereIaModel.GetMaximumNormalHeight(),
+            "AneurysmVolume":      hemisphereIaModel.GetAneurysmVolume(),
+            "HullVolume":          hemisphereIaModel.GetHullVolume(),
+            "OstiumArea":          hemisphereIaModel.GetOstiumArea(),
+            "AneurysmSurfaceArea": hemisphereIaModel.GetAneurysmSurfaceArea(),
+            "HullSurfaceArea":     hemisphereIaModel.GetHullSurfaceArea(),
+            "AspectRatio":         hemisphereIaModel.GetAspectRatio(),
+            "ConicityParameter":   hemisphereIaModel.GetConicityParameter(),
+            "BottleneckFactor":    hemisphereIaModel.GetBottleneckFactor(),
+            "NonSphericityIndex":  hemisphereIaModel.GetNonSphericityIndex(),
+            "EllipticityIndex":    hemisphereIaModel.GetEllipticityIndex(),
+            "UndulationIndex":     hemisphereIaModel.GetUndulationIndex(),
+            "DomeTipPoint":        hemisphereIaModel.GetDomeTipPoint()
         }
 
         # HALF ELLIPSOIDE
@@ -144,30 +101,22 @@ class TestAneurysmModule(unittest.TestCase):
         a = radius
         b = majorAxis
 
-        # half ellipsoid volume
-        heVolume = (2.0/3.0)*np.pi*(a**2)*b
-
-        # Surface computation is more complicated
-        # I found on wikipedia
-        e = np.sqrt(1.0 - a**2/b**2)
-        heSurfaceArea = np.pi*(a**2)*(1.0 + (b/(a*e))*np.arcsin(e))
-
         halfEllipsoidModel = {
-            "AneurysmSurfaceArea": heSurfaceArea,
-            "HullVolume": heVolume,
-            "NonSphericityIndex": sphericity_index(heSurfaceArea, heVolume),
-            "MaximumDiameter": 2*a,
-            "NeckDiameter": 2*a,
-            "OstiumArea": np.pi*(a**2),
-            "EllipticityIndex": sphericity_index(heSurfaceArea, heVolume),
-            "UndulationIndex": 0.0,
-            "MaximumNormalHeight": b,
-            "AneurysmVolume": heVolume,
-            "BottleneckFactor": 1.0,
-            "AspectRatio": 1.0,
-            "HullSurfaceArea": heSurfaceArea,
-            "ConicityParameter": 0.5,
-            "DomeTipPoint": (0,0,8)
+            "MaximumDiameter":     hemiEllipsoidIaModel.GetMaximumDiameter(),
+            "NeckDiameter":        hemiEllipsoidIaModel.GetNeckDiameter(),
+            "MaximumNormalHeight": hemiEllipsoidIaModel.GetMaximumNormalHeight(),
+            "AneurysmVolume":      hemiEllipsoidIaModel.GetAneurysmVolume(),
+            "HullVolume":          hemiEllipsoidIaModel.GetHullVolume(),
+            "OstiumArea":          hemiEllipsoidIaModel.GetOstiumArea(),
+            "AneurysmSurfaceArea": hemiEllipsoidIaModel.GetAneurysmSurfaceArea(),
+            "HullSurfaceArea":     hemiEllipsoidIaModel.GetHullSurfaceArea(),
+            "AspectRatio":         hemiEllipsoidIaModel.GetAspectRatio(),
+            "ConicityParameter":   hemiEllipsoidIaModel.GetConicityParameter(),
+            "BottleneckFactor":    hemiEllipsoidIaModel.GetBottleneckFactor(),
+            "NonSphericityIndex":  hemiEllipsoidIaModel.GetNonSphericityIndex(),
+            "EllipticityIndex":    hemiEllipsoidIaModel.GetEllipticityIndex(),
+            "UndulationIndex":     hemiEllipsoidIaModel.GetUndulationIndex(),
+            "DomeTipPoint":        hemiEllipsoidIaModel.GetDomeTipPoint()
         }
 
         # Three-fourth ellipsoid

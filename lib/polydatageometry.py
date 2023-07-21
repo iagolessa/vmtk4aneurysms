@@ -975,7 +975,10 @@ class Surface():
         """Return the names of point arrays for a vtkPolyData."""
         return tools.GetPointArrays(self._surface_object)
 
-def GenerateHemisphereSurface(radius, center):
+def GenerateHemisphereSurface(
+        radius: float,
+        center: tuple
+    )   -> names.polyDataType:
     """Return the surface of a hemisphere, given its radius and center."""
 
     hemisphere = vtk.vtkSphereSource()
@@ -987,3 +990,58 @@ def GenerateHemisphereSurface(radius, center):
     hemisphere.Update()
 
     return hemisphere.GetOutput()
+
+def GenerateHemiEllipsoid(
+        minoraxis: float,
+        majoraxis: float,
+        center: tuple
+    )   -> names.polyDataType:
+
+    # Build hemisphere first
+    hemisphere = GenerateHemisphereSurface(minoraxis, center)
+
+    # Scale it along major axis
+    zScaling = vtk.vtkTransform()
+    zScaling.Scale(
+        const.one,
+        const.one,
+        majoraxis/minoraxis
+    )
+    zScaling.Update()
+
+    hemiEllipsoid = vtk.vtkTransformPolyDataFilter()
+    hemiEllipsoid.SetInputData(hemisphere)
+    hemiEllipsoid.SetTransform(zScaling)
+    hemiEllipsoid.Update()
+
+    return hemiEllipsoid.GetOutput()
+
+def GenerateThreeFourthEllipsoid(
+        minoraxis: float,
+        majoraxis: float,
+        center: tuple
+    )   -> names.polyDataType:
+
+    threeFourthSphere = vtk.vtkSphereSource()
+    threeFourthSphere.SetCenter(center)
+    threeFourthSphere.SetRadius(minoraxis)
+    threeFourthSphere.SetPhiResolution(200)
+    threeFourthSphere.SetThetaResolution(200)
+    threeFourthSphere.SetEndPhi(120)
+    threeFourthSphere.Update()
+
+    # Scale it along major axis
+    zScaling = vtk.vtkTransform()
+    zScaling.Scale(
+        const.one,
+        const.one,
+        majoraxis/minoraxis
+    )
+    zScaling.Update()
+
+    threeFourthEllipsoid = vtk.vtkTransformPolyDataFilter()
+    threeFourthEllipsoid.SetInputData(threeFourthSphere.GetOutput())
+    threeFourthEllipsoid.SetTransform(zScaling)
+    threeFourthEllipsoid.Update()
+
+    return threeFourthEllipsoid.GetOutput()
