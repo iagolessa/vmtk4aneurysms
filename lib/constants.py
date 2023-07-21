@@ -33,6 +33,7 @@ eight = 8.0
 nine  = 9.0
 ten   = 10.0
 
+oneHalf = one/two
 oneHundred = 100.0
 
 degToRad = pi/180.0

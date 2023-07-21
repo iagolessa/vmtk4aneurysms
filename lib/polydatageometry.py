@@ -974,3 +974,16 @@ class Surface():
     def GetPointArrays(self):
         """Return the names of point arrays for a vtkPolyData."""
         return tools.GetPointArrays(self._surface_object)
+
+def GenerateHemisphereSurface(radius, center):
+    """Return the surface of a hemisphere, given its radius and center."""
+
+    hemisphere = vtk.vtkSphereSource()
+    hemisphere.SetCenter(center)
+    hemisphere.SetRadius(radius)
+    hemisphere.SetPhiResolution(200)
+    hemisphere.SetThetaResolution(200)
+    hemisphere.SetEndPhi(90)
+    hemisphere.Update()
+
+    return hemisphere.GetOutput()

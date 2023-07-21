@@ -24,6 +24,7 @@ import vtk
 
 from vtk.numpy_interface import dataset_adapter as dsa
 from . import names
+from . import constants as const
 from . import polydatatools as tools
 from . import polydatageometry as geo
 
@@ -324,3 +325,38 @@ def CharacterizeFixedPoint(
 
         else:
             return _fixedPointTypes["StableFocus"]["id"]
+
+def IsoperimetricRatio(
+        surface_area: float,
+        surface_volume: float
+    )   -> float:
+    """Return the isoperimetric retion of a surface.
+
+    The isoperimetric ratio (IPR) of a surface is defined as:
+
+    .. math::
+        IPR = A/V^{2/3}
+
+    where :math:`V` and :math:`A` are the enclosed volume and surface area of
+    the surface. It measures a degree of folding of a surface and,
+    consequentely, since a sphere has the smallest surface area given a volume,
+    is measures a degree of deviation from a sphere.
+    """
+
+    return surface_area/(surface_volume**(const.two/const.three))
+
+def SphericityIndex(
+        surface_area: float,
+        surface_volume: float
+    )   -> float:
+    """Returns the sphericity index of a surface.
+
+    Based on isoperimetric ratio, the sphericity index defines a degree o
+    closeness to a perfect hemisphere: it is equal to 1 for a perfect
+    hemisphere, or smaller then that for other surfaces.
+    """
+
+    ipr = IsoperimetricRatio(surface_area, surface_volume)
+    corrFactor = (18.0*const.pi)**(const.one/const.three)
+
+    return corrFactor/ipr

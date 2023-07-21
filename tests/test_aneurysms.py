@@ -23,6 +23,9 @@ import unittest
 import numpy as np
 import pandas as pd
 import aneurysms as ia
+import lib.polydatageometry as geo
+
+from vascular_models import HemisphereAneurysm
 
 _SMALL = 1e-6
 
@@ -41,22 +44,10 @@ def sphericity_index(surface_area, volume):
 
     return 1.0 - aux*(volume**(2.0/3.0)/surface_area)
 
-def build_hemisphere(radius, center):
-    hemisphere = vtk.vtkSphereSource()
-
-    hemisphere.SetCenter(center)
-    hemisphere.SetRadius(radius)
-    hemisphere.SetPhiResolution(200)
-    hemisphere.SetThetaResolution(200)
-    hemisphere.SetEndPhi(90)
-    hemisphere.Update()
-
-    return hemisphere.GetOutput()
-
 def build_half_ellipsoid(minoraxis, majoraxis, center):
 
     # Build hemisphere first
-    hemisphere = build_hemisphere(minoraxis, center)
+    hemisphere = geo.GenerateHemisphereSurface(minoraxis, center)
 
     # Scale it along major axis
     zScaling = vtk.vtkTransform()
@@ -100,10 +91,10 @@ class TestAneurysmModule(unittest.TestCase):
         center = (0, 0, 0)
 
         # Build aneurysm surface models
-        hemisphere = build_hemisphere(
-                         radius,
-                         center
-                     )
+        hemisphereModel = HemisphereAneurysm(
+                              radius,
+                              center
+                          )
 
         halfEllipsoid = build_half_ellipsoid(
                             radius,
@@ -117,7 +108,7 @@ class TestAneurysmModule(unittest.TestCase):
                                    center
                                )
 
-        modelSurfaces = {"hemisphere": hemisphere,
+        modelSurfaces = {"hemisphere": hemisphereModel.GetSurface(),
                          "half-ellipsoid": halfEllipsoid,
                          "three-fourth-ellipsoid": threeFourthEllipsoid}
 
@@ -126,25 +117,25 @@ class TestAneurysmModule(unittest.TestCase):
         # Here, the correct values of the metrics assessed are computed analytically
 
         # HEMISPHERE
-        hemiVolume = (2.0/3.0)*np.pi*(radius**3.0)
-        hemiSurfaceArea = 2.0*np.pi*(radius**2.0)
+        hemiVolume = hemisphereModel.GetAneurysmVolume()
+        hemiSurfaceArea = hemisphereModel.GetAneurysmSurfaceArea()
 
         hemisphereModel = {
             "AneurysmSurfaceArea": hemiSurfaceArea,
             "HullVolume": hemiVolume,
-            "NonSphericityIndex": sphericity_index(hemiSurfaceArea, hemiVolume),
-            "MaximumDiameter": 2.0*radius,
-            "NeckDiameter": 2.0*radius,
-            "OstiumArea": np.pi*(radius**2.0),
-            "EllipticityIndex": sphericity_index(hemiSurfaceArea, hemiVolume),
-            "UndulationIndex": 0.0,
-            "MaximumNormalHeight": radius,
+            "NonSphericityIndex": hemisphereModel.GetNonSphericityIndex(),
+            "MaximumDiameter": hemisphereModel.GetMaximumDiameter(),
+            "NeckDiameter": hemisphereModel.GetNeckDiameter(),
+            "OstiumArea": hemisphereModel.GetOstiumArea(),
+            "EllipticityIndex": hemisphereModel.GetEllipticityIndex(),
+            "UndulationIndex": hemisphereModel.GetUndulationIndex(),
+            "MaximumNormalHeight": hemisphereModel.GetMaximumNormalHeight(),
             "AneurysmVolume": hemiVolume,
-            "BottleneckFactor": 1.0,
-            "AspectRatio": 0.5,
-            "HullSurfaceArea": hemiSurfaceArea,
-            "ConicityParameter": 0.5,
-            "DomeTipPoint": (0,0,4)#,
+            "BottleneckFactor": hemisphereModel.GetBottleneckFactor(),
+            "AspectRatio": hemisphereModel.GetAspectRatio(),
+            "HullSurfaceArea": hemisphereModel.GetHullSurfaceArea(),
+            "ConicityParameter": hemisphereModel.GetConicityParameter(),
+            "DomeTipPoint": hemisphereModel.GetDomeTipPoint()#,
             # "GLN": 1.0
         }
 
