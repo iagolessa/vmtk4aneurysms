@@ -97,7 +97,8 @@ def ComputeOpenCenters(
 def GenerateCenterlines(
         surface: names.polyDataType,
         source_points: list = None,
-        target_points: list = None
+        target_points: list = None,
+        append_end_points: bool=True
     )   -> names.polyDataType:
     """Compute centerlines, given source and target points."""
 
@@ -112,7 +113,7 @@ def GenerateCenterlines(
     CapDisplacement = 0.0
     FlipNormals = 0
     CostFunction = '1/R'
-    AppendEndPoints = 1
+    AppendEndPoints = append_end_points
     CheckNonManifold = 0
 
     Resampling = 1
@@ -335,7 +336,13 @@ def ComputeClPatchEndPointParameters(
         patch_centerlines: names.polyDataType,
         patch_id: int
     )   -> tuple:
-    """Compute the tangent, point and radius at the ends of a centerline."""
+    """Compute the tangent, point and radius at the ends of a centerline.
+
+    The result depend on the id of the centerline patch: it returns the
+    end points closest to the bifurcation (or patched region) of the original
+    centerline. The tangent direction is always towards the path of the
+    centerline.
+    """
 
     # Set cell to a vtk cell
     cell = vtk.vtkGenericCell()
