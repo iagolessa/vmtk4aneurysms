@@ -15,7 +15,12 @@
 
 """Collection of vascular models."""
 
-from numpy import array, sqrt, arcsin, sin
+from numpy import (
+        array, sqrt,
+        arcsin, arccos, arctan,
+        sin, cos, inf
+    )
+
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
 from vmtk4aneurysms.lib import polydatageometry as geo
@@ -65,6 +70,67 @@ def _ellipse_integral(
 
     return arcsin(e*sin(theta)) + e*sin(theta)*aux
 
+def _ellipsoid_curvatures(
+        point: tuple,
+        xsemiaxis: float,
+        ysemiaxis: float,
+        zsemiaxis: float
+    )   -> tuple:
+    """Compute the Gauss and mean curvature of a point of an ellipsoid."""
+
+    # Equations found in https://mathworld.wolfram.com/Ellipsoid.html
+    x, y, z = point
+    a, b, c = xsemiaxis, ysemiaxis, zsemiaxis
+
+    # Transform coordinates to parametric ones
+    argU = (y/b)/(x/a) if x != const.zero else inf
+
+    u = arctan(argU) # belongs to [-pi/2, pi/2]
+
+    # Update in case u is negative to bring it to [0, 2pi[ interval
+    u = const.two*const.pi + u if u < 0 else u
+
+    v = arccos(z/c) # belongs to [0, pi] -> ok with numpy doc.
+
+    sqrCosU = cos(u)**2
+    sqrCosV = cos(v)**2
+    sqrSinU = sin(u)**2
+    sqrSinV = sin(v)**2
+
+    sqrA = a**2
+    sqrB = b**2
+    sqrC = c**2
+
+    denominator = (
+                      sqrA*sqrB*sqrCosV
+                      +
+                      sqrC*sqrSinV*(
+                          sqrB*sqrCosU
+                          +
+                          sqrA*sqrSinU
+                      )
+                  )
+
+    # Gaussian curvature
+    K = sqrA*sqrB*sqrC/(denominator**2)
+
+    # Mean curvature
+    H = (
+            a*b*c*(
+                3.0*(sqrA + sqrB)
+                +
+                2.0*sqrC
+                +
+                (sqrA + sqrB - 2.0*sqrC)*cos(2.0*v)
+                -
+                2.0*(sqrA - sqrB)*cos(2*u)*sqrSinV
+            )
+        )/(
+            8*(denominator**(3.0/2.0))
+        )
+
+    return K, H
+
 def EllipsoidVolume(
         a: float,
         b: float,
@@ -109,15 +175,15 @@ def EllipsoidSurfaceArea(
 class HemisphereAneurysm:
     """Model of a saccular cerebral in the form of a hemisphere."""
 
-    def __init__(self, radius, center, surface_resolution=100):
+    def __init__(self, radius, surface_resolution=100):
         """Initiates hemisphere aneurysm model."""
 
         self._radius = radius
-        self._center = center
+        self._center = (0, 0, 0)
 
         self._surface = geo.GenerateHemisphereSurface(
                             radius,
-                            center,
+                            self._center,
                             resolution=surface_resolution
                         )
 
@@ -186,16 +252,16 @@ class HemisphereAneurysm:
 class HemiEllipsoidAneurysm:
     """Model of a saccular cerebral in the form of a hemi-ellipsoid."""
 
-    def __init__(self, a, c, center, surface_resolution=100):
+    def __init__(self, a, c, surface_resolution=100):
         """Initiates hemi-ellipsoid aneurysm model."""
 
         self._minoraxis, self._majoraxis = sorted([a,c])
-        self._center = center
+        self._center = (0, 0, 0)
 
         self._surface = geo.GenerateHemiEllipsoid(
                             self._minoraxis,
                             self._majoraxis,
-                            center,
+                            self._center,
                             resolution=surface_resolution
                         )
 
@@ -282,16 +348,16 @@ class HemiEllipsoidAneurysm:
 class ThreeFourthEllipsoidAneurysm:
     """Model of a saccular cerebral in the form of a three-fourth-ellipsoid."""
 
-    def __init__(self, a, c, center, surface_resolution=100):
+    def __init__(self, a, c, surface_resolution=100):
         """Initiates three-fourth-ellipsoid aneurysm model."""
 
         self._minoraxis, self._majoraxis = sorted([a,c])
-        self._center = center
+        self._center = (0, 0, 0)
 
         self._surface = geo.GenerateThreeFourthEllipsoid(
                             self._minoraxis,
                             self._majoraxis,
-                            center,
+                            self._center,
                             resolution=surface_resolution
                         )
 

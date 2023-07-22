@@ -59,27 +59,23 @@ class TestAneurysmModule(unittest.TestCase):
                                     const.four*refVolume/(const.nine*const.pi)
                                )**(const.one/const.three)
 
-        center = (0, 0, 0)
         surfResolution = 200
 
         # Build aneurysm surface models
         iaModel1 = HemisphereAneurysm(
                        hemisphereRadius,
-                       center,
                        surface_resolution=surfResolution
                    )
 
         iaModel2 = HemiEllipsoidAneurysm(
                        hEllipsoidMinorAxis,
                        const.two*hEllipsoidMinorAxis,
-                       center,
                        surface_resolution=surfResolution
                    )
 
         iaModel3 = ThreeFourthEllipsoidAneurysm(
                        tfEllipsoidMinorAxis,
                        const.two*tfEllipsoidMinorAxis,
-                       center,
                        surface_resolution=surfResolution
                    )
 
