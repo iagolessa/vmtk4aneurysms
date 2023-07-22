@@ -975,35 +975,39 @@ class Surface():
         """Return the names of point arrays for a vtkPolyData."""
         return tools.GetPointArrays(self._surface_object)
 
-def GenerateHemisphereSurface(
+def GenerateSphereSurface(
         radius: float,
-        center: tuple,
+        max_phi: float=180,
         resolution: float=200
     )   -> names.polyDataType:
-    """Return the surface of a hemisphere, given its radius and center."""
+    """Return the surface of a sphere, given its radius and max. phi."""
 
-    hemisphere = vtk.vtkSphereSource()
-    hemisphere.SetCenter(center)
-    hemisphere.SetRadius(radius)
-    hemisphere.SetPhiResolution(resolution)
-    hemisphere.SetThetaResolution(resolution)
-    hemisphere.SetEndPhi(90)
-    hemisphere.Update()
+    center = (0, 0, 0)
 
-    return hemisphere.GetOutput()
+    sphere = vtk.vtkSphereSource()
+    sphere.SetCenter(center)
+    sphere.SetRadius(radius)
+    sphere.SetPhiResolution(resolution)
+    sphere.SetThetaResolution(resolution)
+    sphere.SetEndPhi(max_phi)
+    sphere.Update()
 
-def GenerateHemiEllipsoid(
+    return sphere.GetOutput()
+
+def GenerateEllipsoid(
         minoraxis: float,
         majoraxis: float,
-        center: tuple,
+        max_phi: float=180,
         resolution: float=200
     )   -> names.polyDataType:
-    """Return the surface of a hemi-ellipsoide, given its axis and center."""
+    """Return the surface of an ellipsoid, given its axes and max. phi angle."""
 
-    # Build hemisphere first
-    hemisphere = GenerateHemisphereSurface(
+    center = (0, 0, 0)
+
+    # Build sphere first
+    sphere = GenerateSphereSurface(
                      minoraxis,
-                     center,
+                     max_phi=max_phi,
                      resolution=resolution
                  )
 
@@ -1016,42 +1020,9 @@ def GenerateHemiEllipsoid(
     )
     zScaling.Update()
 
-    hemiEllipsoid = vtk.vtkTransformPolyDataFilter()
-    hemiEllipsoid.SetInputData(hemisphere)
-    hemiEllipsoid.SetTransform(zScaling)
-    hemiEllipsoid.Update()
+    ellipsoid = vtk.vtkTransformPolyDataFilter()
+    ellipsoid.SetInputData(sphere)
+    ellipsoid.SetTransform(zScaling)
+    ellipsoid.Update()
 
-    return hemiEllipsoid.GetOutput()
-
-def GenerateThreeFourthEllipsoid(
-        minoraxis: float,
-        majoraxis: float,
-        center: tuple,
-        resolution: float=200
-    )   -> names.polyDataType:
-    """Return the surface of a three-fourth ellipsoide, given its axis and
-    center."""
-
-    threeFourthSphere = vtk.vtkSphereSource()
-    threeFourthSphere.SetCenter(center)
-    threeFourthSphere.SetRadius(minoraxis)
-    threeFourthSphere.SetPhiResolution(resolution)
-    threeFourthSphere.SetThetaResolution(resolution)
-    threeFourthSphere.SetEndPhi(120)
-    threeFourthSphere.Update()
-
-    # Scale it along major axis
-    zScaling = vtk.vtkTransform()
-    zScaling.Scale(
-        const.one,
-        const.one,
-        majoraxis/minoraxis
-    )
-    zScaling.Update()
-
-    threeFourthEllipsoid = vtk.vtkTransformPolyDataFilter()
-    threeFourthEllipsoid.SetInputData(threeFourthSphere.GetOutput())
-    threeFourthEllipsoid.SetTransform(zScaling)
-    threeFourthEllipsoid.Update()
-
-    return threeFourthEllipsoid.GetOutput()
+    return ellipsoid.GetOutput()

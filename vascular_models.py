@@ -181,9 +181,9 @@ class HemisphereAneurysm:
         self._radius = radius
         self._center = (0, 0, 0)
 
-        self._surface = geo.GenerateHemisphereSurface(
+        self._surface = geo.GenerateSphereSurface(
                             radius,
-                            self._center,
+                            max_phi=90,
                             resolution=surface_resolution
                         )
 
@@ -258,10 +258,10 @@ class HemiEllipsoidAneurysm:
         self._minoraxis, self._majoraxis = sorted([a,c])
         self._center = (0, 0, 0)
 
-        self._surface = geo.GenerateHemiEllipsoid(
+        self._surface = geo.GenerateEllipsoid(
                             self._minoraxis,
                             self._majoraxis,
-                            self._center,
+                            max_phi=90,
                             resolution=surface_resolution
                         )
 
@@ -354,10 +354,10 @@ class ThreeFourthEllipsoidAneurysm:
         self._minoraxis, self._majoraxis = sorted([a,c])
         self._center = (0, 0, 0)
 
-        self._surface = geo.GenerateThreeFourthEllipsoid(
+        self._surface = geo.GenerateEllipsoid(
                             self._minoraxis,
                             self._majoraxis,
-                            self._center,
+                            max_phi=120,
                             resolution=surface_resolution
                         )
 
