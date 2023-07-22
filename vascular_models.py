@@ -73,6 +73,16 @@ def _ellipse_integral(
 
     return arcsin(e*sin(theta)) + e*sin(theta)*aux
 
+def _sphere_curvatures(
+        radius: float
+    )   -> tuple:
+    """Compute the Gauss and mean curvature of a point of a sphere."""
+
+    K = const.one/(radius**const.two)
+    H = const.one/radius
+
+    return K, H
+
 def _ellipsoid_curvatures(
         point: tuple,
         xsemiaxis: float,
@@ -246,10 +256,10 @@ class HemisphereAneurysm:
         return const.zero
 
     def GetCurvatureMetrics(self) -> dict:
-        return {"MAA": const.oneHalf/self.radius,
-                "GAA": const.oneHalf/(self.radius**2),
+        return {"MAA": const.one/self._radius,
+                "GAA": const.one/(self._radius**2),
                 "MLN": sqrt(const.one/(const.eight*const.pi)),
-                "GLN": sqrt(const.oneHalf),
+                "GLN": const.oneHalf,
                 "HGLN": const.zero}
 
 class HemiEllipsoidAneurysm:
