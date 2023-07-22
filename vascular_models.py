@@ -15,6 +15,8 @@
 
 """Collection of vascular models."""
 
+from vtk.numpy_interface import dataset_adapter as dsa
+
 from numpy import (
         array, sqrt,
         arcsin, arccos, arctan,
@@ -23,6 +25,7 @@ from numpy import (
 
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
+from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 
@@ -337,13 +340,104 @@ class HemiEllipsoidAneurysm:
         return const.zero
 
     def GetCurvatureMetrics(self) -> dict:
-        pass
-        # TODO: Only possible to compute it numerically?
-        # return {"MAA": const.oneHalf/self.radius,
-        #         "GAA": const.oneHalf/(self.radius**2),
-        #         "MLN": sqrt(const.one/(const.eight*const.pi)),
-        #         "GLN": sqrt(const.oneHalf),
-        #         "HGLN": const.zero}
+        # USe numpy interface to compute array fields
+        npSurface = dsa.WrapDataObject(self.GetSurface())
+
+        curvatures = dsa.VTKArray([
+                        list(
+                              _ellipsoid_curvatures(
+                                  point,
+                                  self._minoraxis,
+                                  self._minoraxis,
+                                  self._majoraxis
+                            )
+                        ) for point in npSurface.Points
+                    ])
+
+        npSurface.PointData.append(
+            curvatures[:, 0],
+            names.GaussCurvatureArrayName
+        )
+
+        npSurface.PointData.append(
+            curvatures[:, 1],
+            names.MeanCurvatureArrayName
+        )
+
+        # Convert point data to cell data
+        surface = tools.PointFieldToCellField(npSurface.VTKObject)
+
+        # Compute squared values
+        npSurface = dsa.WrapDataObject(surface)
+
+        arrGaussCurv = npSurface.CellData.GetArray(names.GaussCurvatureArrayName)
+        arrMeanCurv  = npSurface.CellData.GetArray(names.MeanCurvatureArrayName)
+
+        nameSqrGaussCurv = "Squared_Gauss_Curvature"
+        nameSqrMeanCurv  = "Squared_Mean_Curvature"
+
+        npSurface.CellData.append(
+            arrGaussCurv**2,
+            nameSqrGaussCurv
+        )
+
+        npSurface.CellData.append(
+            arrMeanCurv**2,
+            nameSqrMeanCurv
+        )
+
+        curvatureSurface = npSurface.VTKObject
+        surfaceArea = self.GetAneurysmSurfaceArea()
+
+        GAA = pmath.SurfaceAverage(
+                    curvatureSurface,
+                    names.GaussCurvatureArrayName
+                )
+
+        MAA = pmath.SurfaceAverage(
+                    curvatureSurface,
+                    names.MeanCurvatureArrayName
+                )
+
+        surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface,
+                                nameSqrGaussCurv
+                            )
+
+        surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface,
+                                nameSqrMeanCurv
+                            )
+
+        GLN = sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
+        MLN = sqrt(surfIntSqrMeanCurv)/(4*const.pi)
+
+        # Computing the hyperbolic L2-norm
+        hyperbolicPatches = tools.ClipWithScalar(
+                                curvatureSurface,
+                                names.GaussCurvatureArrayName,
+                                const.zero
+                            )
+
+        hyperbolicArea    = geo.Surface.Area(hyperbolicPatches)
+
+        # Check if there is any hyperbolic areas
+        if hyperbolicArea > 0.0:
+            surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
+                                                        hyperbolicPatches,
+                                                        nameSqrGaussCurv
+                                                    )
+
+            HGLN = sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
+
+        else:
+            HGLN = 0.0
+
+        return {"MAA": MAA,
+                "GAA": GAA,
+                "MLN": MLN,
+                "GLN": GLN,
+                "HGLN": HGLN}
 
 class ThreeFourthEllipsoidAneurysm:
     """Model of a saccular cerebral in the form of a three-fourth-ellipsoid."""
@@ -458,10 +552,101 @@ class ThreeFourthEllipsoidAneurysm:
         return const.zero
 
     def GetCurvatureMetrics(self) -> dict:
-        pass
-        # TODO: Only possible to compute it numerically?
-        # return {"MAA": const.oneHalf/self.radius,
-        #         "GAA": const.oneHalf/(self.radius**2),
-        #         "MLN": sqrt(const.one/(const.eight*const.pi)),
-        #         "GLN": sqrt(const.oneHalf),
-        #         "HGLN": const.zero}
+        # USe numpy interface to compute array fields
+        npSurface = dsa.WrapDataObject(self.GetSurface())
+
+        curvatures = dsa.VTKArray([
+                        list(
+                              _ellipsoid_curvatures(
+                                  point,
+                                  self._minoraxis,
+                                  self._minoraxis,
+                                  self._majoraxis
+                            )
+                        ) for point in npSurface.Points
+                    ])
+
+        npSurface.PointData.append(
+            curvatures[:, 0],
+            names.GaussCurvatureArrayName
+        )
+
+        npSurface.PointData.append(
+            curvatures[:, 1],
+            names.MeanCurvatureArrayName
+        )
+
+        # Convert point data to cell data
+        surface = tools.PointFieldToCellField(npSurface.VTKObject)
+
+        # Compute squared values
+        npSurface = dsa.WrapDataObject(surface)
+
+        arrGaussCurv = npSurface.CellData.GetArray(names.GaussCurvatureArrayName)
+        arrMeanCurv  = npSurface.CellData.GetArray(names.MeanCurvatureArrayName)
+
+        nameSqrGaussCurv = "Squared_Gauss_Curvature"
+        nameSqrMeanCurv  = "Squared_Mean_Curvature"
+
+        npSurface.CellData.append(
+            arrGaussCurv**2,
+            nameSqrGaussCurv
+        )
+
+        npSurface.CellData.append(
+            arrMeanCurv**2,
+            nameSqrMeanCurv
+        )
+
+        curvatureSurface = npSurface.VTKObject
+        surfaceArea = self.GetAneurysmSurfaceArea()
+
+        GAA = pmath.SurfaceAverage(
+                    curvatureSurface,
+                    names.GaussCurvatureArrayName
+                )
+
+        MAA = pmath.SurfaceAverage(
+                    curvatureSurface,
+                    names.MeanCurvatureArrayName
+                )
+
+        surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface,
+                                nameSqrGaussCurv
+                            )
+
+        surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface,
+                                nameSqrMeanCurv
+                            )
+
+        GLN = sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
+        MLN = sqrt(surfIntSqrMeanCurv)/(4*const.pi)
+
+        # Computing the hyperbolic L2-norm
+        hyperbolicPatches = tools.ClipWithScalar(
+                                curvatureSurface,
+                                names.GaussCurvatureArrayName,
+                                const.zero
+                            )
+
+        hyperbolicArea    = geo.Surface.Area(hyperbolicPatches)
+
+        # Check if there is any hyperbolic areas
+        if hyperbolicArea > 0.0:
+            surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
+                                                        hyperbolicPatches,
+                                                        nameSqrGaussCurv
+                                                    )
+
+            HGLN = sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
+
+        else:
+            HGLN = 0.0
+
+        return {"MAA": MAA,
+                "GAA": GAA,
+                "MLN": MLN,
+                "GLN": GLN,
+                "HGLN": HGLN}
