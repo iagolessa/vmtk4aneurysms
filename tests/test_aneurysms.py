@@ -23,6 +23,7 @@ import unittest
 import numpy as np
 import pandas as pd
 import aneurysms as ia
+import lib.constants as const
 import lib.polydatageometry as geo
 
 from vascular_models import (
@@ -49,30 +50,35 @@ class TestAneurysmModule(unittest.TestCase):
         # Raghavan, “Three-dimensional geometrical characterization of cerebral
         # aneurysms.”, Annals of Biomedical Engineering, vol. 32, nº 2, p.
         # 264–273, 2004, doi: 10.1023/B:ABME.0000012746.31343.92
-        refVolume = 67.64 # mm3
+        refVolume  = 67.64 # mm3
+        normVolume = const.three*refVolume/const.pi
 
-        radius = 4.0
-        majorAxis = 2.0*radius
+        hemisphereRadius     = (normVolume/const.two)**(const.one/const.three)
+        hEllipsoidMinorAxis  = (normVolume/const.four)**(const.one/const.three)
+        tfEllipsoidMinorAxis = (
+                                    const.four*refVolume/(const.nine*const.pi)
+                               )**(const.one/const.three)
+
         center = (0, 0, 0)
-        surfResolution = 300
+        surfResolution = 200
 
         # Build aneurysm surface models
         iaModel1 = HemisphereAneurysm(
-                       radius,
+                       hemisphereRadius,
                        center,
                        surface_resolution=surfResolution
                    )
 
         iaModel2 = HemiEllipsoidAneurysm(
-                       radius,
-                       majorAxis,
+                       hEllipsoidMinorAxis,
+                       const.two*hEllipsoidMinorAxis,
                        center,
                        surface_resolution=surfResolution
                    )
 
         iaModel3 = ThreeFourthEllipsoidAneurysm(
-                       radius,
-                       majorAxis,
+                       tfEllipsoidMinorAxis,
+                       const.two*tfEllipsoidMinorAxis,
                        center,
                        surface_resolution=surfResolution
                    )
