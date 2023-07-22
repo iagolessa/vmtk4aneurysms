@@ -25,7 +25,11 @@ import pandas as pd
 import aneurysms as ia
 import lib.polydatageometry as geo
 
-from vascular_models import HemisphereAneurysm, HemiEllipsoidAneurysm
+from vascular_models import (
+        HemisphereAneurysm,
+        HemiEllipsoidAneurysm,
+        ThreeFourthEllipsoidAneurysm
+    )
 
 _SMALL = 1e-6
 
@@ -38,12 +42,6 @@ def relative_diff(value, reference):
 def absolute_diff(value, reference):
     return abs(value - reference)
 
-def sphericity_index(surface_area, volume):
-
-    aux = (18.0*np.pi)**(1.0/3.0)
-
-    return 1.0 - aux*(volume**(2.0/3.0)/surface_area)
-
 class TestAneurysmModule(unittest.TestCase):
 
     def test_ComputeMetrics(self):
@@ -52,102 +50,82 @@ class TestAneurysmModule(unittest.TestCase):
         center = (0, 0, 0)
 
         # Build aneurysm surface models
-        hemisphereIaModel = HemisphereAneurysm(
-                                radius,
-                                center
-                            )
+        iaModel1 = HemisphereAneurysm(
+                       radius,
+                       center
+                   )
 
-        hemiEllipsoidIaModel = HemiEllipsoidAneurysm(
-                                   radius,
-                                   majorAxis,
-                                   center
-                               )
+        iaModel2 = HemiEllipsoidAneurysm(
+                       radius,
+                       majorAxis,
+                       center
+                   )
 
-        threeFourthEllipsoid = geo.GenerateThreeFourthEllipsoid(
-                                   radius,
-                                   majorAxis,
-                                   center
-                               )
+        iaModel3 = ThreeFourthEllipsoidAneurysm(
+                       radius,
+                       majorAxis,
+                       center
+                   )
 
-        modelSurfaces = {"hemisphere": hemisphereIaModel.GetSurface(),
-                         "half-ellipsoid": hemiEllipsoidIaModel.GetSurface(),
-                         "three-fourth-ellipsoid": threeFourthEllipsoid}
-
-
-        # Define the models of aneurysms: hemisphere and half ellipsoid.
-        # Here, the correct values of the metrics assessed are computed analytically
+        modelSurfaces = {"hemisphere": iaModel1.GetSurface(),
+                         "half-ellipsoid": iaModel2.GetSurface(),
+                         "three-fourth-ellipsoid": iaModel3.GetSurface()}
 
         # HEMISPHERE
         hemisphereModel = {
-            "MaximumDiameter":     hemisphereIaModel.GetMaximumDiameter(),
-            "NeckDiameter":        hemisphereIaModel.GetNeckDiameter(),
-            "MaximumNormalHeight": hemisphereIaModel.GetMaximumNormalHeight(),
-            "AneurysmVolume":      hemisphereIaModel.GetAneurysmVolume(),
-            "HullVolume":          hemisphereIaModel.GetHullVolume(),
-            "OstiumArea":          hemisphereIaModel.GetOstiumArea(),
-            "AneurysmSurfaceArea": hemisphereIaModel.GetAneurysmSurfaceArea(),
-            "HullSurfaceArea":     hemisphereIaModel.GetHullSurfaceArea(),
-            "AspectRatio":         hemisphereIaModel.GetAspectRatio(),
-            "ConicityParameter":   hemisphereIaModel.GetConicityParameter(),
-            "BottleneckFactor":    hemisphereIaModel.GetBottleneckFactor(),
-            "NonSphericityIndex":  hemisphereIaModel.GetNonSphericityIndex(),
-            "EllipticityIndex":    hemisphereIaModel.GetEllipticityIndex(),
-            "UndulationIndex":     hemisphereIaModel.GetUndulationIndex(),
-            "DomeTipPoint":        hemisphereIaModel.GetDomeTipPoint()
+            "MaximumDiameter":     iaModel1.GetMaximumDiameter(),
+            "NeckDiameter":        iaModel1.GetNeckDiameter(),
+            "MaximumNormalHeight": iaModel1.GetMaximumNormalHeight(),
+            "AneurysmVolume":      iaModel1.GetAneurysmVolume(),
+            "HullVolume":          iaModel1.GetHullVolume(),
+            "OstiumArea":          iaModel1.GetOstiumArea(),
+            "AneurysmSurfaceArea": iaModel1.GetAneurysmSurfaceArea(),
+            "HullSurfaceArea":     iaModel1.GetHullSurfaceArea(),
+            "AspectRatio":         iaModel1.GetAspectRatio(),
+            "ConicityParameter":   iaModel1.GetConicityParameter(),
+            "BottleneckFactor":    iaModel1.GetBottleneckFactor(),
+            "NonSphericityIndex":  iaModel1.GetNonSphericityIndex(),
+            "EllipticityIndex":    iaModel1.GetEllipticityIndex(),
+            "UndulationIndex":     iaModel1.GetUndulationIndex(),
+            "DomeTipPoint":        iaModel1.GetDomeTipPoint()
         }
 
         # HALF ELLIPSOIDE
-        # Values for the half and the next (three fourth ellipsoid)
-        a = radius
-        b = majorAxis
-
         halfEllipsoidModel = {
-            "MaximumDiameter":     hemiEllipsoidIaModel.GetMaximumDiameter(),
-            "NeckDiameter":        hemiEllipsoidIaModel.GetNeckDiameter(),
-            "MaximumNormalHeight": hemiEllipsoidIaModel.GetMaximumNormalHeight(),
-            "AneurysmVolume":      hemiEllipsoidIaModel.GetAneurysmVolume(),
-            "HullVolume":          hemiEllipsoidIaModel.GetHullVolume(),
-            "OstiumArea":          hemiEllipsoidIaModel.GetOstiumArea(),
-            "AneurysmSurfaceArea": hemiEllipsoidIaModel.GetAneurysmSurfaceArea(),
-            "HullSurfaceArea":     hemiEllipsoidIaModel.GetHullSurfaceArea(),
-            "AspectRatio":         hemiEllipsoidIaModel.GetAspectRatio(),
-            "ConicityParameter":   hemiEllipsoidIaModel.GetConicityParameter(),
-            "BottleneckFactor":    hemiEllipsoidIaModel.GetBottleneckFactor(),
-            "NonSphericityIndex":  hemiEllipsoidIaModel.GetNonSphericityIndex(),
-            "EllipticityIndex":    hemiEllipsoidIaModel.GetEllipticityIndex(),
-            "UndulationIndex":     hemiEllipsoidIaModel.GetUndulationIndex(),
-            "DomeTipPoint":        hemiEllipsoidIaModel.GetDomeTipPoint()
+            "MaximumDiameter":     iaModel2.GetMaximumDiameter(),
+            "NeckDiameter":        iaModel2.GetNeckDiameter(),
+            "MaximumNormalHeight": iaModel2.GetMaximumNormalHeight(),
+            "AneurysmVolume":      iaModel2.GetAneurysmVolume(),
+            "HullVolume":          iaModel2.GetHullVolume(),
+            "OstiumArea":          iaModel2.GetOstiumArea(),
+            "AneurysmSurfaceArea": iaModel2.GetAneurysmSurfaceArea(),
+            "HullSurfaceArea":     iaModel2.GetHullSurfaceArea(),
+            "AspectRatio":         iaModel2.GetAspectRatio(),
+            "ConicityParameter":   iaModel2.GetConicityParameter(),
+            "BottleneckFactor":    iaModel2.GetBottleneckFactor(),
+            "NonSphericityIndex":  iaModel2.GetNonSphericityIndex(),
+            "EllipticityIndex":    iaModel2.GetEllipticityIndex(),
+            "UndulationIndex":     iaModel2.GetUndulationIndex(),
+            "DomeTipPoint":        iaModel2.GetDomeTipPoint()
         }
 
         # Three-fourth ellipsoid
-        # The computation of the surface area is a little bit mode complecated
-        # So this is kind of cheating because in the code the area is also
-        # computed with IntegrateAttributes
-        tfeSurfaceArea = 269.069 # calculated in ParaView with integrate attributes
-
-        d = 0.5*b
-        baseRadius = a*np.sqrt(1.0 - (d/b)**2)
-
-        # Volume calculated based on the volume of an ellipsoid cap
-        # https://keisan.casio.com/keisan/image/volume%20of%20an%20ellipsoidal%20cap.pdf
-        tfeVolume = (4.0/3.0)*np.pi*(a**2)*b - ((np.pi*(a**2)*(d**2))/(3.0*b**2))*(3.0*b - d)
-
         threeFourthEllipsoidModel = {
-            "AneurysmSurfaceArea": tfeSurfaceArea,
-            "HullVolume": tfeVolume,
-            "NonSphericityIndex": sphericity_index(tfeSurfaceArea, tfeVolume),
-            "MaximumDiameter": 2.0*a,
-            "NeckDiameter": 2*baseRadius,
-            "OstiumArea": np.pi*(baseRadius**2.0),
-            "EllipticityIndex": sphericity_index(tfeSurfaceArea, tfeVolume),
-            "UndulationIndex": 0.0,
-            "MaximumNormalHeight": 1.5*b,
-            "AneurysmVolume": tfeVolume,
-            "BottleneckFactor": 2.0/np.sqrt(3),
-            "AspectRatio": 3.0/np.sqrt(3),
-            "HullSurfaceArea": tfeSurfaceArea,
-            "ConicityParameter": 0.1667,
-            "DomeTipPoint": (0,0,12)
+            "MaximumDiameter":     iaModel3.GetMaximumDiameter(),
+            "NeckDiameter":        iaModel3.GetNeckDiameter(),
+            "MaximumNormalHeight": iaModel3.GetMaximumNormalHeight(),
+            "AneurysmVolume":      iaModel3.GetAneurysmVolume(),
+            "HullVolume":          iaModel3.GetHullVolume(),
+            "OstiumArea":          iaModel3.GetOstiumArea(),
+            "AneurysmSurfaceArea": iaModel3.GetAneurysmSurfaceArea(),
+            "HullSurfaceArea":     iaModel3.GetHullSurfaceArea(),
+            "AspectRatio":         iaModel3.GetAspectRatio(),
+            "ConicityParameter":   iaModel3.GetConicityParameter(),
+            "BottleneckFactor":    iaModel3.GetBottleneckFactor(),
+            "NonSphericityIndex":  iaModel3.GetNonSphericityIndex(),
+            "EllipticityIndex":    iaModel3.GetEllipticityIndex(),
+            "UndulationIndex":     iaModel3.GetUndulationIndex(),
+            "DomeTipPoint":        iaModel3.GetDomeTipPoint()
         }
 
 

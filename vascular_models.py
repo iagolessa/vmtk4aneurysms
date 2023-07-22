@@ -15,7 +15,7 @@
 
 """Collection of vascular models."""
 
-from numpy import array, sqrt, arcsin
+from numpy import array, sqrt, arcsin, sin
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
 from vmtk4aneurysms.lib import polydatageometry as geo
@@ -31,28 +31,78 @@ def SphereSurfaceArea(radius):
 
     return const.four*const.pi*(radius**const.two)
 
+def _ellipsoid_cap_volume(
+        a: float,
+        b: float,
+        c: float,
+        cap_height: float
+    )   -> float:
+    """Return the volume of the cap of an ellipsoid given its axes.
+
+    The cap height must be defined along the axis of the c lenght.
+    """
+
+    # Volume calculated based on the volume of an ellipsoid cap
+    # https://keisan.casio.com/keisan/image/volume%20of%20an%20ellipsoidal%20cap.pdf
+
+    # c is along the z axis, which is the case here
+    a, b, c = sorted([a, b, c])
+
+    h = cap_height
+
+    return (
+               (const.pi*a*b*(h**const.two)
+           )/(
+               const.three*c**const.two)
+           )*(const.three*c - h)
+
+def _ellipse_integral(
+        e: float,
+        theta: float
+    )   -> float:
+
+    aux = sqrt(const.one - (e*sin(theta))**2)
+
+    return arcsin(e*sin(theta)) + e*sin(theta)*aux
+
 def EllipsoidVolume(
-        minoraxis: float,
-        majoraxis: float,
+        a: float,
+        b: float,
+        c: float
     )   -> float:
     """Return the volume of an ellipsoid given its axes."""
 
-    return (const.four/const.three)*const.pi*(minoraxis**2)*majoraxis
+    # Get correct ordering (
+    a, b, c = sorted([a, b, c])
+
+    return (const.four/const.three)*const.pi*a*b*c
 
 def EllipsoidSurfaceArea(
-        minoraxis: float,
-        majoraxis: float,
+        a: float,
+        c: float,
+        theta1: float=-const.pi/2,
+        theta2: float=const.pi/2
     )   -> float:
-    """Return the surface area of an ellipsoid given its axes."""
+    """Return the surface area of an ellipsoid given its axes and angle limits.
 
-    # Surface computation is more complicated
-    # I found on wikipedia
+    Considering only a ellipsoid that is a prolate spheroid, i.e. when the
+    third axis (c) is longer than the other two that are equal, hence c > a =
+    b, computes its surface area, by default. Optionally, the latitudinal angle
+    limits can be passed to return the area of a sectior of such an ellipsoide.
+    The complete ellipsoid corresponds to theta_1 = - pi/2 and theta_2 = pi/2
+    (defined in radians).
+    """
+
+    # Get correct ordering (c > a here)
+    minoraxis, majoraxis = sorted([a,c])
+
+    # Compute eccentricity
     axisRatio = minoraxis/majoraxis
     e = sqrt(const.one - axisRatio**const.two)
 
-    factor = majoraxis/(minoraxis*e)
+    factor = const.pi*minoraxis*majoraxis/e
 
-    return const.two*const.pi*(minoraxis**const.two)*(const.one + factor*arcsin(e))
+    return factor*(_ellipse_integral(e, theta2) - _ellipse_integral(e, theta1))
 
 class HemisphereAneurysm:
     """Model of a saccular cerebral in the form of a hemisphere."""
@@ -133,27 +183,29 @@ class HemisphereAneurysm:
 class HemiEllipsoidAneurysm:
     """Model of a saccular cerebral in the form of a hemi-ellipsoid."""
 
-    def __init__(self, minoraxis, majoraxis, center):
+    def __init__(self, a, c, center):
         """Initiates hemi-ellipsoid aneurysm model."""
 
-        self._minoraxis = minoraxis
-        self._majoraxis = majoraxis
+        self._minoraxis, self._majoraxis = sorted([a,c])
         self._center = center
 
         self._surface = geo.GenerateHemiEllipsoid(
-                            minoraxis,
-                            majoraxis,
+                            self._minoraxis,
+                            self._majoraxis,
                             center
                         )
 
-        self._surface_area = const.oneHalf*EllipsoidSurfaceArea(
-                                               minoraxis,
-                                               majoraxis
-                                           )
+        self._surface_area = EllipsoidSurfaceArea(
+                                 self._minoraxis,
+                                 self._majoraxis,
+                                 theta1=0,
+                                 theta2=const.pi/2
+                             )
 
         self._volume = const.oneHalf*EllipsoidVolume(
-                                         minoraxis,
-                                         majoraxis
+                                         self._minoraxis,
+                                         self._minoraxis,
+                                         self._majoraxis,
                                      )
 
     # Public interface
@@ -198,6 +250,126 @@ class HemiEllipsoidAneurysm:
 
     def GetConicityParameter(self) -> float:
         return const.oneHalf
+
+    def GetNonSphericityIndex(self) -> float:
+        return const.one - pmath.SphericityIndex(
+                               self.GetAneurysmSurfaceArea(),
+                               self.GetAneurysmVolume()
+                           )
+
+    def GetEllipticityIndex(self) -> float:
+        return const.one - pmath.SphericityIndex(
+                               self.GetHullSurfaceArea(),
+                               self.GetHullVolume()
+                           )
+
+    def GetUndulationIndex(self) -> float:
+        return const.zero
+
+    def GetCurvatureMetrics(self) -> dict:
+        pass
+        # TODO: Only possible to compute it numerically?
+        # return {"MAA": const.oneHalf/self.radius,
+        #         "GAA": const.oneHalf/(self.radius**2),
+        #         "MLN": sqrt(const.one/(const.eight*const.pi)),
+        #         "GLN": sqrt(const.oneHalf),
+        #         "HGLN": const.zero}
+
+class ThreeFourthEllipsoidAneurysm:
+    """Model of a saccular cerebral in the form of a three-fourth-ellipsoid."""
+
+    def __init__(self, a, c, center):
+        """Initiates three-fourth-ellipsoid aneurysm model."""
+
+        self._minoraxis, self._majoraxis = sorted([a,c])
+        self._center = center
+
+        self._surface = geo.GenerateThreeFourthEllipsoid(
+                            self._minoraxis,
+                            self._majoraxis,
+                            center
+                        )
+
+        self._surface_area = EllipsoidSurfaceArea(
+                                 self._minoraxis,
+                                 self._majoraxis,
+                                 theta1=-const.pi/2,
+                                 theta2=const.pi/6
+                             )
+
+        # Height of cap in this case is half a semiaxis
+        height = const.oneHalf*self._majoraxis
+
+        completeVolume = EllipsoidVolume(
+                             self._minoraxis,
+                             self._minoraxis,
+                             self._majoraxis
+                         )
+
+        capVolume = _ellipsoid_cap_volume(
+                        self._minoraxis,
+                        self._minoraxis,
+                        self._majoraxis,
+                        height
+                    )
+
+        self._volume = completeVolume - capVolume
+
+        # Radius of the base (section over half a semi major axis)
+        self._base_radius = self._minoraxis*sqrt(
+                                const.one
+                                -
+                                (height/self._majoraxis)**const.two
+                            )
+
+    # Public interface
+    def GetDomeTipPoint(self) -> tuple:
+        return tuple(
+                   array(self._center)
+                   +
+                   array(
+                       [0, 0, 1.5*self._majoraxis]
+                   )
+               )
+
+    def GetSurface(self) -> names.polyDataType:
+        return self._surface
+
+    def GetHullSurface(self) -> names.polyDataType:
+        return self.GetSurface()
+
+    def GetAneurysmSurfaceArea(self) -> float:
+        return self._surface_area
+
+    def GetOstiumArea(self) -> float:
+        return const.pi*(self._base_radius**const.two)
+
+    def GetAneurysmVolume(self) -> float:
+        return self._volume
+
+    def GetHullSurfaceArea(self) -> float:
+        return self.GetAneurysmSurfaceArea()
+
+    def GetHullVolume(self) -> float:
+        return self.GetAneurysmVolume()
+
+    def GetNeckDiameter(self) -> float:
+        return const.two*self._base_radius
+
+    def GetMaximumNormalHeight(self) -> float:
+        return 1.5*self._majoraxis
+
+    def GetMaximumDiameter(self) -> float:
+        return const.two*self._minoraxis
+
+    def GetAspectRatio(self) -> float:
+        return const.three/sqrt(const.three)
+
+    def GetBottleneckFactor(self) -> float:
+        return const.two/sqrt(const.three)
+
+    def GetConicityParameter(self) -> float:
+        return const.one/const.six
 
     def GetNonSphericityIndex(self) -> float:
         return const.one - pmath.SphericityIndex(
