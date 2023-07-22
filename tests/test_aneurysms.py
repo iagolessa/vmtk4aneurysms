@@ -45,26 +45,36 @@ def absolute_diff(value, reference):
 class TestAneurysmModule(unittest.TestCase):
 
     def test_ComputeMetrics(self):
+        # Aneurysm model ref. volume used by B. Ma, R. E. Harbaugh, e M. L.
+        # Raghavan, “Three-dimensional geometrical characterization of cerebral
+        # aneurysms.”, Annals of Biomedical Engineering, vol. 32, nº 2, p.
+        # 264–273, 2004, doi: 10.1023/B:ABME.0000012746.31343.92
+        refVolume = 67.64 # mm3
+
         radius = 4.0
         majorAxis = 2.0*radius
         center = (0, 0, 0)
+        surfResolution = 300
 
         # Build aneurysm surface models
         iaModel1 = HemisphereAneurysm(
                        radius,
-                       center
+                       center,
+                       surface_resolution=surfResolution
                    )
 
         iaModel2 = HemiEllipsoidAneurysm(
                        radius,
                        majorAxis,
-                       center
+                       center,
+                       surface_resolution=surfResolution
                    )
 
         iaModel3 = ThreeFourthEllipsoidAneurysm(
                        radius,
                        majorAxis,
-                       center
+                       center,
+                       surface_resolution=surfResolution
                    )
 
         modelSurfaces = {"hemisphere": iaModel1.GetSurface(),

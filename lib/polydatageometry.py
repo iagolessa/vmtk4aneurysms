@@ -977,15 +977,16 @@ class Surface():
 
 def GenerateHemisphereSurface(
         radius: float,
-        center: tuple
+        center: tuple,
+        resolution: float=200
     )   -> names.polyDataType:
     """Return the surface of a hemisphere, given its radius and center."""
 
     hemisphere = vtk.vtkSphereSource()
     hemisphere.SetCenter(center)
     hemisphere.SetRadius(radius)
-    hemisphere.SetPhiResolution(200)
-    hemisphere.SetThetaResolution(200)
+    hemisphere.SetPhiResolution(resolution)
+    hemisphere.SetThetaResolution(resolution)
     hemisphere.SetEndPhi(90)
     hemisphere.Update()
 
@@ -994,11 +995,17 @@ def GenerateHemisphereSurface(
 def GenerateHemiEllipsoid(
         minoraxis: float,
         majoraxis: float,
-        center: tuple
+        center: tuple,
+        resolution: float=200
     )   -> names.polyDataType:
+    """Return the surface of a hemi-ellipsoide, given its axis and center."""
 
     # Build hemisphere first
-    hemisphere = GenerateHemisphereSurface(minoraxis, center)
+    hemisphere = GenerateHemisphereSurface(
+                     minoraxis,
+                     center,
+                     resolution=resolution
+                 )
 
     # Scale it along major axis
     zScaling = vtk.vtkTransform()
@@ -1019,14 +1026,17 @@ def GenerateHemiEllipsoid(
 def GenerateThreeFourthEllipsoid(
         minoraxis: float,
         majoraxis: float,
-        center: tuple
+        center: tuple,
+        resolution: float=200
     )   -> names.polyDataType:
+    """Return the surface of a three-fourth ellipsoide, given its axis and
+    center."""
 
     threeFourthSphere = vtk.vtkSphereSource()
     threeFourthSphere.SetCenter(center)
     threeFourthSphere.SetRadius(minoraxis)
-    threeFourthSphere.SetPhiResolution(200)
-    threeFourthSphere.SetThetaResolution(200)
+    threeFourthSphere.SetPhiResolution(resolution)
+    threeFourthSphere.SetThetaResolution(resolution)
     threeFourthSphere.SetEndPhi(120)
     threeFourthSphere.Update()
 

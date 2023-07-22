@@ -102,12 +102,14 @@ def EllipsoidSurfaceArea(
 
     factor = const.pi*minoraxis*majoraxis/e
 
+    # The equation is based on the integration over a rotation of an ellipse
+    # around the major axis.
     return factor*(_ellipse_integral(e, theta2) - _ellipse_integral(e, theta1))
 
 class HemisphereAneurysm:
     """Model of a saccular cerebral in the form of a hemisphere."""
 
-    def __init__(self, radius, center):
+    def __init__(self, radius, center, surface_resolution=100):
         """Initiates hemisphere aneurysm model."""
 
         self._radius = radius
@@ -115,7 +117,8 @@ class HemisphereAneurysm:
 
         self._surface = geo.GenerateHemisphereSurface(
                             radius,
-                            center
+                            center,
+                            resolution=surface_resolution
                         )
 
         self._surface_area = const.oneHalf*SphereSurfaceArea(radius)
@@ -183,7 +186,7 @@ class HemisphereAneurysm:
 class HemiEllipsoidAneurysm:
     """Model of a saccular cerebral in the form of a hemi-ellipsoid."""
 
-    def __init__(self, a, c, center):
+    def __init__(self, a, c, center, surface_resolution=100):
         """Initiates hemi-ellipsoid aneurysm model."""
 
         self._minoraxis, self._majoraxis = sorted([a,c])
@@ -192,7 +195,8 @@ class HemiEllipsoidAneurysm:
         self._surface = geo.GenerateHemiEllipsoid(
                             self._minoraxis,
                             self._majoraxis,
-                            center
+                            center,
+                            resolution=surface_resolution
                         )
 
         self._surface_area = EllipsoidSurfaceArea(
@@ -278,7 +282,7 @@ class HemiEllipsoidAneurysm:
 class ThreeFourthEllipsoidAneurysm:
     """Model of a saccular cerebral in the form of a three-fourth-ellipsoid."""
 
-    def __init__(self, a, c, center):
+    def __init__(self, a, c, center, surface_resolution=100):
         """Initiates three-fourth-ellipsoid aneurysm model."""
 
         self._minoraxis, self._majoraxis = sorted([a,c])
@@ -287,7 +291,8 @@ class ThreeFourthEllipsoidAneurysm:
         self._surface = geo.GenerateThreeFourthEllipsoid(
                             self._minoraxis,
                             self._majoraxis,
-                            center
+                            center,
+                            resolution=surface_resolution
                         )
 
         self._surface_area = EllipsoidSurfaceArea(
