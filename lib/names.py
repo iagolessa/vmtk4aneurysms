@@ -68,6 +68,10 @@ MaxCurvatureArrayName      = "Maximum_Curvature"
 MinCurvatureArrayName      = "Minimum_Curvature"
 SeamScalarsArrayName       = "SeamScalars"
 
+SqrGaussCurvatureArrayName = "SqrGaussCurvature"
+SqrMeanCurvatureArrayName  = "SqrMeanCurvature"
+
+
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility
 AneurysmNeckArrayName     = DistanceToNeckArrayName # old 'AneurysmNeckContourArray'

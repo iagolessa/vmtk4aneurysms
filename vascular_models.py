@@ -395,17 +395,14 @@ class HemiEllipsoidAneurysm:
         arrGaussCurv = npSurface.CellData.GetArray(names.GaussCurvatureArrayName)
         arrMeanCurv  = npSurface.CellData.GetArray(names.MeanCurvatureArrayName)
 
-        nameSqrGaussCurv = "Squared_Gauss_Curvature"
-        nameSqrMeanCurv  = "Squared_Mean_Curvature"
-
         npSurface.CellData.append(
             arrGaussCurv**2,
-            nameSqrGaussCurv
+            names.SqrGaussCurvatureArrayName
         )
 
         npSurface.CellData.append(
             arrMeanCurv**2,
-            nameSqrMeanCurv
+            names.SqrMeanCurvatureArrayName
         )
 
         curvatureSurface = npSurface.VTKObject
@@ -423,12 +420,12 @@ class HemiEllipsoidAneurysm:
 
         surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
                                 curvatureSurface,
-                                nameSqrGaussCurv
+                                names.SqrGaussCurvatureArrayName
                             )
 
         surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
                                 curvatureSurface,
-                                nameSqrMeanCurv
+                                names.SqrMeanCurvatureArrayName
                             )
 
         GLN = sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
@@ -447,7 +444,7 @@ class HemiEllipsoidAneurysm:
         if hyperbolicArea > 0.0:
             surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
                                                         hyperbolicPatches,
-                                                        nameSqrGaussCurv
+                                                        names.SqrGaussCurvatureArrayName
                                                     )
 
             HGLN = sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
@@ -613,17 +610,14 @@ class ThreeFourthEllipsoidAneurysm:
         arrGaussCurv = npSurface.CellData.GetArray(names.GaussCurvatureArrayName)
         arrMeanCurv  = npSurface.CellData.GetArray(names.MeanCurvatureArrayName)
 
-        nameSqrGaussCurv = "Squared_Gauss_Curvature"
-        nameSqrMeanCurv  = "Squared_Mean_Curvature"
-
         npSurface.CellData.append(
             arrGaussCurv**2,
-            nameSqrGaussCurv
+            names.SqrGaussCurvatureArrayName
         )
 
         npSurface.CellData.append(
             arrMeanCurv**2,
-            nameSqrMeanCurv
+            names.SqrMeanCurvatureArrayName
         )
 
         curvatureSurface = npSurface.VTKObject
@@ -641,12 +635,12 @@ class ThreeFourthEllipsoidAneurysm:
 
         surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
                                 curvatureSurface,
-                                nameSqrGaussCurv
+                                names.SqrGaussCurvatureArrayName
                             )
 
         surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
                                 curvatureSurface,
-                                nameSqrMeanCurv
+                                names.SqrMeanCurvatureArrayName
                             )
 
         GLN = sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
@@ -665,7 +659,7 @@ class ThreeFourthEllipsoidAneurysm:
         if hyperbolicArea > 0.0:
             surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
                                                         hyperbolicPatches,
-                                                        nameSqrGaussCurv
+                                                        names.SqrGaussCurvatureArrayName
                                                     )
 
             HGLN = sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)

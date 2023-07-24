@@ -59,6 +59,40 @@ def _simple_cap(surface):
                auto_orient_if_closed=True
            )
 
+def _compute_trial_curvature_metric(
+        surface_with_curvatures: names.polyDataType
+    )   -> dict:
+    """Returns experimental curvature metrics to indicate aneurysmal rupture.
+
+    The goal here is to encapsulate the procedure to test new curvature metrics
+    in a single function.
+    """
+    metricName = "HGLN"
+
+    # Computing the hyperbolic L2-norm
+    hyperbolicPatches = tools.ClipWithScalar(
+                            surface_with_curvatures,
+                            names.GaussCurvatureArrayName,
+                            const.zero
+                        )
+
+
+    # Check if there is any hyperbolic areas
+    if hyperbolicPatches is None:
+        HGLN = const.zero
+
+    else:
+        hyperbolicArea = geo.Surface.Area(hyperbolicPatches)
+
+        surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
+                                                    hyperbolicPatches,
+                                                    names.SqrGaussCurvatureArrayName
+                                                )
+
+        HGLN = np.sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
+
+    return {metricName: HGLN}
+
 def GenerateOstiumSurface(
         aneurysm_sac_surface: names.polyDataType,
         compute_normals: bool=True
@@ -799,17 +833,14 @@ class Aneurysm:
         arrGaussCurv = npCurvSurface.CellData.GetArray(names.GaussCurvatureArrayName)
         arrMeanCurv  = npCurvSurface.CellData.GetArray(names.MeanCurvatureArrayName)
 
-        nameSqrGaussCurv = "Squared_Gauss_Curvature"
-        nameSqrMeanCurv  = "Squared_Mean_Curvature"
-
         npCurvSurface.CellData.append(
             arrGaussCurv**2,
-            nameSqrGaussCurv
+            names.SqrGaussCurvatureArrayName
         )
 
         npCurvSurface.CellData.append(
             arrMeanCurv**2,
-            nameSqrMeanCurv
+            names.SqrMeanCurvatureArrayName
         )
 
         curvatureSurface = npCurvSurface.VTKObject
@@ -826,40 +857,28 @@ class Aneurysm:
 
         surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
                                 curvatureSurface,
-                                nameSqrGaussCurv
+                                names.SqrGaussCurvatureArrayName
                             )
         surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
                                 curvatureSurface,
-                                nameSqrMeanCurv
+                                names.SqrMeanCurvatureArrayName
                             )
 
         GLN = np.sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
         MLN = np.sqrt(surfIntSqrMeanCurv)/(4*const.pi)
 
-        # Computing the hyperbolic L2-norm
-        hyperbolicPatches = tools.ClipWithScalar(
-                                curvatureSurface,
-                                names.GaussCurvatureArrayName,
-                                const.zero
-                            )
-        hyperbolicArea    = geo.Surface.Area(hyperbolicPatches)
+        curvMetrics = {names.areaAvgMeanCurvature: MAA,
+                        names.areaAvgGaussCurvature: GAA,
+                        names.l2NormMeanCurvature: MLN,
+                        names.l2NormGaussCurvature: GLN}
 
-        # Check if there is any hyperbolic areas
-        if hyperbolicArea > 0.0:
-            surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
-                                                        hyperbolicPatches,
-                                                        nameSqrGaussCurv
-                                                    )
+        curvMetrics.update(
+            _compute_trial_curvature_metric(
+                curvatureSurface
+            )
+        )
 
-            HGLN = np.sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
-        else:
-            HGLN = 0.0
-
-        return {names.areaAvgMeanCurvature: MAA,
-                names.areaAvgGaussCurvature: GAA,
-                names.l2NormMeanCurvature: MLN,
-                names.l2NormGaussCurvature: GLN,
-                "HGLN": HGLN}
+        return curvMetrics
 
     def GetHemodynamicStats(
             self,
