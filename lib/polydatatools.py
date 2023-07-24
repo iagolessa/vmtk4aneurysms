@@ -855,6 +855,8 @@ def ClipWithScalar(
     scalar array and a 'value' of this array, clip the object portion that
     have the condition 'scalar_array < value'. If inside out is 'False', than
     the oposite will be output.
+
+    Return 'None' if the clipped output have no cells.
     """
     # Get point data and cell data
     pointArrays = GetPointArrays(vtk_object)
@@ -893,12 +895,18 @@ def ClipWithScalar(
 
     clipper.Update()
 
-    # Convert output to vtkPolyData if input was vtkPolyData
-    if type(vtk_object) == names.polyDataType:
-        return UnsGridToPolyData(clipper.GetOutput())
+    # Check whether there are any cells defined on the output
+    if clipper.GetOutput().GetNumberOfCells() > 0:
+
+        # Convert output to vtkPolyData if input was vtkPolyData
+        if type(vtk_object) == names.polyDataType:
+            return UnsGridToPolyData(clipper.GetOutput())
+
+        else:
+            return clipper.GetOutput()
 
     else:
-        return clipper.GetOutput()
+        return None
 
 def ClipWithPlane(
         surface: names.polyDataType,
