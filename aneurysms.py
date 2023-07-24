@@ -594,6 +594,9 @@ class Aneurysm:
         return maxDiameter, bulgeHeight
 
     # Public interface
+    def GetLabel(self) -> str:
+        return self.label
+
     def GetDomeTipPoint(self) -> tuple:
         """Return the aneurysm surface."""
         return tuple(self._dome_point)

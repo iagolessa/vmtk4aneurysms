@@ -191,6 +191,9 @@ class HemisphereAneurysm:
     def __init__(self, radius, surface_resolution=100):
         """Initiates hemisphere aneurysm model."""
 
+        # Set label for compatibility
+        self._label = "hemisphere"
+
         self._radius = radius
         self._center = (0, 0, 0)
 
@@ -204,6 +207,9 @@ class HemisphereAneurysm:
         self._volume = const.oneHalf*SphereVolume(radius)
 
     # Public interface
+    def GetLabel(self) -> str:
+        return self._label
+
     def GetDomeTipPoint(self) -> tuple:
         return tuple(array(self._center) + array([0,0,self._radius]))
 
@@ -268,6 +274,9 @@ class HemiEllipsoidAneurysm:
     def __init__(self, a, c, surface_resolution=100):
         """Initiates hemi-ellipsoid aneurysm model."""
 
+        # Set label for compatibility
+        self._label = "hemi-ellipsoid"
+
         self._minoraxis, self._majoraxis = sorted([a,c])
         self._center = (0, 0, 0)
 
@@ -292,6 +301,9 @@ class HemiEllipsoidAneurysm:
                                      )
 
     # Public interface
+    def GetLabel(self) -> str:
+        return self._label
+
     def GetDomeTipPoint(self) -> tuple:
         return tuple(array(self._center) + array([0,0,self._majoraxis]))
 
@@ -455,6 +467,9 @@ class ThreeFourthEllipsoidAneurysm:
     def __init__(self, a, c, surface_resolution=100):
         """Initiates three-fourth-ellipsoid aneurysm model."""
 
+        # Set label for compatibility
+        self._label = "three-fourth-ellipsoid"
+
         self._minoraxis, self._majoraxis = sorted([a,c])
         self._center = (0, 0, 0)
 
@@ -498,6 +513,9 @@ class ThreeFourthEllipsoidAneurysm:
                             )
 
     # Public interface
+    def GetLabel(self) -> str:
+        return self._label
+
     def GetDomeTipPoint(self) -> tuple:
         return tuple(
                    array(self._center)
