@@ -25,7 +25,9 @@ import pandas as pd
 import aneurysms as ia
 import lib.constants as const
 import lib.polydatageometry as geo
+import lib.polydatatools as tools
 
+from lib import names
 from vascular_models import (
         HemisphereAneurysm,
         HemiEllipsoidAneurysm,
@@ -46,6 +48,8 @@ def absolute_diff(value, reference):
 class TestAneurysmModule(unittest.TestCase):
 
     def test_ComputeMetrics(self):
+        surfResolution = 200
+
         # Aneurysm model ref. volume used by B. Ma, R. E. Harbaugh, e M. L.
         # Raghavan, “Three-dimensional geometrical characterization of cerebral
         # aneurysms.”, Annals of Biomedical Engineering, vol. 32, nº 2, p.
@@ -59,7 +63,52 @@ class TestAneurysmModule(unittest.TestCase):
                                     const.four*refVolume/(const.nine*const.pi)
                                )**(const.one/const.three)
 
-        surfResolution = 200
+        def addCurvatureArrays(model_surface, label):
+
+            # Get a copy of model surface
+            model_surface = tools.CopyVtkObject(model_surface)
+
+            # Create complete sphere and ellipsoid surfaces anc compute
+            # numerical curvature
+            if label == "hemisphere":
+                curvSurface = geo.Surface.Curvatures(
+                                  geo.GenerateSphereSurface(
+                                      hemisphereRadius,
+                                      resolution=surfResolution
+                                  )
+                              )
+
+            elif label == "hemi-ellipsoid":
+                curvSurface = geo.Surface.Curvatures(
+                                  geo.GenerateEllipsoid(
+                                      hEllipsoidMinorAxis,
+                                      const.two*hEllipsoidMinorAxis,
+                                      resolution=surfResolution
+                                  )
+                              )
+
+            elif label == "three-fourth-ellipsoid":
+                curvSurface = geo.Surface.Curvatures(
+                                  geo.GenerateEllipsoid(
+                                      tfEllipsoidMinorAxis,
+                                      const.two*tfEllipsoidMinorAxis,
+                                      resolution=surfResolution
+                                  )
+                              )
+
+            else:
+                raise ValueError("Unrecognized surface model.")
+
+            for fname in [names.GaussCurvatureArrayName,
+                          names.MeanCurvatureArrayName]:
+
+                model_surface = tools.ProjectCellArray(
+                                    model_surface,
+                                    curvSurface,
+                                    fname
+                                )
+
+            return model_surface
 
         # Build aneurysm surface models
         iaModel1 = HemisphereAneurysm(
@@ -79,123 +128,94 @@ class TestAneurysmModule(unittest.TestCase):
                        surface_resolution=surfResolution
                    )
 
-        modelSurfaces = {"hemisphere": iaModel1.GetSurface(),
-                         "half-ellipsoid": iaModel2.GetSurface(),
-                         "three-fourth-ellipsoid": iaModel3.GetSurface()}
-
-        # HEMISPHERE
-        hemisphereModel = {
-            "MaximumDiameter":     iaModel1.GetMaximumDiameter(),
-            "NeckDiameter":        iaModel1.GetNeckDiameter(),
-            "MaximumNormalHeight": iaModel1.GetMaximumNormalHeight(),
-            "AneurysmVolume":      iaModel1.GetAneurysmVolume(),
-            "HullVolume":          iaModel1.GetHullVolume(),
-            "OstiumArea":          iaModel1.GetOstiumArea(),
-            "AneurysmSurfaceArea": iaModel1.GetAneurysmSurfaceArea(),
-            "HullSurfaceArea":     iaModel1.GetHullSurfaceArea(),
-            "AspectRatio":         iaModel1.GetAspectRatio(),
-            "ConicityParameter":   iaModel1.GetConicityParameter(),
-            "BottleneckFactor":    iaModel1.GetBottleneckFactor(),
-            "NonSphericityIndex":  iaModel1.GetNonSphericityIndex(),
-            "EllipticityIndex":    iaModel1.GetEllipticityIndex(),
-            "UndulationIndex":     iaModel1.GetUndulationIndex(),
-            "DomeTipPoint":        iaModel1.GetDomeTipPoint()
-        }
-
-        # HALF ELLIPSOIDE
-        halfEllipsoidModel = {
-            "MaximumDiameter":     iaModel2.GetMaximumDiameter(),
-            "NeckDiameter":        iaModel2.GetNeckDiameter(),
-            "MaximumNormalHeight": iaModel2.GetMaximumNormalHeight(),
-            "AneurysmVolume":      iaModel2.GetAneurysmVolume(),
-            "HullVolume":          iaModel2.GetHullVolume(),
-            "OstiumArea":          iaModel2.GetOstiumArea(),
-            "AneurysmSurfaceArea": iaModel2.GetAneurysmSurfaceArea(),
-            "HullSurfaceArea":     iaModel2.GetHullSurfaceArea(),
-            "AspectRatio":         iaModel2.GetAspectRatio(),
-            "ConicityParameter":   iaModel2.GetConicityParameter(),
-            "BottleneckFactor":    iaModel2.GetBottleneckFactor(),
-            "NonSphericityIndex":  iaModel2.GetNonSphericityIndex(),
-            "EllipticityIndex":    iaModel2.GetEllipticityIndex(),
-            "UndulationIndex":     iaModel2.GetUndulationIndex(),
-            "DomeTipPoint":        iaModel2.GetDomeTipPoint()
-        }
-
-        # Three-fourth ellipsoid
-        threeFourthEllipsoidModel = {
-            "MaximumDiameter":     iaModel3.GetMaximumDiameter(),
-            "NeckDiameter":        iaModel3.GetNeckDiameter(),
-            "MaximumNormalHeight": iaModel3.GetMaximumNormalHeight(),
-            "AneurysmVolume":      iaModel3.GetAneurysmVolume(),
-            "HullVolume":          iaModel3.GetHullVolume(),
-            "OstiumArea":          iaModel3.GetOstiumArea(),
-            "AneurysmSurfaceArea": iaModel3.GetAneurysmSurfaceArea(),
-            "HullSurfaceArea":     iaModel3.GetHullSurfaceArea(),
-            "AspectRatio":         iaModel3.GetAspectRatio(),
-            "ConicityParameter":   iaModel3.GetConicityParameter(),
-            "BottleneckFactor":    iaModel3.GetBottleneckFactor(),
-            "NonSphericityIndex":  iaModel3.GetNonSphericityIndex(),
-            "EllipticityIndex":    iaModel3.GetEllipticityIndex(),
-            "UndulationIndex":     iaModel3.GetUndulationIndex(),
-            "DomeTipPoint":        iaModel3.GetDomeTipPoint()
-        }
-
+        iaModels = {model.GetLabel(): model
+                    for model in [iaModel1, iaModel2, iaModel3]}
 
         # Computation using vmtk4aneurysms
         methods = [param for param in dir(ia.Aneurysm)
                    if param.startswith("Get")]
 
         # Remove metrics that are not analyzed
-        methods.remove("GetCurvatureMetrics")
         methods.remove("GetSurface")
+        methods.remove("GetLabel")
         methods.remove("GetOstiumSurface")
         methods.remove("GetHullSurface")
         methods.remove("GetHemodynamicStats")
         methods.remove("GetLowTAWSSArea")
         methods.remove("GetDomeTipPoint")
+        methods.remove("GetCurvatureMetrics")
 
         # Get methods of each aneurysm model
         print("Computing metrics of aneurysm models.", end="\n")
 
         dictMorphology = {}
 
-        for label, surface in modelSurfaces.items():
+        for label, iaModel in iaModels.items():
 
-            # Initiate aneurysm model with surfaces
-            aneurysm = ia.Aneurysm(surface, label=label)
+            # Initiate aneurysm "measured" with the model surfaces
+            iaMeasured = ia.Aneurysm(
+                           addCurvatureArrays(
+                               iaModel.GetSurface(),
+                               label
+                           ),
+                           label=label + "-measured"
+                       )
 
-            attributes = {}
+            modelAttributes = {}
+            measuredAttributes = {}
+
             for method in methods:
 
                 try:
-                    # Get only float (exclude surfaces)
-                    attr = getattr(aneurysm, method)()
+                    # Get attributes of model and measured
+                    attrModel    = getattr(iaModel, method)()
+                    attrMeasured = getattr(iaMeasured, method)()
 
-                    attributes.update({method.replace("Get", ''): attr})
+                    modelAttributes.update(
+                        {method.replace("Get", ''): attrModel}
+                    )
+
+                    measuredAttributes.update(
+                        {method.replace("Get", ''): attrMeasured}
+                    )
 
                 except:
-                    print('Error for case' + aneurysm.label + ' in param ' + param)
+                    print(
+                        'Error for case' + iaModel.label + ' in param ' + param
+                    )
 
+            # Add the curvature metrics separately
+            modelAttributes.update(
+                iaModel.GetCurvatureMetrics()
+            )
+
+            # Add the curvature metrics separately
+            measuredAttributes.update(
+                iaMeasured.GetCurvatureMetrics()
+            )
 
             # Store all cases
-            dictMorphology.update({label + "-measured": attributes})
-
-        # Add values of models
-        dictMorphology["hemisphere-model"] = hemisphereModel
-        dictMorphology["half-ellipsoid-model"] = halfEllipsoidModel
-        dictMorphology["three-fourth-ellipsoid-model"] = threeFourthEllipsoidModel
+            dictMorphology.update({
+                iaModel.GetLabel() + "-model": modelAttributes,
+                iaMeasured.GetLabel(): measuredAttributes,
+            })
 
         # Get metrics names
         metrics = [param.replace("Get", '')
                    for param in methods]
 
+        # Append curvature metrics
+        for curv in names.curvMetricsList:
+            metrics.append(curv)
+
         # Store only the higher order ones
-        higherOrderMetrics = [param
-                              for param in metrics
-                              if param.endswith("Volume") or param.endswith("Area")]
+        higherOrderMetrics = [param for param in metrics
+                              if param.endswith("Volume") \
+                              or param.endswith("Area")]
 
         def select_diff_measure(parameter):
-            return relative_diff if parameter in higherOrderMetrics else absolute_diff
+            if parameter in higherOrderMetrics: return relative_diff
+            else: return absolute_diff
 
         # This tolerance was set as an upper threshold, and applied to all
         # metrics irrespective of their nature (either 1D, 2D or 3D) or how the
@@ -206,16 +226,17 @@ class TestAneurysmModule(unittest.TestCase):
 
         # Note that the difference will get smaller as the dicretization used
         # for the surface models decreases.
-        tol = 1e-2
+        tol = 1.0e-2
 
-        for label in modelSurfaces.keys():
+        for label in iaModels.keys():
+
             print("\nInspecting {}:".format(label), end="\n")
             print("\t Parameter              Model   Measured    Diff.", end="\n")
             print("\t ---------------------  -----   --------    -----", end="\n")
 
             for param in metrics:
+                model    = dictMorphology[label + "-model"][param]
                 measured = dictMorphology[label + "-measured"][param]
-                model = dictMorphology[label + "-model"][param]
 
                 diff = select_diff_measure(param)(measured, model)
 
