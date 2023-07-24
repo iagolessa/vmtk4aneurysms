@@ -109,3 +109,13 @@ hwpList = [TAWSS, OSI,
            WSSTG, transWSS,
            peakSystoleWSS,
            lowDiastoleWSS]
+
+areaAvgGaussCurvature = "GAA"
+l2NormGaussCurvature  = "GLN"
+areaAvgMeanCurvature  = "MAA"
+l2NormMeanCurvature   = "MLN"
+
+curvMetricsList = [areaAvgGaussCurvature,
+                   areaAvgMeanCurvature,
+                   l2NormGaussCurvature,
+                   l2NormMeanCurvature]

@@ -769,11 +769,10 @@ class Aneurysm:
         # Get arrays on the aneurysm surface
         arrayNames = tools.GetCellArrays(self._aneurysm_surface)
 
-        curvatureArrays = {'Mean': names.MeanCurvatureArrayName,
-                           'Gauss': names.GaussCurvatureArrayName}
-
         # Check if there is any curvature array on the aneurysm surface
-        if not all(array in arrayNames for array in curvatureArrays.values()):
+        if not all(array in arrayNames
+                   for array in [names.MeanCurvatureArrayName,
+                                 names.GaussCurvatureArrayName]):
 
             # TODO: find a procedure to remove points close to boundary
             # of the computation
@@ -797,8 +796,8 @@ class Aneurysm:
         # Add the squares of Gauss and mean curvatures
         npCurvSurface = dsa.WrapDataObject(curvatureSurface)
 
-        arrGaussCurv = npCurvSurface.CellData.GetArray(curvatureArrays["Gauss"])
-        arrMeanCurv  = npCurvSurface.CellData.GetArray(curvatureArrays["Mean"])
+        arrGaussCurv = npCurvSurface.CellData.GetArray(names.GaussCurvatureArrayName)
+        arrMeanCurv  = npCurvSurface.CellData.GetArray(names.MeanCurvatureArrayName)
 
         nameSqrGaussCurv = "Squared_Gauss_Curvature"
         nameSqrMeanCurv  = "Squared_Mean_Curvature"
@@ -817,12 +816,12 @@ class Aneurysm:
 
         GAA = pmath.SurfaceAverage(
                     curvatureSurface,
-                    curvatureArrays["Gauss"]
+                    names.GaussCurvatureArrayName
                 )
 
         MAA = pmath.SurfaceAverage(
                     curvatureSurface,
-                    curvatureArrays["Mean"]
+                    names.MeanCurvatureArrayName
                 )
 
         surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
@@ -840,8 +839,8 @@ class Aneurysm:
         # Computing the hyperbolic L2-norm
         hyperbolicPatches = tools.ClipWithScalar(
                                 curvatureSurface,
-                                curvatureArrays["Gauss"],
-                                float(const.zero)
+                                names.GaussCurvatureArrayName,
+                                const.zero
                             )
         hyperbolicArea    = geo.Surface.Area(hyperbolicPatches)
 
@@ -856,10 +855,10 @@ class Aneurysm:
         else:
             HGLN = 0.0
 
-        return {"MAA": MAA,
-                "GAA": GAA,
-                "MLN": MLN,
-                "GLN": GLN,
+        return {names.areaAvgMeanCurvature: MAA,
+                names.areaAvgGaussCurvature: GAA,
+                names.l2NormMeanCurvature: MLN,
+                names.l2NormGaussCurvature: GLN,
                 "HGLN": HGLN}
 
     def GetHemodynamicStats(

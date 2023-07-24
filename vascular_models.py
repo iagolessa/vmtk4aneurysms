@@ -262,10 +262,10 @@ class HemisphereAneurysm:
         return const.zero
 
     def GetCurvatureMetrics(self) -> dict:
-        return {"MAA": const.one/self._radius,
-                "GAA": const.one/(self._radius**2),
-                "MLN": sqrt(const.one/(const.eight*const.pi)),
-                "GLN": const.oneHalf,
+        return {names.areaAvgMeanCurvature: const.one/self._radius,
+                names.areaAvgGaussCurvature: const.one/(self._radius**2),
+                names.l2NormMeanCurvature: sqrt(const.one/(const.eight*const.pi)),
+                names.l2NormGaussCurvature: const.oneHalf,
                 "HGLN": const.zero}
 
 class HemiEllipsoidAneurysm:
@@ -455,10 +455,10 @@ class HemiEllipsoidAneurysm:
         else:
             HGLN = 0.0
 
-        return {"MAA": MAA,
-                "GAA": GAA,
-                "MLN": MLN,
-                "GLN": GLN,
+        return {names.areaAvgMeanCurvature: MAA,
+                names.areaAvgGaussCurvature: GAA,
+                names.l2NormMeanCurvature: MLN,
+                names.l2NormGaussCurvature: GLN,
                 "HGLN": HGLN}
 
 class ThreeFourthEllipsoidAneurysm:
@@ -673,8 +673,8 @@ class ThreeFourthEllipsoidAneurysm:
         else:
             HGLN = 0.0
 
-        return {"MAA": MAA,
-                "GAA": GAA,
-                "MLN": MLN,
-                "GLN": GLN,
+        return {names.areaAvgMeanCurvature: MAA,
+                names.areaAvgGaussCurvature: GAA,
+                names.l2NormMeanCurvature: MLN,
+                names.l2NormGaussCurvature: GLN,
                 "HGLN": HGLN}
