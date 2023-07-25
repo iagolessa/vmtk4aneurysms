@@ -45,8 +45,9 @@ def ComputeOpenCenters(
                   ...,
                   (xN, yN, zN): (nxN, nyN, nzN)}
 
-    for a model with a single inlet and n outlets. The inlet is defined as the
-    open boundary with largest radius.
+    for a model with a single inlet and n outlets. The magnitude of the normals
+    is the radius of the open profile. The inlet is defined as the open
+    boundary with largest radius.
     """
     # I noticed some weird behavior of the vtkvmtkBoundaryReferenceSystems
     # when using it with a surface that has passed through the
@@ -83,7 +84,8 @@ def ComputeOpenCenters(
 
     # Return as tuple for immutability
     inletCenter = tuple(endCenters[inletId])
-    inletNormal = tuple(outNormalsArray[inletId])
+    inletRadius = radiusArray[inletId]
+    inletNormal = tuple(inletRadius*outNormalsArray[inletId])
 
     inletRefSystem = {inletCenter: inletNormal}
 
@@ -100,8 +102,19 @@ def ComputeOpenCenters(
                         axis=0
                     )
 
-    outletRefSystems = {tuple(c): tuple(n)
-                        for c, n in zip(outletCenters, outletNormals)}
+    outletRadius = np.delete(
+                       radiusArray,
+                       inletId,
+                       axis=0
+                   )
+
+    outletRefSystems = {tuple(c): tuple(r*n)
+                        for c, r, n in zip(
+                                            outletCenters,
+                                            outletRadius,
+                                            outletNormals
+                                        )
+                        }
 
     return inletRefSystem, outletRefSystems
 
