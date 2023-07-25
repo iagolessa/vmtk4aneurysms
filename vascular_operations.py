@@ -423,12 +423,31 @@ def HealthyVesselReconstruction(
     # Does not work well with the vascular cases
     # parentSurface = vscop.ClipVasculature(parentSurface)
 
-    clipper = vmtkscripts.vmtkSurfaceClipper()
-    clipper.Surface = parentSurface
-    clipper.InsideOut = False
-    clipper.Execute()
+    # clipper = vmtkscripts.vmtkSurfaceClipper()
+    # clipper.Surface = parentSurface
+    # clipper.InsideOut = False
+    # clipper.Execute()
 
-    return clipper.Surface
+    # Clip the inlet first
+    for icenter, inormal in inlet_ref_systems.items():
+
+        parentSurface = tools.ClipWithPlane(
+                           parentSurface,
+                           icenter,
+                           inormal,
+                           inside_out=True
+                        )
+
+    for ocenter, onormal in outlet_ref_systems.items():
+
+        parentSurface = tools.ClipWithPlane(
+                           parentSurface,
+                           ocenter,
+                           onormal,
+                           inside_out=True
+                       )
+
+    return parentSurface
 
 def _transf_normal(
         normal: tuple,
