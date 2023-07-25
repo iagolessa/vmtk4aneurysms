@@ -1477,25 +1477,33 @@ def ComputeAneurysmNeckPlane(
     # elements there
 
     # Clip final aneurysm surface: the side to where the normal point
-    aneurysmSacSurface = tools.ClipWithPlane(
+    planeContour = tools.ContourCutWithPlane(
+                       aneurysmalSurface,
+                       neckCenter,
+                       neckNormal
+                   )
+
+    # Get point on the plane contour closest to the neck center
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(planeContour)
+    locator.BuildLocator()
+
+    seedPointId = locator.FindClosestPoint(neckCenter)
+    seedPoint = planeContour.GetPoint(seedPointId)
+
+    aneurysmalSurface = SeamPlaneTubularStructureMarker(
+                            aneurysmalSurface,
+                            neckCenter,
+                            neckNormal,
+                            seed_point=seedPoint,
+                            seam_scalar_array_name=names.SeamScalarsArrayName
+                        )
+
+    aneurysmSacSurface = tools.ClipWithScalar(
                              aneurysmalSurface,
-                             neckCenter,
-                             neckNormal,
+                             names.SeamScalarsArrayName,
+                             const.zero,
                              inside_out=False
-                         )
-
-    # If disconnected, get the portion closest to the middle point between the
-    # neck center and the dome point
-    closestPoint = np.array(
-                        [list(aneurysm_point),
-                         list(neckCenter)]
-                    ).mean(axis=0) if aneurysm_point is not None \
-                    else neckCenter
-
-    aneurysmSacSurface = tools.ExtractConnectedRegion(
-                             aneurysmSacSurface,
-                             method="closest",
-                             closest_point=closestPoint
                          )
 
     return neckPlane, aneurysmSacSurface
