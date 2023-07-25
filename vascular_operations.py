@@ -417,37 +417,32 @@ def HealthyVesselReconstruction(
                 )
 
     # 5) Compute parent surface from new Voronoi
-    parentSurface = cl.ComputeVoronoiEnvelope(newVoronoi)
+    healthyVessel = cl.ComputeVoronoiEnvelope(newVoronoi)
 
     # Clip the parent vascular surface
-    # Does not work well with the vascular cases
-    # parentSurface = vscop.ClipVasculature(parentSurface)
+    inlet_ref_systems.update(outlet_ref_systems)
 
-    # clipper = vmtkscripts.vmtkSurfaceClipper()
-    # clipper.Surface = parentSurface
-    # clipper.InsideOut = False
-    # clipper.Execute()
+    for center, normal in inlet_ref_systems.items():
 
-    # Clip the inlet first
-    for icenter, inormal in inlet_ref_systems.items():
+        # Invert normal and displace center by one profile diameter
+        center = tuple(np.array(center) - np.array(normal))
 
-        parentSurface = tools.ClipWithPlane(
-                           parentSurface,
-                           icenter,
-                           inormal,
-                           inside_out=True
+        healthyVessel = SeamPlaneTubularStructureMarker(
+                            healthyVessel,
+                            center,
+                            normal,
+                            seam_scalar_array_name=names.SeamScalarsArrayName
                         )
 
-    for ocenter, onormal in outlet_ref_systems.items():
+        healthyVessel = tools.ClipWithScalar(
+                            healthyVessel,
+                            names.SeamScalarsArrayName,
+                            const.zero
+                        )
 
-        parentSurface = tools.ClipWithPlane(
-                           parentSurface,
-                           ocenter,
-                           onormal,
-                           inside_out=True
-                       )
+    healthyVessel.GetPointData().RemoveArray(names.SeamScalarsArrayName)
 
-    return parentSurface
+    return healthyVessel
 
 def _transf_normal(
         normal: tuple,
@@ -1277,8 +1272,38 @@ def _geo_distance_to_aneurysm_plane_neck(
 
     return vascular_surface
 
+def SeamPlaneTubularStructureMarker(
+        surface: names.polyDataType,
+        plane_center: tuple,
+        plane_normal: tuple,
+        seed_point: tuple=None,
+        seam_scalar_array_name: str=names.SeamScalarsArrayName
+    )   -> names.polyDataType:
+
+    if seed_point is None:
+        locator = vtk.vtkPointLocator()
+        locator.SetDataSet(surface)
+        locator.BuildLocator()
+
+        seedPointId = locator.FindClosestPoint(plane_center)
+        seed_point = surface.GetPoint(seedPointId)
+
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(plane_center)
+    plane.SetNormal(plane_normal)
+
+    seamFilter = vtkvmtk.vtkvmtkTopologicalSeamFilter()
+    seamFilter.SetInputData(surface)
+    seamFilter.SetClosestPoint(seed_point)
+    seamFilter.SetSeamScalarsArrayName(seam_scalar_array_name)
+    seamFilter.SetSeamFunction(plane)
+    seamFilter.Update()
+
+    return seamFilter.GetOutput()
+
 def ClipVasculature(
-        vascular_surface: names.polyDataType
+        vascular_surface: names.polyDataType,
+        centerlines=None
     )   -> names.polyDataType:
     """Clip a vascular surface segment, by selecting end points.
 
@@ -1288,7 +1313,9 @@ def ClipVasculature(
     'vmtksurfaceendclipper' script.
     """
 
-    centerlines = cl.GenerateCenterlines(vascular_surface)
+    if centerlines is None:
+        centerlines = cl.GenerateCenterlines(vascular_surface)
+
     geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
 
     FrenetTangentArrayName = "FrenetTangent"

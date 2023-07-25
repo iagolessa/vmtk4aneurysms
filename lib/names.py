@@ -66,6 +66,7 @@ GaussCurvatureArrayName    = "Gauss_Curvature"
 MeanCurvatureArrayName     = "Mean_Curvature"
 MaxCurvatureArrayName      = "Maximum_Curvature"
 MinCurvatureArrayName      = "Minimum_Curvature"
+SeamScalarsArrayName       = "SeamScalars"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility
