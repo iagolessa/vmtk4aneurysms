@@ -18,6 +18,7 @@
 import vtk
 import numpy as np
 from morphman.manipulate_curvature import extract_single_line
+from vtk.numpy_interface import dataset_adapter as dsa
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
@@ -30,14 +31,19 @@ from . import polydatatools as tools
 def ComputeOpenCenters(
         surface: names.polyDataType
     )   -> tuple:
-    """Compute barycenters of inlets and outlets.
+    """Compute barycenters outwards normals of inlets and outlets.
 
-    Computes the geometric center of each open boundary of the model. Computes
-    two lists: one with the inlet coordinates (tuple) and another with the
-    outlets coordinates also as tuples of three components:
+    Computes the geometric center and outward normal of each open boundary of
+    the model. Computes two dictionaries with the centers as keys (tuples) and
+    the normals as values, one for the inlets and another for the outlets. Both
+    normals and centers are given as tuples:
 
-    Inlet coords:  [(xi, yi, zi)]
-    Outlet coords: [(xo1,yo1,zo1), (xo2,yo2,zo2), ...  (xon,yon,zon)]
+    Dict inlet: {(x1, y1, z1): (nx1, ny1, nz1)}
+
+    Dict outlet: {(x1, y1, z1): (nx1, ny1, nz1),
+                  (x2, y2, z2): (nx2, ny2, nz2),
+                  ...,
+                  (xN, yN, zN): (nxN, nyN, nzN)}
 
     for a model with a single inlet and n outlets. The inlet is defined as the
     open boundary with largest radius.
@@ -49,9 +55,7 @@ def ComputeOpenCenters(
     # but keep in mind that this did not solved the problem.
 
     # Clean up any arrays in surface and make copy of surface
-    newSurface = vtk.vtkPolyData()
-    newSurface.DeepCopy(surface)
-
+    newSurface = tools.CopyVtkObject(surface)
     newSurface = tools.CleanupArrays(newSurface)
 
     pointArrays  = ['Point1', 'Point2']
@@ -68,29 +72,38 @@ def ComputeOpenCenters(
 
     referenceSystems = boundarySystems.GetOutput()
 
-    nProfiles = referenceSystems.GetNumberOfPoints()
+    npEndPoints = dsa.WrapDataObject(referenceSystems)
+    endCenters  = npEndPoints.GetPoints()
+    radiusArray = npEndPoints.PointData.GetArray(boundaryRadiusArrayName)
 
-    # Get inlet center (larger radius)
-    radiusArray = np.array([
-        referenceSystems.GetPointData().GetArray(boundaryRadiusArrayName).GetTuple1(i)
-        for i in range(nProfiles)
-    ])
+    # The normal are outward the vascular domain
+    outNormalsArray = npEndPoints.PointData.GetArray(boundaryNormalsArrayName)
 
-    # maxRadius = max(radiusArray)
-    # inletId = int(np.where(radiusArray == maxRadius)[0])
     inletId = radiusArray.argmax()
-    inletCenter = [referenceSystems.GetPoint(inletId)]
+
+    # Return as tuple for immutability
+    inletCenter = tuple(endCenters[inletId])
+    inletNormal = tuple(outNormalsArray[inletId])
+
+    inletRefSystem = {inletCenter: inletNormal}
 
     # Get outlets
-    outletCenters = []
+    outletCenters = np.delete(
+                        endCenters,
+                        inletId,
+                        axis=0
+                    )
 
-    # Get centers of outlets
-    for profileId in range(nProfiles):
+    outletNormals = np.delete(
+                        outNormalsArray,
+                        inletId,
+                        axis=0
+                    )
 
-        if profileId != inletId:
-            outletCenters.append(referenceSystems.GetPoint(profileId))
+    outletRefSystems = {tuple(c): tuple(n)
+                        for c, n in zip(outletCenters, outletNormals)}
 
-    return inletCenter, outletCenters
+    return inletRefSystem, outletRefSystems
 
 # Code of this functions was based on the vmtkcenterlines.py script of the
 # VMTK library: https://github.com/vmtk/vmtk
@@ -105,9 +118,10 @@ def GenerateCenterlines(
     noEndPoints = source_points == None and target_points == None
 
     if noEndPoints:
-        source_points, target_points = ComputeOpenCenters(surface)
-    else:
-        pass
+        inletRefs, outletRefs = ComputeOpenCenters(surface)
+
+        source_points = list(inletRefs.keys())
+        target_points = list(outletRefs.keys())
 
     # Get inlet and outlet centers of surface
     CapDisplacement = 0.0

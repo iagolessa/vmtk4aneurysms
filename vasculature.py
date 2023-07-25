@@ -282,9 +282,15 @@ class Vasculature:
         # Initiate surface model
         self._surface_model  = geo.Surface(self._vascular_surface)
 
-        self._inlet_centers, self._outlet_centers = cnt.ComputeOpenCenters(
-                                                        self._vascular_surface
-                                                    )
+        inlet_ref_systems, outlet_ref_systems = cnt.ComputeOpenCenters(
+                                                    self._vascular_surface
+                                                )
+
+        self._inlet_centers = list(inlet_ref_systems.keys())
+        self._outlet_centers = list(outlet_ref_systems.keys())
+
+        self._inlet_normals = list(inlet_ref_systems.values())
+        self._outlet_normals = list(outlet_ref_systems.values())
 
         # Morphology first to avoid some weird bug when using the array Normals
         # inside the computation of the open centers

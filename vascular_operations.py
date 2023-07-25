@@ -40,7 +40,9 @@ from .lib import polydatageometry as geo
 
 def _bifurcation_aneurysm_clipping_points(
         vascular_surface: names.polyDataType,
-        aneurysm_point: tuple
+        aneurysm_point: tuple,
+        inlet_points: list = None,
+        outlet_points: list = None
     )   -> dict:
     """Extract vessel portion where a bifurcation aneurysm grew.
 
@@ -54,7 +56,18 @@ def _bifurcation_aneurysm_clipping_points(
     aneurysm.
     """
     clippingPoints  = {}
-    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
+
+    # Get the clipping points
+    noEndPoints = inlet_points == None and outlet_points == None
+
+    if noEndPoints:
+        inletRefs, outletRefs = cl.ComputeOpenCenters(vascular_surface)
+
+        inlet_points = list(inletRefs.keys())
+        outlet_points = list(outletRefs.keys())
+
+    inlets = inlet_points
+    outlets = outlet_points
 
     # Tolerance distance to identify the bifurcation
     divTolerance = 0.01
@@ -93,7 +106,9 @@ def _bifurcation_aneurysm_clipping_points(
 
 def _lateral_aneurysm_clipping_points(
         vascular_surface: names.polyDataType,
-        aneurysm_point: tuple
+        aneurysm_point: tuple,
+        inlet_points: list = None,
+        outlet_points: list = None
     )   -> dict:
     """Extract vessel portion where a lateral aneurysm grew.
 
@@ -106,7 +121,17 @@ def _lateral_aneurysm_clipping_points(
     centerlines, so avoid any outlet profile between the inlet and the aneurysm
     region.
     """
-    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
+    # Get the clipping points
+    noEndPoints = inlet_points == None and outlet_points == None
+
+    if noEndPoints:
+        inletRefs, outletRefs = cl.ComputeOpenCenters(vascular_surface)
+
+        inlet_points = list(inletRefs.keys())
+        outlet_points = list(outletRefs.keys())
+
+    inlets = inlet_points
+    outlets = outlet_points
 
     # Tolerance distance to identify the bifurcation
     divTolerance = 0.01
@@ -237,7 +262,9 @@ def _is_bifurcation_aneurysm(
 def HealthyVesselReconstruction(
         vascular_surface: names.polyDataType,
         aneurysm_type: str,
-        dome_point: tuple=None
+        dome_point: tuple=None,
+        inlet_ref_systems: dict=None,
+        outlet_ref_systems: dict=None
     )   -> names.polyDataType:
     """Given vasculature model with aneurysm, extract vessel without aneurysm.
 
@@ -278,8 +305,22 @@ def HealthyVesselReconstruction(
     """
     aneurysmInBifurcation = _is_bifurcation_aneurysm(aneurysm_type)
 
+    # Get inlets and outlets ref. systems
+    if inlet_ref_systems == None and outlet_ref_systems == None:
+
+        inlet_ref_systems, outlet_ref_systems = cl.ComputeOpenCenters(
+                                                    vascular_surface
+                                                )
+
+    inletCenter = list(inlet_ref_systems.keys())
+    outletCenters = list(outlet_ref_systems.keys())
+
     voronoi       = cl.ComputeVoronoiDiagram(vascular_surface)
-    centerlines   = cl.GenerateCenterlines(vascular_surface)
+    centerlines   = cl.GenerateCenterlines(
+                        vascular_surface,
+                        source_points=inletCenter,
+                        target_points=outletCenters
+                    )
 
     # Smooth the Voronoi diagram
     smoothedVoronoi = mplib.voronoi_operations.smooth_voronoi_diagram(
@@ -410,7 +451,9 @@ def _transf_normal(
 
 def _bifurcation_aneurysm_influence_region(
         vascular_surface: names.polyDataType,
-        aneurysm_point: tuple
+        aneurysm_point: tuple,
+        inlet_points: list = None,
+        outlet_points: list = None
     )   -> names.polyDataType:
     """Extract vessel portion where a bifurcation aneurysm grew.
 
@@ -425,7 +468,16 @@ def _bifurcation_aneurysm_influence_region(
     """
 
     # Get the clipping points
-    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
+    noEndPoints = inlet_points == None and outlet_points == None
+
+    if noEndPoints:
+        inletRefs, outletRefs = cl.ComputeOpenCenters(vascular_surface)
+
+        inlet_points = list(inletRefs.keys())
+        outlet_points = list(outletRefs.keys())
+
+    inlets = inlet_points
+    outlets = outlet_points
 
     # Tolerance distance to identify the bifurcation
     divTolerance = 0.01
@@ -481,7 +533,9 @@ def _bifurcation_aneurysm_influence_region(
 
 def _lateral_aneurysm_influence_region(
         vascular_surface: names.polyDataType,
-        aneurysm_point: tuple
+        aneurysm_point: tuple,
+        inlet_points: list = None,
+        outlet_points: list = None
     )   -> names.polyDataType:
     """Extract vessel portion where a lateral aneurysm grew.
 
@@ -494,7 +548,18 @@ def _lateral_aneurysm_influence_region(
     centerlines, so avoid any outlet profile between the inlet and the aneurysm
     region.
     """
-    inlets, outlets = cl.ComputeOpenCenters(vascular_surface)
+
+    # Get the clipping points
+    noEndPoints = inlet_points == None and outlet_points == None
+
+    if noEndPoints:
+        inletRefs, outletRefs = cl.ComputeOpenCenters(vascular_surface)
+
+        inlet_points = list(inletRefs.keys())
+        outlet_points = list(outletRefs.keys())
+
+    inlets = inlet_points
+    outlets = outlet_points
 
     # Tolerance distance to identify the bifurcation
     divTolerance = 0.01
