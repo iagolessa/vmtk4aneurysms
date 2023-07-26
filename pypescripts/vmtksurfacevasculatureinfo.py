@@ -140,7 +140,9 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
                 )
             )
 
-        if vascularModel.GetNumberOfBifurcations() > 1:
+        nBifs = vascularModel.GetNumberOfBifurcations()
+        if nBifs > 1 and nBifs != 0:
+
             # If more than opne bifiurcation, we have to append all data
             # Append bifurcations together
             appendFilter = vtk.vtkAppendPolyData()
@@ -164,7 +166,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
             self.BifVectors = appendFilter.GetOutput()
 
-        else:
+        elif nBifs == 1:
 
             # The append with a single input was probably yield the wrong
             # result
@@ -177,6 +179,9 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
             )
 
             self.BifVectors = bifurcation.GetBifurcationVectorsObject()
+
+        else:
+            pass
 
         # Compute aneurysm properties
         self.OutputText("Computing metrics of aneurysm models.\n")
