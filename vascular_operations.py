@@ -264,7 +264,8 @@ def HealthyVesselReconstruction(
         aneurysm_type: str,
         dome_point: tuple=None,
         inlet_ref_systems: dict=None,
-        outlet_ref_systems: dict=None
+        outlet_ref_systems: dict=None,
+        interactive: bool=False
     )   -> names.polyDataType:
     """Given vasculature model with aneurysm, extract vessel without aneurysm.
 
@@ -309,7 +310,8 @@ def HealthyVesselReconstruction(
     if inlet_ref_systems == None and outlet_ref_systems == None:
 
         inlet_ref_systems, outlet_ref_systems = cl.ComputeOpenCenters(
-                                                    vascular_surface
+                                                    vascular_surface,
+                                                    interactive=interactive
                                                 )
 
     inletCenter = list(inlet_ref_systems.keys())
@@ -329,6 +331,7 @@ def HealthyVesselReconstruction(
                           0.25 # Smoothing factor, recommended by Ms. Piccinelli
                       )
 
+
     # 1) Compute parent centerline reconstruction
     dome_point = tools.SelectSurfacePoint(vascular_surface) \
                  if dome_point is None \
@@ -338,7 +341,9 @@ def HealthyVesselReconstruction(
     if aneurysmInBifurcation:
         dictClipPoints = _bifurcation_aneurysm_clipping_points(
                              vascular_surface,
-                             dome_point
+                             dome_point,
+                             inlet_points=inletCenter,
+                             outlet_points=outletCenters
                          )
 
         orderedClipPoints = [dictClipPoints.get("bif",  None),
@@ -348,7 +353,9 @@ def HealthyVesselReconstruction(
     else:
         dictClipPoints = _lateral_aneurysm_clipping_points(
                              vascular_surface,
-                             dome_point
+                             dome_point,
+                             inlet_points=inletCenter,
+                             outlet_points=outletCenters
                          )
 
         orderedClipPoints = [dictClipPoints.get("upstream",   None),
@@ -369,7 +376,6 @@ def HealthyVesselReconstruction(
                             siphon=isSiphon,
                             bif=aneurysmInBifurcation
                         )
-
 
     # 2) Interpolate patch centerlines using splines
     parentCenterlines = mplib.vessel_reconstruction_tools.interpolate_patch_centerlines(

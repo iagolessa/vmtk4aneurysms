@@ -36,6 +36,7 @@ class vmtkSurfaceHealthyVasculature(pypes.pypeScript):
         self.Surface = None
         self.AneurysmType = None # in case only 1 aneurysm
         self.DomePoint = None
+        self.Interactive = False
 
         self.SetScriptName('vmtksurfacehealthyvasculature')
         self.SetScriptDoc(
@@ -52,7 +53,10 @@ class vmtkSurfaceHealthyVasculature(pypes.pypeScript):
                 'if only one aneurysm, pass also its type'],
 
             ['DomePoint', 'domepoint', 'float', -1, '',
-                'coordinates of aneurysm dome point']
+                'coordinates of aneurysm dome point'],
+
+            ['Interactive', 'interactive', 'bool', 1, '',
+                'interactively select the inlet and outlets'],
         ])
 
         self.SetOutputMembers([
@@ -82,7 +86,8 @@ class vmtkSurfaceHealthyVasculature(pypes.pypeScript):
         self.Surface = vscop.HealthyVesselReconstruction(
                             self.Surface,
                             self.AneurysmType,
-                            self.DomePoint
+                            self.DomePoint,
+                            interactive=self.Interactive
                         )
 
 if __name__ == '__main__':

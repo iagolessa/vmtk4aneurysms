@@ -29,7 +29,8 @@ from . import polydatageometry as geo
 from . import polydatatools as tools
 
 def ComputeOpenCenters(
-        surface: names.polyDataType
+        surface: names.polyDataType,
+        interactive: bool=False
     )   -> tuple:
     """Compute barycenters outwards normals of inlets and outlets.
 
@@ -59,6 +60,7 @@ def ComputeOpenCenters(
     newSurface = tools.CopyVtkObject(surface)
     newSurface = tools.CleanupArrays(newSurface)
 
+    # Get complete ref systems
     pointArrays  = ['Point1', 'Point2']
     boundaryRadiusArrayName  = 'Radius'
     boundaryNormalsArrayName = 'BoundaryNormals'
@@ -80,43 +82,69 @@ def ComputeOpenCenters(
     # The normal are outward the vascular domain
     outNormalsArray = npEndPoints.PointData.GetArray(boundaryNormalsArrayName)
 
-    inletId = radiusArray.argmax()
+    # Get inlet and outlet ids
+    if interactive:
+        capper = vtkvmtk.vtkvmtkCapPolyData()
+        capper.SetInputData(newSurface)
+        capper.SetDisplacement(0.0)
+        capper.SetInPlaneDisplacement(0.0)
+        capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
+        capper.Update()
 
-    # Return as tuple for immutability
-    inletCenter = tuple(endCenters[inletId])
-    inletRadius = radiusArray[inletId]
-    inletNormal = tuple(inletRadius*outNormalsArray[inletId])
+        cappedSurface = capper.GetOutput()
 
-    inletRefSystem = {inletCenter: inletNormal}
+        # Select the inlet point
+        inletPickPoint = tools.PickPointSeedSelector()
+        inletPickPoint.SetSurface(cappedSurface)
+        inletPickPoint.InputInfo("Select a point on the inlet\n")
+        inletPickPoint.Execute()
 
-    # Get outlets
-    outletCenters = np.delete(
-                        endCenters,
-                        inletId,
-                        axis=0
-                    )
+        outletPickPoint = tools.PickPointSeedSelector()
+        outletPickPoint.SetSurface(cappedSurface)
+        outletPickPoint.InputInfo(
+            "Select the aneurysm branch outlets (if branching > 3 branches)\n"
+        )
+        outletPickPoint.Execute()
 
-    outletNormals = np.delete(
-                        outNormalsArray,
-                        inletId,
-                        axis=0
-                    )
+        inletSeeds  = inletPickPoint.PickedSeeds
+        outletSeeds = outletPickPoint.PickedSeeds
 
-    outletRadius = np.delete(
-                       radiusArray,
-                       inletId,
-                       axis=0
-                   )
+        # Locate selected inlet and outlets ref. systems
+        locator = vtk.vtkPointLocator()
+        locator.SetDataSet(referenceSystems)
+        locator.BuildLocator()
+
+        inletIds = [locator.FindClosestPoint(inletSeeds.GetPoint(pid))
+                    for pid in range(inletSeeds.GetNumberOfPoints())]
+
+        outletIds = [locator.FindClosestPoint(outletSeeds.GetPoint(pid))
+                     for pid in range(outletSeeds.GetNumberOfPoints())]
+
+    else:
+        # Select as inlet the profile with largest section area
+        inletIds  = [radiusArray.argmax()]
+        outletIds = [idx
+                     for idx in range(referenceSystems.GetNumberOfPoints())
+                     if idx not in inletIds]
+
+
+    inletRefSystems = {tuple(c): tuple(r*n)
+                       for c, r, n in zip(
+                                           endCenters[inletIds],
+                                           radiusArray[inletIds],
+                                           outNormalsArray[inletIds]
+                                       )
+                       }
 
     outletRefSystems = {tuple(c): tuple(r*n)
                         for c, r, n in zip(
-                                            outletCenters,
-                                            outletRadius,
-                                            outletNormals
+                                            endCenters[outletIds],
+                                            radiusArray[outletIds],
+                                            outNormalsArray[outletIds]
                                         )
-                        }
+                       }
 
-    return inletRefSystem, outletRefSystems
+    return inletRefSystems, outletRefSystems
 
 # Code of this functions was based on the vmtkcenterlines.py script of the
 # VMTK library: https://github.com/vmtk/vmtk
