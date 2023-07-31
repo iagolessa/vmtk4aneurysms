@@ -190,15 +190,15 @@ class Bifurcation:
         if self._nbranches == int(const.three):
 
             return const.radToDeg*vtk.vtkMath.AngleBetweenVectors(
-                       self._bif_vectors[daughterIds][0],
-                       self._bif_vectors[daughterIds][1]
+                       self._inplane_bif_vectors[daughterIds][0],
+                       self._inplane_bif_vectors[daughterIds][1]
                    ),
 
 
         else:
             angles = [const.radToDeg*vtk.vtkMath.AngleBetweenVectors(
-                            self._bif_vectors[daughterIds][i],
-                            self._bif_vectors[daughterIds][i + 1]
+                            self._inplane_bif_vectors[daughterIds][i],
+                            self._inplane_bif_vectors[daughterIds][i + 1]
                         ) for i in range(self._nbranches - 2)]
 
             return tuple(angles)
