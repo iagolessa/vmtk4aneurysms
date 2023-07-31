@@ -177,30 +177,31 @@ class Bifurcation:
 
         return bifPlane
 
-    def GetDaugtherBranchesAngle(self):
+    def GetDaugtherBranchesAngle(self) -> tuple:
         """Return the angle between daughter branches (for two-branched
         bifurcations)."""
 
+        # Get the largest values of the GroupIds array, that identifies
+        # the branches departing from a bifurcation
+        daughterIds = where(
+                          self._branches_ids != min(self._branches_ids)
+                      )[0]
+
         if self._nbranches == int(const.three):
-
-            # Get the two largest values of the GroupIds array, that identifies
-            # the branches departing from a bifurcation
-            daughterIds = where(
-                              self._branches_ids != min(self._branches_ids)
-                          )[0]
-
 
             return const.radToDeg*vtk.vtkMath.AngleBetweenVectors(
                        self._bif_vectors[daughterIds][0],
                        self._bif_vectors[daughterIds][1]
-                   )
+                   ),
 
 
         else:
-            raise NotImplementedError(
-                      "Angle between branches not implemented for bifurcations "\
-                      "with more than two daugther branches."
-                  )
+            angles = [const.radToDeg*vtk.vtkMath.AngleBetweenVectors(
+                            self._bif_vectors[daughterIds][i],
+                            self._bif_vectors[daughterIds][i + 1]
+                        ) for i in range(self._nbranches - 2)]
+
+            return tuple(angles)
 
 class Vasculature:
     """Representation of a vascular network tree model.
@@ -275,7 +276,7 @@ class Vasculature:
         # vasculature
         self._parent_vascular_surface = parent_vascular_surface
 
-        self._nbifurcations  = int(const.zero)
+        self._nbranching_points  = int(const.zero)
         self._bifurcations   = []
         self._branches       = []
 
@@ -431,16 +432,18 @@ class Vasculature:
 
         # Get bifuraction list
         referenceSystems    = bifsRefSystem.ReferenceSystems
-        self._nbifurcations = referenceSystems.GetPoints().GetNumberOfPoints()
 
-        bifsIdsArray = referenceSystems.GetPointData().GetArray(
+        # get number of branching points (bi or trifurcations)
+        self._nbranching_points = referenceSystems.GetPoints().GetNumberOfPoints()
+
+        branchPtsIdsArray = referenceSystems.GetPointData().GetArray(
                            self._group_ids_array_name
                        )
 
-        bifurcationsIds = [bifsIdsArray.GetValue(index)
-                           for index in range(self._nbifurcations)]
+        branchPointsIds = [branchPtsIdsArray.GetValue(index)
+                           for index in range(self._nbranching_points)]
 
-        if self._nbifurcations > const.zero:
+        if self._nbranching_points > const.zero:
             # Compute bifurcation
             bifVectors = vmtkscripts.vmtkBifurcationVectors()
 
@@ -461,7 +464,7 @@ class Vasculature:
             bifVectors.NormalizeBifurcationVectors = True
             bifVectors.Execute()
 
-            for index in bifurcationsIds:
+            for index in branchPointsIds:
                 # Filter bifurcation reference system to get only one
                 # bifurcation
                 bifsRefSystem.ReferenceSystems.GetPointData().SetActiveScalars(
@@ -550,6 +553,10 @@ class Vasculature:
         """Return the vascular surface."""
         return self._surface_model
 
+    def GetBranchedSurface(self):
+        """Return the vascular surface."""
+        return self._branched_surface
+
     def GetAneurysm(self):
         """Return the aneurysm model, if any."""
         return self._aneurysm_model
@@ -572,7 +579,7 @@ class Vasculature:
 
     def GetNumberOfBifurcations(self):
         """Return the number of bifurcations."""
-        return self._nbifurcations
+        return self._nbranching_points
 
     def GetBranches(self):
         """Return the vascular model's branches."""
