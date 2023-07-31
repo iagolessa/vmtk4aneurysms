@@ -34,6 +34,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         pypes.pypeScript.__init__(self)
 
         self.Surface = None
+        self.Aneurysm = True
         self.ComputationMode = "automatic"
         self.AneurysmType    = None
         self.AneurysmStatus  = None
@@ -52,6 +53,9 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
+
+            ['Aneurysm','aneurysm','bool', 1, '',
+             'indicate an aneurysm on the vascular tree'],
 
             ['AneurysmType','type', 'str', 1, '["lateral", "bifurcation"]',
                 'aneurysm type'],
@@ -72,6 +76,9 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         ])
 
         self.SetOutputMembers([
+            ['Surface','o', 'vtkPolyData', 1, '',
+                'the output branched surface', 'vmtksurfacewriter'],
+
             ['AneurysmSurface','oaneurysm','vtkPolyData',1,'',
              'the aneurysm sac surface', 'vmtksurfacewriter'],
 
@@ -101,7 +108,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         # Generate an aneurysm object
         vascularModel = Vasculature(
                             self.Surface,
-                            with_aneurysm=True,
+                            with_aneurysm=self.Aneurysm,
                             clip_aneurysm_mode=self.ComputationMode,
                             parent_vascular_surface=self.ParentVesselSurface,
                             aneurysm_prop={
@@ -186,64 +193,67 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         # Compute aneurysm properties
         self.OutputText("Computing metrics of aneurysm models.\n")
 
-        aneurysmModel = vascularModel.GetAneurysm()
+        # self.Surface = vascularModel.GetBranchedSurface()
 
-        self.AneurysmSurface = aneurysmModel.GetSurface()
-        self.HullSurface = aneurysmModel.GetHullSurface()
-        self.OstiumSurface = aneurysmModel.GetOstiumSurface()
+        if self.Aneurysm:
+            aneurysmModel = vascularModel.GetAneurysm()
 
-        # Print aneurysm indices and metrics
-        methods = [param for param in dir(aneurysmModel)
-                   if param.startswith("Get")]
+            self.AneurysmSurface = aneurysmModel.GetSurface()
+            self.HullSurface = aneurysmModel.GetHullSurface()
+            self.OstiumSurface = aneurysmModel.GetOstiumSurface()
 
-        # Remove metrics that are not analyzed
-        methods.remove("GetSurface")
-        methods.remove("GetOstiumSurface")
-        methods.remove("GetHullSurface")
+            # Print aneurysm indices and metrics
+            methods = [param for param in dir(aneurysmModel)
+                       if param.startswith("Get")]
 
-        attributes = {method.replace("Get",''): getattr(aneurysmModel, method)()
-                      for method in methods}
+            # Remove metrics that are not analyzed
+            methods.remove("GetSurface")
+            methods.remove("GetOstiumSurface")
+            methods.remove("GetHullSurface")
 
-        pp.pprint(
-            attributes
-        )
+            attributes = {method.replace("Get",''): getattr(aneurysmModel, method)()
+                          for method in methods}
 
-        if self.ShowVascularModel:
-            # Render surfaces
-            self.vmtkRenderer = vmtkscripts.vmtkRenderer()
-            self.vmtkRenderer.Initialize()
+            pp.pprint(
+                attributes
+            )
 
-            surfaceViewer1 = vmtkscripts.vmtkSurfaceViewer()
-            surfaceViewer1.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer1.Surface = self.Surface
-            surfaceViewer1.Opacity = 0.5
-            surfaceViewer1.Color = [1.0, 1.0, 0.0]
-            surfaceViewer1.Display = 0
-            surfaceViewer1.BuildView()
+            if self.ShowVascularModel:
+                # Render surfaces
+                self.vmtkRenderer = vmtkscripts.vmtkRenderer()
+                self.vmtkRenderer.Initialize()
 
-            surfaceViewer2 = vmtkscripts.vmtkSurfaceViewer()
-            surfaceViewer2.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer2.Surface = self.OstiumSurface
-            surfaceViewer2.Opacity = 1
-            surfaceViewer2.Color = [0.0, 1.0, 0.0]
-            surfaceViewer2.Display = 0
-            surfaceViewer2.BuildView()
+                surfaceViewer1 = vmtkscripts.vmtkSurfaceViewer()
+                surfaceViewer1.vmtkRenderer = self.vmtkRenderer
+                surfaceViewer1.Surface = self.Surface
+                surfaceViewer1.Opacity = 0.5
+                surfaceViewer1.Color = [1.0, 1.0, 0.0]
+                surfaceViewer1.Display = 0
+                surfaceViewer1.BuildView()
 
-            surfaceViewer3 = vmtkscripts.vmtkSurfaceViewer()
-            surfaceViewer3.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer3.Surface = self.AneurysmSurface
-            surfaceViewer3.Opacity = 1.0
-            surfaceViewer3.Color = [1.0, 0.0, 0.0]
-            surfaceViewer3.Display = 0
-            surfaceViewer3.BuildView()
+                surfaceViewer2 = vmtkscripts.vmtkSurfaceViewer()
+                surfaceViewer2.vmtkRenderer = self.vmtkRenderer
+                surfaceViewer2.Surface = self.OstiumSurface
+                surfaceViewer2.Opacity = 1
+                surfaceViewer2.Color = [0.0, 1.0, 0.0]
+                surfaceViewer2.Display = 0
+                surfaceViewer2.BuildView()
 
-            surfaceViewer4 = vmtkscripts.vmtkSurfaceViewer()
-            surfaceViewer4.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer4.Surface = self.HullSurface
-            surfaceViewer4.Opacity = 0.4
-            surfaceViewer4.Color = [1.0, 1.0, 1.0]
-            surfaceViewer4.Display = 1
-            surfaceViewer4.BuildView()
+                surfaceViewer3 = vmtkscripts.vmtkSurfaceViewer()
+                surfaceViewer3.vmtkRenderer = self.vmtkRenderer
+                surfaceViewer3.Surface = self.AneurysmSurface
+                surfaceViewer3.Opacity = 1.0
+                surfaceViewer3.Color = [1.0, 0.0, 0.0]
+                surfaceViewer3.Display = 0
+                surfaceViewer3.BuildView()
+
+                surfaceViewer4 = vmtkscripts.vmtkSurfaceViewer()
+                surfaceViewer4.vmtkRenderer = self.vmtkRenderer
+                surfaceViewer4.Surface = self.HullSurface
+                surfaceViewer4.Opacity = 0.4
+                surfaceViewer4.Color = [1.0, 1.0, 1.0]
+                surfaceViewer4.Display = 1
+                surfaceViewer4.BuildView()
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
