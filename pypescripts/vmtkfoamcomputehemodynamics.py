@@ -37,6 +37,8 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
 
         self.FoamCasePath = None
         self.WallPatchName = None
+        self.PeakSystoleInstant = None
+        self.LowDiastoleInstant = None
 
         self.HemodynamicsSurface = None
         self.PressureSurface = None
@@ -63,6 +65,12 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
 
             ['WallPatchName', 'wallpatchname', 'str' , 1, '',
                 'wall patch name where to compute the hemodynamics'],
+
+            ['PeakSystoleInstant', 'peaksystoleinstant', 'float' , 1, '',
+                'peak-systole instant'],
+
+            ['LowDiastoleInstant', 'lowdiastoleinstant', 'float' , 1, '',
+                'low-diastole instant'],
 
             ['BloodDensity', 'blooddensity', 'float', 1, '',
                 'the density of blood'],
@@ -102,22 +110,27 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
             raise NameError("Provide valid region name.")
 
         # Get peak systole and low diastole instant per case
-        peakSystoleInstant, lowDiastoleInstant = hm.GetCardiacCyclePeakAndDiastoleInstants(
-                                                     os.path.dirname(self.FoamCasePath)
-                                                 )
+        # For backward compatibiliy
+        if not self.PeakSystoleInstant and not self.LowDiastoleInstant:
 
-        print(
+            instants = hm.GetCardiacCyclePeakAndDiastoleInstants(
+                           os.path.dirname(self.FoamCasePath)
+                       )
+
+            self.PeakSystoleInstant, self.LowDiastoleInstant = instants
+
+        self.OutputText(
             "Peak and diastole instants {}s {}s".format(
-                peakSystoleInstant,
-                lowDiastoleInstant
+                self.PeakSystoleInstant,
+                self.LowDiastoleInstant
             ),
             end="\n"
         )
 
         self.HemodynamicsSurface = hm.Hemodynamics(
                                        self.FoamCasePath,
-                                       peakSystoleInstant,
-                                       lowDiastoleInstant,
+                                       self.PeakSystoleInstant,
+                                       self.LowDiastoleInstant,
                                        density=self.BloodDensity,
                                        patch=self.WallPatchName,
                                        compute_gon=self.ComputeGon,
@@ -137,8 +150,8 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
         if self.ComputePressureStats:
             self.PressureSurface = hm.PressureTemporalStats(
                                        self.FoamCasePath,
-                                       peakSystoleInstant,
-                                       lowDiastoleInstant,
+                                       self.PeakSystoleInstant,
+                                       self.LowDiastoleInstant,
                                        density=self.BloodDensity,
                                        patch=self.WallPatchName,
                                        multi_region=self.FoamMultiRegion,

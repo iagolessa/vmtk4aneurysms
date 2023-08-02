@@ -38,6 +38,8 @@ class vmtkFoamComputeFlowSections(pypes.pypeScript):
         self.FoamCasePath = None
         self.WallPatchName = None
         self.FieldNames = ["U", "p"]
+        self.PeakSystoleInstant = None
+        self.LowDiastoleInstant = None
 
         self.SectionsSurface = None
         self.SpheresDistance = 1
@@ -59,6 +61,12 @@ class vmtkFoamComputeFlowSections(pypes.pypeScript):
 
             ['WallPatchName', 'wallpatchname', 'str' , 1, '',
                 'wall patch name where to compute the hemodynamics'],
+
+            ['PeakSystoleInstant', 'peaksystoleinstant', 'float' , 1, '',
+                'peak-systole instant'],
+
+            ['LowDiastoleInstant', 'lowdiastoleinstant', 'float' , 1, '',
+                'low-diastole instant'],
 
             ['FieldNames', 'fieldnames', 'str' , -1, '',
                 'list of OpenFOAM volumetric field names to be extracted'],
@@ -89,14 +97,19 @@ class vmtkFoamComputeFlowSections(pypes.pypeScript):
             raise NameError("Provide valid region name.")
 
         # Get peak systole and low diastole instant per case
-        peakSystoleInstant, lowDiastoleInstant = GetCardiacCyclePeakAndDiastoleInstants(
-                                                     os.path.dirname(self.FoamCasePath)
-                                                 )
+        # For backward compatibiliy
+        if not self.PeakSystoleInstant and not self.LowDiastoleInstant:
+
+            instants = hm.GetCardiacCyclePeakAndDiastoleInstants(
+                           os.path.dirname(self.FoamCasePath)
+                       )
+
+            self.PeakSystoleInstant, self.LowDiastoleInstant = instants
 
         self.OutputText(
             "Peak and diastole instants {}s {}s \n".format(
-                peakSystoleInstant,
-                lowDiastoleInstant
+                self.PeakSystoleInstant,
+                self.LowDiastoleInstant
             )
         )
 
@@ -120,8 +133,8 @@ class vmtkFoamComputeFlowSections(pypes.pypeScript):
         statsVolume = fvtk.FieldTimeStats(
                           emptyVolume, # FieldTimeStats operates on a copy, so fine
                           fields,
-                          peakSystoleInstant,
-                          lowDiastoleInstant
+                          self.PeakSystoleInstant,
+                          self.LowDiastoleInstant
                       )
 
         # Scale the geometry back to millimeters (fields are not scaled)
