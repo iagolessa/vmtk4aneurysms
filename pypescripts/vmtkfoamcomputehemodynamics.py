@@ -123,8 +123,7 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
             "Peak and diastole instants {}s {}s".format(
                 self.PeakSystoleInstant,
                 self.LowDiastoleInstant
-            ),
-            end="\n"
+            )
         )
 
         self.HemodynamicsSurface = hm.Hemodynamics(
