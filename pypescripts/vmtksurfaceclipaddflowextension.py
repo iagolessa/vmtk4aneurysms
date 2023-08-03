@@ -18,9 +18,17 @@
 
 from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py2-3 COMPATIBILITY
 
+import os
 import sys
-from vmtk import vmtkscripts
+import vtk
+
+from vtk.numpy_interface import dataset_adapter as dsa
+from vmtk import vtkvmtk
 from vmtk import pypes
+from vmtk import vmtkscripts
+
+from vmtk4aneurysms.lib import names
+from vmtk4aneurysms.lib import polydatatools as tools
 
 vmtksurfaceclipaddflowextension = 'vmtkSurfaceClipAddFlowExtension'
 
@@ -32,39 +40,70 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
 
         self.Surface = None
         self.ClipMode = 'interactive'
-        self.Remesh = False
+        self.Clip = True
+        self.Remesh = True
         self.EdgeLength = 0.1
-        self.Cap = False
-        self.Interactive = False
+        self.Interactive = True
+        self.FlowExtensionRatio = 2
+
+        self.InletPrefix = "inlet"
+        self.WallPrefix = "wall"
+        self.OutletPrefix = "outlet"
+        self.SnappyHexMeshFilesDir = None
+        self.SnappyFilesExtension = ".stl"
+        self.OpenProfilesCentersFile = None
 
         self.SetScriptName('vmtksurfaceclipaddflowextension')
-        self.SetScriptDoc('Interactively clip a surface and add small flow '
-                          'extension.')
+        self.SetScriptDoc(
+            'Generate wall and profiles caps separately for snappyHexMeshing.'
+            'The script allows for: interactively clipping the surface to open'
+            ' inlet and outlet profiles, add flow extensions, remesh the '
+            'extended surface, and write the wall and profiles caps to be '
+            'used in CFD meshing with snappyHexMesh.'
+        )
 
         self.SetInputMembers([
             ['Surface', 'i', 'vtkPolyData', 1, '',
                  'the input surface', 'vmtksurfacereader'],
 
+            ['Clip' , 'clip', 'bool', 1, '',
+                'to clip surface with a box before adding extensions'],
+
             ['Remesh' , 'remesh', 'bool', 1, '',
-                'to apply remeshing procedure after fixing it'],
+                'to apply remeshing procedure after adding extensions'],
 
             ['EdgeLength' , 'edgelength', 'float', 1, '',
                 'to edgelength for the remesh procedure'],
 
-            ['Cap'   , 'cap'  ,'bool',1,'',
-                'to cap surface after clipping'],
-
-            ['ClipMode','clipmode', 'str' , 1, '["interactive","centerlinebased"]',
-                 'clip mode'],
+            # ['ClipMode','clipmode', 'str' , 1,
+            #     '["interactive", "centerlinebased"]', 'clip mode'],
 
             ['Interactive' , 'interactive', 'bool', 1, '',
-                'interactively choose the boundaries to add extension'],
+                'interactively choose the boundaries to add extensions'],
 
+            ['FlowExtensionRatio' , 'flowextensionratio', 'float', 1, '',
+                'controls length of extension as number of profile radius'],
+
+            ['SnappyHexMeshFilesDir','writedir', 'str' , 1, '',
+                 'write directory path for snappyHexMesh stl files'],
+
+            ['InletPrefix','inletprefix', 'str' , 1, '',
+                'inlet files prefix (format: .stl)'],
+
+            ['WallPrefix','wallprefix', 'str' , 1, '',
+                'wall files prefix (format: .stl)'],
+
+            ['OutletPrefix','outletprefix', 'str' , 1, '',
+                'outlet files prefix (format: .stl)'],
+
+            ['OpenProfilesCentersFile', 'ocentersfile', 'str', 1, '',
+             'file to store the centers of each inlet and outlet (CSV extension)']
         ])
 
         self.SetOutputMembers([
             ['Surface', 'o', 'vtkPolyData', 1, '',
-                'the output surface', 'vmtksurfacewriter']
+                'the output surface clipped, with flow extensions, and capped',
+                'vmtksurfacewriter']
         ])
 
 
@@ -81,32 +120,36 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
         pass
 
     def Execute(self):
-        if self.Surface == None:
+        if not self.Surface:
             self.PrintError('Error: no Surface.')
 
+        if not self.SnappyHexMeshFilesDir:
+            self.PrintError('Error: no write directory for snappy files.')
 
+        if not self.OpenProfilesCentersFile:
+            self.PrintError('Error: no name for open centers files.')
+
+        # Clip surface
         if self.ClipMode == 'interactive':
             self.interactiveClip()
+
         elif self.ClipMode == 'centerlinebased':
             self.centerlineClip()
+
         else:
             self.PrintError('Error: clip mode not recognized.')
 
-
         # Adding flow extensions
         surfaceFlowExtensions = vmtkscripts.vmtkFlowExtensions()
-        surfaceFlowExtensions.Surface = self.Surface
 
-        # Setup
+        surfaceFlowExtensions.Surface = self.Surface
         surfaceFlowExtensions.InterpolationMode = 'thinplatespline' # or linear
         surfaceFlowExtensions.ExtensionMode = 'boundarynormal'      # or centerlinedirection
+
         # boolean flag which enables computing the length of each
         # flowextension proportional to the mean profile radius
-        surfaceFlowExtensions.AdaptiveExtensionLength = 1 # (bool)
-
-        # The proportionality factor is set through 'extensionratio'
-        surfaceFlowExtensions.ExtensionRatio = 1
-
+        surfaceFlowExtensions.AdaptiveExtensionLength = 1
+        surfaceFlowExtensions.ExtensionRatio = self.FlowExtensionRatio
         surfaceFlowExtensions.Interactive = self.Interactive
         surfaceFlowExtensions.TransitionRatio = 0.5
         surfaceFlowExtensions.AdaptiveExtensionRadius = 1
@@ -122,21 +165,122 @@ class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
             remesher.Surface = self.Surface
             remesher.ElementSizeMode = "edgelength"
             remesher.TargetEdgeLength = self.EdgeLength
-            remesher.OutputText("Remeshing procedure ...")
+            remesher.PreserveBoundaryEdges = 1
             remesher.Execute()
 
             self.Surface = remesher.Surface
 
-        # Capping surface
-        if self.Cap:
-            capper = vmtkscripts.vmtkSurfaceCapper()
-            capper.Surface = self.Surface
-            capper.Method = 'centerpoint'
-            capper.Interactive = 0
-            capper.Execute()
+        # Write wall file after remesh
+        tools.WriteSurface(
+            self.Surface,
+            os.path.join(
+                self.SnappyHexMeshFilesDir,
+                self.WallPrefix + self.SnappyFilesExtension
+            )
+        )
 
-            self.Surface = capper.Surface
+        # Capping surface and saving the open profile caps to separate files
+        # as required by snappyHexMesh
+        capper = vtkvmtk.vtkvmtkCapPolyData()
+        capper.SetInputData(self.Surface)
+        capper.SetDisplacement(0.0)
+        capper.SetInPlaneDisplacement(0.0)
+        capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
+        capper.Update()
 
+        cappedSurface = capper.GetOutput()
+
+        # Interactively select the inlet points
+        inletPickPoint = tools.PickPointSeedSelector()
+        inletPickPoint.SetSurface(cappedSurface)
+        inletPickPoint.InputInfo("Select a point on each inlet\n")
+        inletPickPoint.Execute()
+
+        inletSeeds  = inletPickPoint.PickedSeeds
+
+        # Compute reference systems to identify outlets
+        # Get complete ref systems
+        boundarySystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
+        boundarySystems.SetInputData(self.Surface)
+        boundarySystems.SetBoundaryRadiusArrayName('Radius')
+        boundarySystems.SetBoundaryNormalsArrayName('BoundaryNormals')
+        boundarySystems.SetPoint1ArrayName('Point1')
+        boundarySystems.SetPoint2ArrayName('Point2')
+        boundarySystems.Update()
+
+        referenceSystems = boundarySystems.GetOutput()
+
+        # get all open profile centers
+        openProfilesCenters =  [referenceSystems.GetPoint(idx)
+                                for idx in range(referenceSystems.GetNumberOfPoints())]
+
+        # Local only inlets based on user input
+        inletCenters = [tools.LocateClosestPointOnPolyData(
+                            referenceSystems,
+                            inletSeeds.GetPoint(idx)
+                        ) for idx in range(inletSeeds.GetNumberOfPoints())]
+
+        # Get outlet centers
+        outletCenters = [point for point in openProfilesCenters
+                         if point not in inletCenters]
+
+        # Get boundaries contours
+        boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
+        boundaryExtractor.SetInputData(self.Surface)
+        boundaryExtractor.Update()
+
+        boundaries = boundaryExtractor.GetOutput()
+
+        # Select boundaries and write them with file name based on the
+        # identification of inlet and outlet
+
+        # Store each contour with its file name in a dict for later writing
+        inletContours = {self.InletPrefix + str(idx + 1): (
+                             tools.ExtractConnectedRegion(
+                                 boundaries,
+                                 method="closest",
+                                 closest_point=center
+                             ), center
+                         ) for idx, center in enumerate(inletCenters)}
+
+        outletContours = {self.OutletPrefix + str(idx + 1): (
+                              tools.ExtractConnectedRegion(
+                                  boundaries,
+                                  method="closest",
+                                  closest_point=center
+                              ), center
+                          ) for idx, center in enumerate(outletCenters)}
+
+        inletContours.update(outletContours)
+
+        # Write them
+        for fname, (contour, _) in inletContours.items():
+
+            tools.WriteSurface(
+                tools.FillContourWithPlaneSurface(contour),
+                os.path.join(
+                    self.SnappyHexMeshFilesDir,
+                    fname + self.SnappyFilesExtension
+                )
+            )
+
+        # Write open profile centers info
+        with open(self.OpenProfilesCentersFile, "a") as file_:
+
+            file_.write("ProfileType, CenterX, CenterY, CenterZ\n")
+
+            for fname, (_, center) in inletContours.items():
+
+                file_.write(
+                    "{}, {}, {}, {}\n".format(
+                        fname,
+                        center[0],
+                        center[1],
+                        center[2]
+                    )
+                )
+
+        self.Surface = cappedSurface
 
 if __name__=='__main__':
     main = pypes.pypeMain()

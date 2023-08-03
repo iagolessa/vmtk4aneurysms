@@ -33,6 +33,21 @@ from . import constants as const
 from . import names
 from . import polydatamath as pmath
 
+def LocateClosestPointOnPolyData(
+        polydata: names.polyDataType,
+        point: tuple
+    )   -> tuple:
+    """Given point and a poly data, return the closest point on the poly data."""
+
+    # Locate selected inlet and outlets ref. systems
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(polydata)
+    locator.BuildLocator()
+
+    closestPointId = locator.FindClosestPoint(point)
+
+    return tuple(polydata.GetPoint(closestPointId))
+
 def UnsGridToPolyData(
         mesh: names.unstructuredGridType
     )   -> names.polyDataType:
@@ -1347,6 +1362,22 @@ def GetClosestContourOnSurface(
         pointIds.InsertNextId(pointId)
 
     return pointIds
+
+def FillContourWithPlaneSurface(
+        contour: names.polyDataType
+    )   -> names.polyDataType:
+    """Given a 3D contour, fill it with a surface while preserving its
+    boundary."""
+
+    # Fill contour
+    fillContour = vtk.vtkContourTriangulator()
+    fillContour.SetInputData(contour)
+    fillContour.Update()
+
+    # Remesh it for bette triangles
+    # remeshedSurface = tools.RemeshSurface(fillContour.GetOutput())
+
+    return fillContour.GetOutput()
 
 class SelectContourPointsIds():
     """Select closed contour points on a surface."""
