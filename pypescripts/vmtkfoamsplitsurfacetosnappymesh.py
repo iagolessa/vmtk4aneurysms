@@ -20,19 +20,17 @@ from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py
 
 import os
 import sys
-import vtk
 
-from vtk.numpy_interface import dataset_adapter as dsa
-from vmtk import vtkvmtk
 from vmtk import pypes
+from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import polydatatools as tools
 
-vmtksurfaceclipaddflowextension = 'vmtkSurfaceClipAddFlowExtension'
+vmtkfoamsplitsurfacetosnappymesh = 'vmtkFoamSplitSurfaceToSnappyMesh'
 
-class vmtkSurfaceClipAddFlowExtension(pypes.pypeScript):
+class vmtkFoamSplitSurfaceToSnappyMesh(pypes.pypeScript):
 
     def __init__(self):
 
