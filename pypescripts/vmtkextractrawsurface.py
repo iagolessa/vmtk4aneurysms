@@ -160,6 +160,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
             self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
             self.surfaceViewer.vmtkRenderer = self.vmtkRenderer
             self.surfaceViewer.Surface = self.Surface
+            self.surfaceViewer.Color = [1.0, 0.0, 0.0]
             self.surfaceViewer.Opacity = 0.4
             self.surfaceViewer.BuildView()
 
