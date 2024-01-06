@@ -342,7 +342,8 @@ def BuildPolyData(
 def SmoothSurface(
         surface: names.polyDataType,
         niterations: int=30,
-        passband: float=0.1
+        passband: float=0.1,
+        smooth_boundary: bool=False
     )   -> names.polyDataType:
     """Smooth surface based on Taubin's algorithm."""
 
@@ -351,7 +352,7 @@ def SmoothSurface(
     smoothingFilter.SetInputData(surface)
     smoothingFilter.SetNumberOfIterations(niterations)
     smoothingFilter.SetPassBand(passband)
-    smoothingFilter.BoundarySmoothingOff()
+    smoothingFilter.SetBoundarySmoothing(smooth_boundary)
     smoothingFilter.NormalizeCoordinatesOn()
     smoothingFilter.Update()
 
@@ -367,7 +368,8 @@ def Cleaner(surface):
 
 def RemeshSurface(
         surface: names.polyDataType,
-        target_cell_area: float=0.01
+        target_cell_area: float=0.01,
+        iterations: int=10
     )   -> names.polyDataType:
     """Remesh surface using VMTK and tageting the cell area size.
 
@@ -388,6 +390,7 @@ def RemeshSurface(
     remesher.Surface = surface
     remesher.ElementSizeMode = 'area'
     remesher.TargetArea = target_cell_area
+    remesher.NumberOfIterations = iterations
     remesher.PreserveBoundaryEdges = 1
     remesher.Execute()
 
