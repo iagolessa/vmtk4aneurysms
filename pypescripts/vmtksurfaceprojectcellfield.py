@@ -24,6 +24,7 @@ import vtk
 from vmtk import vmtkscripts
 from vmtk import vtkvmtk
 from vmtk import pypes
+from vmtk4aneurysms.lib.polydatatools import ProjectCellArray
 
 vmtksurfaceprojectcellfield = 'vmtkSurfaceProjectCellField'
 
@@ -73,7 +74,7 @@ class vmtkSurfaceProjectCellField(pypes.pypeScript):
 
         self.Surface = cleaner.GetOutput()
 
-        self.Surface = tools.ProjectCellArray(
+        self.Surface = ProjectCellArray(
                            self.Surface,
                            self.ReferenceSurface,
                            self.FieldName

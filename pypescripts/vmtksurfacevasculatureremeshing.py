@@ -41,6 +41,7 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
         self.Surface = None
         self.Centerlines = None
         self.Aneurysm = True
+        self.Iterations = 10
 
         self.MinResolutionValue = 0.15
         self.MaxResolutionValue = 0.30
@@ -66,6 +67,9 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
 
             ['Aneurysm', 'aneurysm', 'bool', 1, '',
                 'to indicate presence of an aneurysm'],
+
+            ['Iterations', 'iterations', 'int', 1, '',
+                'number of iterations of the remeshing step'],
 
             ['MaxResolutionValue', 'maxresvalue', 'float', 1, '(0.0,)',
                 'the maximum resolution value, to avoid large triangles'],
@@ -148,6 +152,7 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
 
         # Disable preserveing boundary edges, since this may impact extrusion
         surfaceRemesh.PreserveBoundaryEdges = 0
+        surfaceRemesh.NumberOfIterations = self.Iterations
         surfaceRemesh.OutputText("Remeshing... \n")
         surfaceRemesh.Execute()
 
