@@ -18,6 +18,7 @@
 
 from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py2-3 COMPATIBILITY
 
+import os
 import sys
 import vtk
 from vmtk import pypes
@@ -47,6 +48,13 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         self.MinResolutionValue = 0.125
         self.MaxResolutionValue = 0.250
 
+        self.InletPrefix = "inlet"
+        self.WallPrefix = "wall"
+        self.OutletPrefix = "outlet"
+        self.SnappyHexMeshFilesDir = None
+        self.SnappyFilesExtension = ".stl"
+        self.OpenProfilesCentersFile = None
+
         self.SetScriptName('vmtksurfacevasculatureforcfd')
         self.SetScriptDoc(
             "Treat a surface extracted from an DICOM image to be suitable for "
@@ -54,6 +62,8 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
             "based on its local diameter, possibly accounting for an existing "
             "aneurysm. Clip the model at specified locations based on its "
             "centerline and input location from the user."
+            "The script also allows to write the output as separate files "
+            "for use with snappyHexMesh of OpenFOAM."
         )
 
         self.SetInputMembers([
@@ -77,8 +87,22 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 'controls length of extension as number of profile radius'],
 
             ['Interactive' , 'interactive', 'bool', 1, '',
-                'interactively choose the boundaries to add extensions']
+                'interactively choose the boundaries to add extensions'],
 
+            ['SnappyHexMeshFilesDir','writedir', 'str' , 1, '',
+                 'write directory path for snappyHexMesh stl files'],
+
+            ['InletPrefix','inletprefix', 'str' , 1, '',
+                'inlet files prefix (format: .stl)'],
+
+            ['WallPrefix','wallprefix', 'str' , 1, '',
+                'wall files prefix (format: .stl)'],
+
+            ['OutletPrefix','outletprefix', 'str' , 1, '',
+                'outlet files prefix (format: .stl)'],
+
+            ['OpenProfilesCentersFile', 'ocentersfile', 'str', 1, '',
+             'file to store the centers of each inlet and outlet (CSV extension)']
         ])
 
         self.SetOutputMembers([
@@ -153,9 +177,109 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         capper.SetCellEntityIdsArrayName(names.CellEntityIdsArrayName)
         capper.Update()
 
-        # Clean before smoothing array
-        self.Surface = tools.Cleaner(capper.GetOutput())
-        self.Surface = tools.CleanupArrays(self.Surface)
+        cappedSurface = capper.GetOutput()
+
+        if self.SnappyHexMeshFilesDir is not None:
+            # Write wall file after remesh
+            tools.WriteSurface(
+                self.Surface,
+                os.path.join(
+                    self.SnappyHexMeshFilesDir,
+                    self.WallPrefix + self.SnappyFilesExtension
+                )
+            )
+
+            # Interactively select the inlet points
+            inletPickPoint = tools.PickPointSeedSelector()
+            inletPickPoint.SetSurface(cappedSurface)
+            inletPickPoint.InputInfo("Select a point on each inlet\n")
+            inletPickPoint.Execute()
+
+            inletSeeds  = inletPickPoint.PickedSeeds
+
+            # Compute reference systems to identify outlets
+            # Get complete ref systems
+            boundarySystems = vtkvmtk.vtkvmtkBoundaryReferenceSystems()
+            boundarySystems.SetInputData(self.Surface)
+            boundarySystems.SetBoundaryRadiusArrayName('Radius')
+            boundarySystems.SetBoundaryNormalsArrayName('BoundaryNormals')
+            boundarySystems.SetPoint1ArrayName('Point1')
+            boundarySystems.SetPoint2ArrayName('Point2')
+            boundarySystems.Update()
+
+            referenceSystems = boundarySystems.GetOutput()
+
+            # get all open profile centers
+            openProfilesCenters =  [referenceSystems.GetPoint(idx)
+                                    for idx in range(referenceSystems.GetNumberOfPoints())]
+
+            # Local only inlets based on user input
+            inletCenters = [tools.LocateClosestPointOnPolyData(
+                                referenceSystems,
+                                inletSeeds.GetPoint(idx)
+                            ) for idx in range(inletSeeds.GetNumberOfPoints())]
+
+            # Get outlet centers
+            outletCenters = [point for point in openProfilesCenters
+                             if point not in inletCenters]
+
+            # Get boundaries contours
+            boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
+            boundaryExtractor.SetInputData(self.Surface)
+            boundaryExtractor.Update()
+
+            boundaries = boundaryExtractor.GetOutput()
+
+            # Select boundaries and write them with file name based on the
+            # identification of inlet and outlet
+
+            # Store each contour with its file name in a dict for later writing
+            inletContours = {self.InletPrefix + str(idx + 1): (
+                                 tools.ExtractConnectedRegion(
+                                     boundaries,
+                                     method="closest",
+                                     closest_point=center
+                                 ), center
+                             ) for idx, center in enumerate(inletCenters)}
+
+            outletContours = {self.OutletPrefix + str(idx + 1): (
+                                  tools.ExtractConnectedRegion(
+                                      boundaries,
+                                      method="closest",
+                                      closest_point=center
+                                  ), center
+                              ) for idx, center in enumerate(outletCenters)}
+
+            inletContours.update(outletContours)
+
+            # Write them
+            for fname, (contour, _) in inletContours.items():
+
+                tools.WriteSurface(
+                    tools.FillContourWithPlaneSurface(contour),
+                    os.path.join(
+                        self.SnappyHexMeshFilesDir,
+                        fname + self.SnappyFilesExtension
+                    )
+                )
+
+            # Write open profile centers info
+            with open(self.OpenProfilesCentersFile, "a") as file_:
+
+                file_.write("ProfileType, CenterX, CenterY, CenterZ\n")
+
+                for fname, (_, center) in inletContours.items():
+
+                    file_.write(
+                        "{}, {}, {}, {}\n".format(
+                            fname,
+                            center[0],
+                            center[1],
+                            center[2]
+                        )
+                    )
+
+        self.Surface = tools.Cleaner(cappedSurface)
 
 if __name__=='__main__':
     main = pypes.pypeMain()
