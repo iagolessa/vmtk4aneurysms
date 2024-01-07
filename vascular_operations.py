@@ -333,9 +333,10 @@ def HealthyVesselReconstruction(
 
 
     # 1) Compute parent centerline reconstruction
-    dome_point = tools.SelectSurfacePoint(vascular_surface) \
-                 if dome_point is None \
-                 else dome_point
+    dome_point = tools.SelectSurfacePoint(
+                    vascular_surface,
+                    input_text="Select point on the aneurysm surface\n"
+                 ) if dome_point is None else dome_point
 
     # Get clipping points on model centerlines and order them correctly
     if aneurysmInBifurcation:
@@ -906,9 +907,10 @@ def _extract_aneurysm_inception_region(
         aneurysm_point: tuple=None
     )   -> names.polyDataType:
 
-    aneurysmPoint = tools.SelectSurfacePoint(vascular_surface) \
-                    if aneurysm_point is None \
-                    else aneurysm_point
+    aneurysmPoint = tools.SelectSurfacePoint(
+                        vascular_surface,
+                        input_text="Select point on the aneurysm surface\n"
+                    ) if aneurysm_point is None else aneurysm_point
 
     aneurysmInBifurcation = _is_bifurcation_aneurysm(aneurysm_type)
 
