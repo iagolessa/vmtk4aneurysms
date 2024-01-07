@@ -71,6 +71,15 @@ SeamScalarsArrayName       = "SeamScalars"
 SqrGaussCurvatureArrayName = "SqrGaussCurvature"
 SqrMeanCurvatureArrayName  = "SqrMeanCurvature"
 
+# VMTK's array names
+vmtkCenterlineIdsArrayName  = "CenterlineIds"
+vmtkGroupIdsArrayName       = "GroupIds"
+vmtkLengthArrayName         = "Length"
+vmtkAbscissasArrayName      = "Abscissas"
+vmtkFrenetTangentArrayName  = "FrenetTangent"
+vmtkFrenetNormalArrayName   = "FrenetNormal"
+vmtkFrenetBinormalArrayName = "FrenetBinormal"
+vmtkParallelTransportArrayName = "ParallelTransportNormals"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility
