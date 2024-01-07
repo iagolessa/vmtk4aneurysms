@@ -1318,14 +1318,15 @@ class PickPointSeedSelector():
             self.vmtkRenderer.Deallocate()
 
 def SelectSurfacePoint(
-        surface: names.polyDataType
+        surface: names.polyDataType,
+        input_text: str=None
     )   -> Union[tuple,list]:
     """Enable selection of point on a surface."""
 
     # Select aneurysm tip point
     pickPoint = PickPointSeedSelector()
     pickPoint.SetSurface(surface)
-    pickPoint.InputInfo("Select point on the aneurysm surface\n")
+    pickPoint.InputInfo(input_text)
     pickPoint.Execute()
 
     return pickPoint.PickedSeeds.GetPoint(0)
