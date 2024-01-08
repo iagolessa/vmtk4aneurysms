@@ -2471,6 +2471,27 @@ def ClipVasculatureOffBifurcation(
         if not np.abs(newMaxLength - maxLength) > 1.0:
             break
 
+    # Check whether passed clip values are within the clip field range
+    if ica_clip_value < min(offsetAbscissasRange):
+
+        raise ValueError(
+                "{} smaller than min of {} (~ {}).\nSpecify higher value.".format(
+                    ica_clip_value,
+                    clip_vessel_field,
+                    round(min(offsetAbscissasRange), 3)
+                  )
+              )
+
+    if outlet_arteries_clip_value > max(offsetAbscissasRange):
+
+        raise ValueError(
+                "{} larger than max of {} (~ {}).\nSpecify smaller value.".format(
+                    outlet_arteries_clip_value,
+                    clip_vessel_field,
+                    round(max(offsetAbscissasRange), 3)
+                  )
+              )
+
     # Locate point on centerline with Abscissas closest to icaCutValue
     npOffsetCenterlines = dsa.WrapDataObject(offsetCenterlines)
 
@@ -2525,6 +2546,7 @@ def ClipVasculatureOffBifurcation(
     # Clip inlet artery
     clipArray = npLongestCenterline.PointData.GetArray(clip_vessel_field)
 
+    # Get id of the point where to clip
     icaClipPointId = (
                         np.abs(clipArray - ica_clip_value)
                      ).argmin()
