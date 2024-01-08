@@ -2341,3 +2341,271 @@ def ComputeVasculatureElasticityWithAneurysm(
                        )
 
     return vascular_surface
+
+def ClipVasculatureOffBifurcation(
+        vascular_surface: names.polyDataType,
+        centerlines: names.polyDataType,
+        clip_vessel_field: str=names.vmtkAbscissasArrayName,
+        ica_clip_value: float=-40.0,
+        # TODO: check whether the passed cut values are larger than the
+        # extremes of the field
+        outlet_arteries_clip_value: str=10.0,
+        bif_point: tuple=None
+    )   -> names.polyDataType:
+    """Automatically clip a vessel structure away of a specified bifurcation.
+
+    Given a vessel surface model and its centerlines, clip the vessel at points
+    espefied by a distance away from a selected bifurcation. The function is
+    intended to clip inlet and outlet boundary conditions in vascular models
+    based a predefined distance from a bifurcation. For example, you can select
+    the ICA bifurcation and pass two values identified as the distance fom the
+    ICA bifurcation where the vascular model surface will be clipped.
+
+    Both the clip values for inlet (before the bifurcation) as the clip value
+    of outlets (after the bifurcation can be passed. The default field used to
+    clip is the 'Abscissas' field of distance values along the centerline with
+    origin its closest point to the selected bifurcation.
+
+    The point closest to the selected bifurcation can be passed via the arg.
+    'bif_point'. If None, the user is prompted to interactively select it.
+    """
+
+    # Compute centerlines abscissas and other attributes
+    branches = vmtkscripts.vmtkBranchExtractor()
+    branches.Centerlines = cl.ComputeCenterlineGeometry(centerlines)
+    branches.Execute()
+
+    geoCenterlines = branches.Centerlines
+
+    # Computing the bifurcation reference system
+    bifsRefSystem = vmtkscripts.vmtkBifurcationReferenceSystems()
+    bifsRefSystem.Centerlines = geoCenterlines
+    bifsRefSystem.Execute()
+
+    # Get bifuraction list
+    referenceSystems = bifsRefSystem.ReferenceSystems
+
+    # Get max length with original Abscissas array for later comparison
+    abscissasRange = geoCenterlines.GetPointData().GetArray(
+                         names.vmtkAbscissasArrayName
+                     ).GetRange()
+
+    maxLength = max(abscissasRange) - min(abscissasRange)
+
+    # Get ICA-MCA-ACA bifurcation
+    if bif_point is None:
+
+        bif_point = tools.SelectSurfacePoint(
+                        vascular_surface,
+                        input_text="Select point at the ICA bifurcation\n"
+                    )
+
+    # Get closest point to ICA at the bifurcation found
+    bifRefPoint = tools.LocateClosestPointOnPolyData(
+                      referenceSystems,
+                      bif_point
+                  )
+
+    # Get ID of ICA bifurcation
+    npRefSystems = dsa.WrapDataObject(referenceSystems)
+
+    bifId = np.all(
+                npRefSystems.Points == bifRefPoint,
+                axis=1
+            ).argmax()
+
+    # Get ID of ICA in GroupIds for offset attributes
+    bifGroupIds = npRefSystems.PointData.GetArray(names.vmtkGroupIdsArrayName)
+
+    # Found aweird bhavior when passing a numpy.int32 to this script so convert
+    # to Python int
+    bifGroupId  = int(bifGroupIds[bifId])
+
+    # Offset attributes to the bifurcation
+    # I noticed that offset filter was computing wrong offset Abscissas array
+    # in an inconsistent way and pretty randomic way. So I put wthis check
+    # comparing the new abscissas range and the original one.
+    # TODO: report this behavior in the website
+    for _ in range(0,100):
+
+
+        offsetFilter = vtkvmtk.vtkvmtkCenterlineReferenceSystemAttributesOffset()
+
+        offsetFilter.SetInputData(geoCenterlines)
+        offsetFilter.SetReferenceSystems(referenceSystems)
+
+        offsetFilter.SetAbscissasArrayName(names.vmtkAbscissasArrayName)
+        offsetFilter.SetNormalsArrayName(names.vmtkParallelTransportArrayName)
+
+        offsetFilter.SetOffsetAbscissasArrayName(
+            names.vmtkAbscissasArrayName
+        )
+
+        offsetFilter.SetOffsetNormalsArrayName(
+            names.vmtkParallelTransportArrayName
+        )
+
+        offsetFilter.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
+        offsetFilter.SetCenterlineIdsArrayName(names.vmtkCenterlineIdsArrayName)
+
+        offsetFilter.SetReferenceSystemsNormalArrayName(
+            bifsRefSystem.ReferenceSystemsNormalArrayName
+        )
+
+        offsetFilter.SetReferenceSystemsGroupIdsArrayName(
+            bifsRefSystem.GroupIdsArrayName
+        )
+
+        offsetFilter.SetReferenceGroupId(bifGroupId)
+        offsetFilter.Update()
+
+        # Offset abscissas centerlines
+        offsetCenterlines = offsetFilter.GetOutput()
+
+        offsetAbscissasRange = offsetCenterlines.GetPointData().GetArray(
+                                   names.vmtkAbscissasArrayName
+                               ).GetRange()
+
+        newMaxLength = max(offsetAbscissasRange) - min(offsetAbscissasRange)
+
+        if not np.abs(newMaxLength - maxLength) > 1.0:
+            break
+
+    # Locate point on centerline with Abscissas closest to icaCutValue
+    npOffsetCenterlines = dsa.WrapDataObject(offsetCenterlines)
+
+    centerlineIds = list(
+                        set(
+                            npOffsetCenterlines.CellData.GetArray(
+                                names.vmtkCenterlineIdsArrayName
+                            )
+                        )
+                    )
+
+    # Cretae dict to better storing of separate centerlines
+    individualCenterlines = {}
+
+    for cl_id in centerlineIds:
+
+        individualCenterlines[cl_id] = {}
+
+        # Extract centerline portion and transfrom GroupId to point for later
+        clPortion = tools.CellFieldToPointField(
+                        tools.ExtractPortion(
+                            offsetCenterlines,
+                            names.vmtkCenterlineIdsArrayName,
+                            cl_id
+                        ),
+                        cell_field_name=names.vmtkGroupIdsArrayName
+                    )
+
+        individualCenterlines[cl_id].update(
+            {"object": clPortion}
+        )
+
+        # Add total length of each
+        individualCenterlines[cl_id].update({
+            "length": max(
+                          clPortion.GetCellData().GetArray(
+                              names.vmtkLengthArrayName
+                          ).GetRange()
+                      )
+        })
+
+    # Get longest centerline
+    # ID of ICA clip will be identified in this portion
+    idLongestCenterline = max(
+                                individualCenterlines,
+                                key=lambda idx: individualCenterlines[idx]["length"]
+                            )
+
+    longestCenterline = individualCenterlines[idLongestCenterline]["object"]
+    npLongestCenterline = dsa.WrapDataObject(longestCenterline)
+
+    # Clip inlet artery
+    clipArray = npLongestCenterline.PointData.GetArray(clip_vessel_field)
+
+    icaClipPointId = (
+                        np.abs(clipArray - ica_clip_value)
+                     ).argmin()
+
+    icaClipPoint = tuple(npLongestCenterline.Points[icaClipPointId])
+
+    icaClipNormal = tuple(
+                        npLongestCenterline.PointData.GetArray(
+                            names.vmtkFrenetTangentArrayName
+                        )[icaClipPointId]
+                    )
+
+    # Clip vessel at inlet location
+    vascular_surface = SeamPlaneTubularStructureMarker(
+                           vascular_surface,
+                           plane_center=icaClipPoint,
+                           plane_normal=icaClipNormal
+                       )
+
+    vascular_surface = tools.ClipWithScalar(
+                           vascular_surface,
+                           names.SeamScalarsArrayName,
+                           const.zero,
+                           inside_out=False
+                       )
+
+    # Store the group id to whcih the point belong
+    outletClipPoints = {}
+
+    for cl_id, dict_ in individualCenterlines.items():
+
+        npClPortion = dsa.WrapDataObject(dict_["object"])
+        clClipField = npClPortion.PointData.GetArray(clip_vessel_field)
+
+        clGroups = npClPortion.PointData.GetArray(
+                        names.vmtkGroupIdsArrayName
+                    )
+
+        # Check whether the centerline have the GroupId of the ref. bif.
+        if bifGroupId in list(set(clGroups)):
+
+            # Use the GroupIds as keys to dict to avoid repetitive entries
+            outletClipPointId = (
+                                    np.abs(
+                                        clClipField - outlet_arteries_clip_value
+                                    )
+                                ).argmin()
+
+            outletClipPoint  = tuple(npClPortion.Points[outletClipPointId])
+            outletClipNormal = tuple(
+                                   npClPortion.PointData.GetArray(
+                                       names.vmtkFrenetTangentArrayName
+                                   )[outletClipPointId]
+                               )
+
+            outletClipPoints.update({
+                clGroups[outletClipPointId]: {
+                    "center": outletClipPoint,
+                    "normal": outletClipNormal
+                }
+            })
+
+        else:
+            continue
+
+    for dict_ in outletClipPoints.values():
+
+        # Clip at outlets: invert normal at these positions
+        vascular_surface = SeamPlaneTubularStructureMarker(
+                               vascular_surface,
+                               plane_center=dict_["center"],
+                               plane_normal=tuple(-val for val in dict_["normal"]),
+                               # seam_scalar_array_name="SeamScalar"+str(cl_id)
+                           )
+
+        vascular_surface = tools.ClipWithScalar(
+                               vascular_surface,
+                               names.SeamScalarsArrayName,
+                               const.zero,
+                               inside_out=False
+                           )
+
+
+    return tools.CleanupArrays(vascular_surface)
