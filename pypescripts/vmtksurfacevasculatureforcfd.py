@@ -41,9 +41,13 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         # Public member
         self.Surface = None
         self.Centerlines = None
+        self.InletClipValue = -40.0,
+        self.OutletRelativeClipValue = 8.0
         self.Aneurysm = True
         self.FlowExtensionRatio = 2
         self.Interactive = False
+        self.BifPoint = None
+        self.AneurysmPoint = None
 
         self.MinResolutionValue = 0.125
         self.MaxResolutionValue = 0.250
@@ -74,6 +78,12 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 'the centerlines of the input surface (optional; if not '\
                 'passed, it is calculated automatically', 'vmtksurfacereader'],
 
+            ['InletClipValue', 'inletclipvalue', 'float', 1, '(,0.0)',
+                'relative distance off bifurcation where to clip'],
+
+            ['OutletRelativeClipValue', 'outletclipvalue', 'float', 1, '(0.0,)',
+                'relative distance off bifrucation, or aneurysm, where to clip'],
+
             ['Aneurysm', 'aneurysm', 'bool', 1, '',
                 'to indicate presence of an aneurysm'],
 
@@ -88,6 +98,12 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
             ['Interactive' , 'interactive', 'bool', 1, '',
                 'interactively choose the boundaries to add extensions'],
+
+            ['BifPoint','bifpoint', 'float', -1, '',
+                'coordinates of point close to surface'],
+
+            ['AneurysmPoint','aneurysmpoint', 'float', -1, '',
+                'coordinates of point at the aneurysm sac'],
 
             ['SnappyHexMeshFilesDir','writedir', 'str' , 1, '',
                  'write directory path for snappyHexMesh stl files'],
@@ -128,6 +144,9 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
 
+        if self.Centerlines == None:
+            self.PrintError('Error: no centerlines.')
+
         # We will have to do 2 remeshings: one to get a better initial surface
         # Remesh with vasculature remshing script
         self.Remesh(iterations=5)
@@ -139,9 +158,15 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                            smooth_boundary=True
                        )
 
-        self.Surface = vscop.ClipVasculature(
+        self.Surface = vscop.ClipVasculatureOffBifurcation(
                            self.Surface,
-                           centerlines=self.Centerlines
+                           self.Centerlines,
+                           inlet_vessel_clip_value=self.InletClipValue,
+                           outlet_vessel_clip_value=self.OutletRelativeClipValue,
+                           bif_point=tuple(self.BifPoint) \
+                                     if self.BifPoint else None,
+                           aneurysm_point=tuple(self.AneurysmPoint) \
+                                          if self.AneurysmPoint else None,
                        )
 
         # Adding flow extensions

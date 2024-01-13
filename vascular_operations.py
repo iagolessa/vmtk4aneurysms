@@ -1309,6 +1309,34 @@ def SeamPlaneTubularStructureMarker(
 
     return seamFilter.GetOutput()
 
+def ClipVasculatureWithPlane(
+        vascular_surface: names.polyDataType,
+        plane_center: tuple,
+        plane_normal: tuple
+    )   -> names.polyDataType:
+    """Clip vascular tree section with a plane.
+
+    Given a plane center and normal, clip the passed vascular surface model at
+    the plane. The portion of the surface kept is on the normal direction.
+    """
+
+    # Clip vessel at inlet location
+    vascular_surface = SeamPlaneTubularStructureMarker(
+                           vascular_surface,
+                           plane_center=plane_center,
+                           plane_normal=plane_normal,
+                           seam_scalar_array_name=names.SeamScalarsArrayName
+                       )
+
+    # The SeamScalars are positive (1.0) in the region of the positiove
+    # direction of the plane normal so use inside_out False.
+    return tools.ClipWithScalar(
+               vascular_surface,
+               names.SeamScalarsArrayName,
+               const.zero,
+               inside_out=False
+           )
+
 def ClipVasculature(
         vascular_surface: names.polyDataType,
         centerlines=None
@@ -2342,29 +2370,114 @@ def ComputeVasculatureElasticityWithAneurysm(
 
     return vascular_surface
 
+def _get_field_value_at_closest_point(
+        vtk_object,
+        point,
+        point_field_name
+    ):
+
+    if point_field_name in tools.GetCellArrays(vtk_object):
+
+        vtk_object = tools.CellFieldToPointField(
+                        vtk_object,
+                        cell_field_name=point_field_name
+                    )
+
+    # Get closest point to ICA at the bifurcation found
+    bifPoint = tools.LocateClosestPointOnPolyData(
+                    vtk_object,
+                    point
+                )
+
+    npVtkObject = dsa.WrapDataObject(vtk_object)
+
+    # Get ID of ICA bifurcation
+    bifId = np.all(
+                npVtkObject.Points == bifPoint,
+                axis=1
+            ).argmax()
+
+    # Get ID of ICA in GroupIds for offset attributes
+    bifGroupIds = npVtkObject.PointData.GetArray(point_field_name)
+
+    return bifGroupIds[bifId]
+
+def _split_centerline_object(centerlines):
+    """Split tree centerline into dict of its centerlines components."""
+
+    npCenterlines = dsa.WrapDataObject(centerlines)
+
+    centerlineIds = list(
+                        set(
+                            npCenterlines.CellData.GetArray(
+                                names.vmtkCenterlineIdsArrayName
+                            )
+                        )
+                    )
+
+    # Cretae dict to better storing of separate centerlines
+    individualCenterlines = {}
+
+    for cl_id in centerlineIds:
+
+        individualCenterlines[cl_id] = {}
+
+        # Extract centerline portion and transfrom GroupId to point for later
+        clPortion = tools.CellFieldToPointField(
+                        tools.ExtractPortion(
+                            centerlines,
+                            names.vmtkCenterlineIdsArrayName,
+                            cl_id
+                        ),
+                        cell_field_name=names.vmtkGroupIdsArrayName
+                    )
+
+        individualCenterlines[cl_id].update(
+            {"object": clPortion}
+        )
+
+        # Add total length of each
+        individualCenterlines[cl_id].update({
+            "length": max(
+                          clPortion.GetCellData().GetArray(
+                             names. vmtkLengthArrayName
+                          ).GetRange()
+                      )
+        })
+
+    return individualCenterlines
+
 def ClipVasculatureOffBifurcation(
         vascular_surface: names.polyDataType,
         centerlines: names.polyDataType,
         clip_vessel_field: str=names.vmtkAbscissasArrayName,
-        ica_clip_value: float=-40.0,
-        # TODO: check whether the passed cut values are larger than the
-        # extremes of the field
-        outlet_arteries_clip_value: str=10.0,
-        bif_point: tuple=None
+        inlet_vessel_clip_value: float=-40.0,
+        outlet_vessel_clip_value: str=8.0,
+        bif_point: tuple=None,
+        aneurysm_point: tuple=None
     )   -> names.polyDataType:
-    """Automatically clip a vessel structure away of a specified bifurcation.
+    """Automatically clip a vessel structure away of a specified bifurcation
+    and an aneurysm, if it exists.
 
     Given a vessel surface model and its centerlines, clip the vessel at points
-    espefied by a distance away from a selected bifurcation. The function is
-    intended to clip inlet and outlet boundary conditions in vascular models
-    based a predefined distance from a bifurcation. For example, you can select
-    the ICA bifurcation and pass two values identified as the distance fom the
-    ICA bifurcation where the vascular model surface will be clipped.
+    espefied by a distance away from a selected bifurcation and away from the
+    bifurcation closer to a specified aneurysm. The function is intended to
+    clip inlet and outlet boundary conditions in vascular models based a
+    predefined distance from a bifurcation and an aneurysm. For example, you
+    can select the ICA bifurcation and pass two values identified as the
+    distance fom the ICA bifurcation where the vascular model surface will be
+    clipped, if no aneurysm on the model. If an aneurysm is present and you
+    want to clip after the aneurysm, you can pass the ICA bifurcation point and
+    the aneurysm dome point (if not passed, the function prompts the user to
+    interactively select it), so the function clips the vasculature after the
+    aneurysm bifurcation.
 
     Both the clip values for inlet (before the bifurcation) as the clip value
     of outlets (after the bifurcation can be passed. The default field used to
     clip is the 'Abscissas' field of distance values along the centerline with
-    origin its closest point to the selected bifurcation.
+    origin its closest point to the selected bifurcation. If an aneurysm
+    exists, then the clip arg. 'outlet_vessel_clip_value' is relative to the
+    bifurcation closest to the aneurysm.
 
     The point closest to the selected bifurcation can be passed via the arg.
     'bif_point'. If None, the user is prompted to interactively select it.
@@ -2401,25 +2514,13 @@ def ClipVasculatureOffBifurcation(
                     )
 
     # Get closest point to ICA at the bifurcation found
-    bifRefPoint = tools.LocateClosestPointOnPolyData(
-                      referenceSystems,
-                      bif_point
+    bifGroupId  = int(
+                      _get_field_value_at_closest_point(
+                          referenceSystems,
+                          bif_point,
+                          names.vmtkGroupIdsArrayName
+                      )
                   )
-
-    # Get ID of ICA bifurcation
-    npRefSystems = dsa.WrapDataObject(referenceSystems)
-
-    bifId = np.all(
-                npRefSystems.Points == bifRefPoint,
-                axis=1
-            ).argmax()
-
-    # Get ID of ICA in GroupIds for offset attributes
-    bifGroupIds = npRefSystems.PointData.GetArray(names.vmtkGroupIdsArrayName)
-
-    # Found aweird bhavior when passing a numpy.int32 to this script so convert
-    # to Python int
-    bifGroupId  = int(bifGroupIds[bifId])
 
     # Offset attributes to the bifurcation
     # I noticed that offset filter was computing wrong offset Abscissas array
@@ -2471,67 +2572,63 @@ def ClipVasculatureOffBifurcation(
         if not np.abs(newMaxLength - maxLength) > 1.0:
             break
 
+    # Identify the bifurcation GroupId and its Abscissas closer to the aneurysm
+    if aneurysm_point is None:
+
+        aneurysm_point = tools.SelectSurfacePoint(
+                             vascular_surface,
+                             input_text="Select a  point on the aneurysm surface"
+                         )
+
+    # Get center of bifurcation closest to aneurysm point
+    iaClosestPointToBif = tools.LocateClosestPointOnPolyData(
+                                referenceSystems,
+                                aneurysm_point
+                            )
+
+    onlyBifurcations = tools.ExtractPortion(
+                           offsetCenterlines,
+                           "Blanking", # only centerlines potions of bifs.
+                           1.0
+                       )
+
+    # Get also the group id of the portion where the aneurysm is
+    iaAbscissasClosestBif = _get_field_value_at_closest_point(
+                                  onlyBifurcations,
+                                  iaClosestPointToBif,
+                                  names.vmtkAbscissasArrayName
+                            )
+
+    # Get also the group id of the portion where the aneurysm is
+    iaGroupIdClosestBif = _get_field_value_at_closest_point(
+                                onlyBifurcations,
+                                aneurysm_point,
+                                names.vmtkGroupIdsArrayName
+                          )
+
     # Check whether passed clip values are within the clip field range
-    if ica_clip_value < min(offsetAbscissasRange):
+    if inlet_vessel_clip_value < min(offsetAbscissasRange):
 
         raise ValueError(
                 "{} smaller than min of {} (~ {}).\nSpecify higher value.".format(
-                    ica_clip_value,
+                    inlet_vessel_clip_value,
                     clip_vessel_field,
                     round(min(offsetAbscissasRange), 3)
                   )
               )
 
-    if outlet_arteries_clip_value > max(offsetAbscissasRange):
+    if outlet_vessel_clip_value + iaAbscissasClosestBif > max(offsetAbscissasRange):
 
         raise ValueError(
-                "{} larger than max of {} (~ {}).\nSpecify smaller value.".format(
-                    outlet_arteries_clip_value,
+                "{} distance relative to aneurysm bifurcation is larger than max of {} (~ {}).\nSpecify smaller value.".format(
+                    outlet_vessel_clip_value,
                     clip_vessel_field,
                     round(max(offsetAbscissasRange), 3)
                   )
               )
 
-    # Locate point on centerline with Abscissas closest to icaCutValue
-    npOffsetCenterlines = dsa.WrapDataObject(offsetCenterlines)
-
-    centerlineIds = list(
-                        set(
-                            npOffsetCenterlines.CellData.GetArray(
-                                names.vmtkCenterlineIdsArrayName
-                            )
-                        )
-                    )
-
     # Cretae dict to better storing of separate centerlines
-    individualCenterlines = {}
-
-    for cl_id in centerlineIds:
-
-        individualCenterlines[cl_id] = {}
-
-        # Extract centerline portion and transfrom GroupId to point for later
-        clPortion = tools.CellFieldToPointField(
-                        tools.ExtractPortion(
-                            offsetCenterlines,
-                            names.vmtkCenterlineIdsArrayName,
-                            cl_id
-                        ),
-                        cell_field_name=names.vmtkGroupIdsArrayName
-                    )
-
-        individualCenterlines[cl_id].update(
-            {"object": clPortion}
-        )
-
-        # Add total length of each
-        individualCenterlines[cl_id].update({
-            "length": max(
-                          clPortion.GetCellData().GetArray(
-                              names.vmtkLengthArrayName
-                          ).GetRange()
-                      )
-        })
+    individualCenterlines = _split_centerline_object(offsetCenterlines)
 
     # Get longest centerline
     # ID of ICA clip will be identified in this portion
@@ -2548,7 +2645,7 @@ def ClipVasculatureOffBifurcation(
 
     # Get id of the point where to clip
     icaClipPointId = (
-                        np.abs(clipArray - ica_clip_value)
+                        np.abs(clipArray - inlet_vessel_clip_value)
                      ).argmin()
 
     icaClipPoint = tuple(npLongestCenterline.Points[icaClipPointId])
@@ -2560,17 +2657,10 @@ def ClipVasculatureOffBifurcation(
                     )
 
     # Clip vessel at inlet location
-    vascular_surface = SeamPlaneTubularStructureMarker(
+    vascular_surface = ClipVasculatureWithPlane(
                            vascular_surface,
                            plane_center=icaClipPoint,
                            plane_normal=icaClipNormal
-                       )
-
-    vascular_surface = tools.ClipWithScalar(
-                           vascular_surface,
-                           names.SeamScalarsArrayName,
-                           const.zero,
-                           inside_out=False
                        )
 
     # Store the group id to whcih the point belong
@@ -2585,13 +2675,27 @@ def ClipVasculatureOffBifurcation(
                         names.vmtkGroupIdsArrayName
                     )
 
-        # Check whether the centerline have the GroupId of the ref. bif.
-        if bifGroupId in list(set(clGroups)):
+        clGroupIdsList = list(set(clGroups))
+
+        # Check whether the centerline have abscissas
+        if bifGroupId in clGroupIdsList:
+
+            # If the ica bif. and aneurysm group ids are on the centerline,
+            # then use the updated clip value to clip (meaning to clip AFTER
+            # the aneurysm abscissa)
+            if iaGroupIdClosestBif in clGroupIdsList and \
+               iaGroupIdClosestBif > bifGroupId:
+
+                clipValue = iaAbscissasClosestBif + \
+                            outlet_vessel_clip_value
+
+            else:
+                clipValue = outlet_vessel_clip_value
 
             # Use the GroupIds as keys to dict to avoid repetitive entries
             outletClipPointId = (
                                     np.abs(
-                                        clClipField - outlet_arteries_clip_value
+                                        clClipField - clipValue
                                     )
                                 ).argmin()
 
@@ -2615,19 +2719,10 @@ def ClipVasculatureOffBifurcation(
     for dict_ in outletClipPoints.values():
 
         # Clip at outlets: invert normal at these positions
-        vascular_surface = SeamPlaneTubularStructureMarker(
+        vascular_surface = ClipVasculatureWithPlane(
                                vascular_surface,
                                plane_center=dict_["center"],
-                               plane_normal=tuple(-val for val in dict_["normal"]),
-                               # seam_scalar_array_name="SeamScalar"+str(cl_id)
+                               plane_normal=tuple(-val for val in dict_["normal"])
                            )
-
-        vascular_surface = tools.ClipWithScalar(
-                               vascular_surface,
-                               names.SeamScalarsArrayName,
-                               const.zero,
-                               inside_out=False
-                           )
-
 
     return tools.CleanupArrays(vascular_surface)
