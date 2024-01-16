@@ -2533,19 +2533,13 @@ def ClipVasculatureOffBifurcation(
     """
 
     # Compute centerlines abscissas and other attributes
-    branches = vmtkscripts.vmtkBranchExtractor()
-    branches.Centerlines = cl.ComputeCenterlineGeometry(centerlines)
-    branches.Execute()
+    geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
 
-    geoCenterlines = branches.Centerlines
+    # Perform branching
+    geoCenterlines = cl.CenterlineBranching(geoCenterlines)
 
     # Computing the bifurcation reference system
-    bifsRefSystem = vmtkscripts.vmtkBifurcationReferenceSystems()
-    bifsRefSystem.Centerlines = geoCenterlines
-    bifsRefSystem.Execute()
-
-    # Get bifuraction list
-    referenceSystems = bifsRefSystem.ReferenceSystems
+    referenceSystems = cl.CenterlineReferenceSystems(geoCenterlines)
 
     # Get ICA-MCA-ACA bifurcation
     if bif_point is None:
