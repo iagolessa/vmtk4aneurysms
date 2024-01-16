@@ -41,7 +41,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         # Public member
         self.Surface = None
         self.Centerlines = None
-        self.InletClipValue = -40.0,
+        self.InletClipValue = -40.0
         self.OutletRelativeClipValue = 8.0
         self.Aneurysm = True
         self.FlowExtensionRatio = 2

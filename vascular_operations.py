@@ -2447,6 +2447,55 @@ def _split_centerline_object(centerlines):
 
     return individualCenterlines
 
+def _robust_offset_centerline(
+        centerlines: names.polyDataType,
+        ref_systems: names.polyDataType,
+        bif_group_id: int
+    )   -> names.polyDataType:
+
+    # Get original max length
+    # Compute original range of abscissas
+    maxLength = cl.CenterlineMaxLength(centerlines)
+
+    # Iterate to avoid spourious errors in offsert computation
+    for _ in range(0,1000):
+
+        offsetFilter = vtkvmtk.vtkvmtkCenterlineReferenceSystemAttributesOffset()
+
+        offsetFilter.SetInputData(
+            tools.CopyVtkObject(centerlines)
+        )
+
+        offsetFilter.SetReferenceSystems(ref_systems)
+        offsetFilter.SetAbscissasArrayName(names.vmtkAbscissasArrayName)
+        offsetFilter.SetNormalsArrayName(names.vmtkParallelTransportArrayName)
+
+        offsetFilter.SetOffsetAbscissasArrayName(names.vmtkAbscissasArrayName)
+        offsetFilter.SetOffsetNormalsArrayName(names.vmtkParallelTransportArrayName)
+
+        offsetFilter.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
+        offsetFilter.SetCenterlineIdsArrayName(names.vmtkCenterlineIdsArrayName)
+
+        offsetFilter.SetReferenceSystemsNormalArrayName(
+            names.vmtkReferenceSystemsNormalArrayName
+        )
+
+        offsetFilter.SetReferenceSystemsGroupIdsArrayName(
+            names.vmtkGroupIdsArrayName
+        )
+
+        offsetFilter.SetReferenceGroupId(bif_group_id)
+        offsetFilter.Update()
+
+        offsetCenterlines = offsetFilter.GetOutput()
+
+        newMaxLength = cl.CenterlineMaxLength(offsetCenterlines)
+
+        if not np.abs(newMaxLength - maxLength) > 1.0:
+            break
+
+    return offsetCenterlines
+
 def ClipVasculatureOffBifurcation(
         vascular_surface: names.polyDataType,
         centerlines: names.polyDataType,
@@ -2498,13 +2547,6 @@ def ClipVasculatureOffBifurcation(
     # Get bifuraction list
     referenceSystems = bifsRefSystem.ReferenceSystems
 
-    # Get max length with original Abscissas array for later comparison
-    abscissasRange = geoCenterlines.GetPointData().GetArray(
-                         names.vmtkAbscissasArrayName
-                     ).GetRange()
-
-    maxLength = max(abscissasRange) - min(abscissasRange)
-
     # Get ICA-MCA-ACA bifurcation
     if bif_point is None:
 
@@ -2523,54 +2565,11 @@ def ClipVasculatureOffBifurcation(
                   )
 
     # Offset attributes to the bifurcation
-    # I noticed that offset filter was computing wrong offset Abscissas array
-    # in an inconsistent way and pretty randomic way. So I put wthis check
-    # comparing the new abscissas range and the original one.
-    # TODO: report this behavior in the website
-    for _ in range(0,100):
-
-
-        offsetFilter = vtkvmtk.vtkvmtkCenterlineReferenceSystemAttributesOffset()
-
-        offsetFilter.SetInputData(geoCenterlines)
-        offsetFilter.SetReferenceSystems(referenceSystems)
-
-        offsetFilter.SetAbscissasArrayName(names.vmtkAbscissasArrayName)
-        offsetFilter.SetNormalsArrayName(names.vmtkParallelTransportArrayName)
-
-        offsetFilter.SetOffsetAbscissasArrayName(
-            names.vmtkAbscissasArrayName
-        )
-
-        offsetFilter.SetOffsetNormalsArrayName(
-            names.vmtkParallelTransportArrayName
-        )
-
-        offsetFilter.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
-        offsetFilter.SetCenterlineIdsArrayName(names.vmtkCenterlineIdsArrayName)
-
-        offsetFilter.SetReferenceSystemsNormalArrayName(
-            bifsRefSystem.ReferenceSystemsNormalArrayName
-        )
-
-        offsetFilter.SetReferenceSystemsGroupIdsArrayName(
-            bifsRefSystem.GroupIdsArrayName
-        )
-
-        offsetFilter.SetReferenceGroupId(bifGroupId)
-        offsetFilter.Update()
-
-        # Offset abscissas centerlines
-        offsetCenterlines = offsetFilter.GetOutput()
-
-        offsetAbscissasRange = offsetCenterlines.GetPointData().GetArray(
-                                   names.vmtkAbscissasArrayName
-                               ).GetRange()
-
-        newMaxLength = max(offsetAbscissasRange) - min(offsetAbscissasRange)
-
-        if not np.abs(newMaxLength - maxLength) > 1.0:
-            break
+    offsetCenterlines = _robust_offset_centerline(
+                            geoCenterlines,
+                            referenceSystems,
+                            bifGroupId
+                        )
 
     # Identify the bifurcation GroupId and its Abscissas closer to the aneurysm
     if aneurysm_point is None:
@@ -2588,8 +2587,9 @@ def ClipVasculatureOffBifurcation(
 
     onlyBifurcations = tools.ExtractPortion(
                            offsetCenterlines,
-                           "Blanking", # only centerlines potions of bifs.
-                           1.0
+                           # only centerlines potions of bifs.
+                           names.vmtkBlankingArrayName,
+                           const.one
                        )
 
     # Get also the group id of the portion where the aneurysm is
@@ -2607,6 +2607,10 @@ def ClipVasculatureOffBifurcation(
                           )
 
     # Check whether passed clip values are within the clip field range
+    offsetAbscissasRange = offsetCenterlines.GetPointData().GetArray(
+                                names.vmtkAbscissasArrayName
+                            ).GetRange()
+
     if inlet_vessel_clip_value < min(offsetAbscissasRange):
 
         raise ValueError(
