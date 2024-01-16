@@ -448,3 +448,31 @@ def CenterlineMaxLength(
                         ).GetRange()
 
     return max(abscissasRange) - min(abscissasRange)
+
+def CenterlineBranching(
+        centerlines: names.polyDataType
+    )   -> names.polyDataType:
+    """Define centerline branching fields."""
+
+    branches = vmtkscripts.vmtkBranchExtractor()
+    branches.Centerlines = centerlines
+    branches.Execute()
+
+    return branches.Centerlines
+
+def CenterlineReferenceSystems(
+        centerlines: names.polyDataType
+    )   -> names.polyDataType:
+    """Compute VTK Polydata with reference systems of vasculature
+    bifurcations."""
+
+    # Computing the bifurcation reference system
+    bifsRefSystem = vmtkscripts.vmtkBifurcationReferenceSystems()
+
+    bifsRefSystem.Centerlines       = centerlines
+    bifsRefSystem.RadiusArrayName   = names.VascularRadiusArrayName
+    bifsRefSystem.GroupIdsArrayName = names.vmtkGroupIdsArrayName
+    bifsRefSystem.ReferenceSystemsNormalArrayName = names.vmtkReferenceSystemsNormalArrayName
+    bifsRefSystem.Execute()
+
+    return bifsRefSystem.ReferenceSystems
