@@ -74,12 +74,14 @@ SqrMeanCurvatureArrayName  = "SqrMeanCurvature"
 # VMTK's array names
 vmtkCenterlineIdsArrayName  = "CenterlineIds"
 vmtkGroupIdsArrayName       = "GroupIds"
+vmtkBlankingArrayName       = "Blanking"
 vmtkLengthArrayName         = "Length"
 vmtkAbscissasArrayName      = "Abscissas"
 vmtkFrenetTangentArrayName  = "FrenetTangent"
 vmtkFrenetNormalArrayName   = "FrenetNormal"
 vmtkFrenetBinormalArrayName = "FrenetBinormal"
 vmtkParallelTransportArrayName = "ParallelTransportNormals"
+vmtkReferenceSystemsNormalArrayName = "Normal"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility

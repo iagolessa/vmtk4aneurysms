@@ -430,3 +430,21 @@ def ComputeClPatchEndPointParameters(
         vtk.vtkMath.Normalize(tan)
 
     return tan, point0, radius0
+
+def CenterlineMaxLength(
+        centerlines: names.polyDataType
+    )   -> float:
+    """Compute max. length of vascular tree centerline."""
+
+    if names.vmtkAbscissasArrayName not in tools.GetPointArrays(centerlines):
+
+        centerlines = cl.ComputeCenterlineGeometry(
+                            centerlines
+                        )
+
+
+    abscissasRange = centerlines.GetPointData().GetArray(
+                            names.vmtkAbscissasArrayName
+                        ).GetRange()
+
+    return max(abscissasRange) - min(abscissasRange)
