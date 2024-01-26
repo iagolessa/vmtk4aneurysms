@@ -41,6 +41,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         # Public member
         self.Surface = None
         self.Centerlines = None
+        self.ClipMode = "abscissas"
         self.InletClipValue = -40.0
         self.OutletRelativeClipValue = 8.0
         self.Aneurysm = True
@@ -78,8 +79,17 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 'the centerlines of the input surface (optional; if not '\
                 'passed, it is calculated automatically', 'vmtksurfacereader'],
 
+            ['ClipMode','clipmode', 'str', 1,
+                '["picklocations", "carotide", "basilar", "abscissas"]',
+                'how to clip the vessels: "picklocations" prompts the user'\
+                 'to select the points on the surface; "carotide" is meant for '\
+                 'a vasculature which inlet is the internal carotide artery '\
+                 'and "basilar" for the basilar artery vasculature; '\
+                 '"abscissas" the user passes an abscissas value for the '\
+                 'inlet and outlets.'],
+
             ['InletClipValue', 'inletclipvalue', 'float', 1, '(,0.0)',
-                'relative distance off bifurcation where to clip'],
+                'relative distance off bifurcation where to clip an inlet'],
 
             ['OutletRelativeClipValue', 'outletclipvalue', 'float', 1, '(0.0,)',
                 'relative distance off bifrucation, or aneurysm, where to clip'],
@@ -139,6 +149,21 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
         self.Surface = remesher.Surface
 
+    def ClipByICABifurcation(self):
+
+        return True if self.ClipMode == "carotide" else False
+
+    def ClipByBABifurcation(self):
+
+        return True if self.ClipMode == "basilar" else False
+
+    def ClipByAbscissas(self):
+
+        return True if self.ClipMode == "abscissas" else False
+
+    def InteractiveClip(self):
+
+        return True if self.ClipMode == "picklocations" else False
 
     def Execute(self):
         if self.Surface == None:
@@ -158,16 +183,43 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                            smooth_boundary=True
                        )
 
-        self.Surface = vscop.ClipVasculatureOffBifurcation(
-                           self.Surface,
-                           self.Centerlines,
-                           inlet_vessel_clip_value=self.InletClipValue,
-                           outlet_vessel_clip_value=self.OutletRelativeClipValue,
-                           bif_point=tuple(self.BifPoint) \
-                                     if self.BifPoint else None,
-                           aneurysm_point=tuple(self.AneurysmPoint) \
-                                          if self.AneurysmPoint else None,
-                       )
+        # Clip vessels
+        if self.InteractiveClip():
+
+            self.Surface = vscop.ClipVasculature(
+                               self.Surface,
+                               centerlines=self.Centerlines
+                           )
+
+        else:
+
+            if self.ClipByICABifurcation():
+
+                # Redefine values of clip positions
+                self.OutletRelativeClipValue = 8.0
+                self.InletClipValue = -40.0
+
+                # If clipping by bend: change here the inlet value
+
+            elif self.ClipByBABifurcation():
+
+                # Redefine values of clip positions
+                self.OutletRelativeClipValue = 10.0
+                self.InletClipValue = -25.0
+
+            # If clip mode is abscissas, then the values used will be the ones
+            # passed originally
+            self.Surface = vscop.ClipVasculatureOffBifurcation(
+                               self.Surface,
+                               self.Centerlines,
+                               inlet_vessel_clip_value=self.InletClipValue,
+                               outlet_vessel_clip_value=self.OutletRelativeClipValue,
+                               bif_point=tuple(self.BifPoint) \
+                                         if self.BifPoint else None,
+                               aneurysm_point=tuple(self.AneurysmPoint) \
+                                              if self.AneurysmPoint else None,
+                           )
+
 
         # Adding flow extensions
         flowExtensions = vmtkscripts.vmtkFlowExtensions()
@@ -205,6 +257,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         cappedSurface = capper.GetOutput()
 
         if self.SnappyHexMeshFilesDir is not None:
+
             # Write wall file after remesh
             tools.WriteSurface(
                 self.Surface,
