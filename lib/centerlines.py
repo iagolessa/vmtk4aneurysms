@@ -438,7 +438,7 @@ def CenterlineMaxLength(
 
     if names.vmtkAbscissasArrayName not in tools.GetPointArrays(centerlines):
 
-        centerlines = cl.ComputeCenterlineGeometry(
+        centerlines = ComputeCenterlineGeometry(
                             centerlines
                         )
 
