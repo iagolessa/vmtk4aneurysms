@@ -476,3 +476,19 @@ def CenterlineReferenceSystems(
     bifsRefSystem.Execute()
 
     return bifsRefSystem.ReferenceSystems
+
+def SmoothCenterline(
+        centerlines: names.polyDataType,
+        niterations: int=100,
+        smoothing_factor: float=1.25
+    )   -> names.polyDataType:
+    """Smooth the 3D contour of centerline."""
+
+    smoother = vmtkscripts.vmtkCenterlineSmoothing()
+
+    smoother.Centerlines = centerlines
+    smoother.NumberOfSmoothingIterations = niterations
+    smoother.SmoothingFactor = smoothing_factor
+    smoother.Execute()
+
+    return smoother.Centerlines
