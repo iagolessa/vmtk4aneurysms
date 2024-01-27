@@ -28,6 +28,7 @@ from vmtk import vmtkscripts
 from vmtk4aneurysms import vascular_operations as vscop
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import polydatatools as tools
+from vmtk4aneurysms.lib import centerlines as cl
 from vmtk4aneurysms.pypescripts import v4aScripts
 
 vmtksurfacevasculatureforcfd = 'vmtkSurfaceVasculatureForCFD'
@@ -49,6 +50,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         self.Interactive = False
         self.BifPoint = None
         self.AneurysmPoint = None
+        self.BendToClip = None
 
         self.MinResolutionValue = 0.125
         self.MaxResolutionValue = 0.250
@@ -115,6 +117,9 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
             ['AneurysmPoint','aneurysmpoint', 'float', -1, '',
                 'coordinates of point at the aneurysm sac'],
 
+            ['BendToClip', 'bendtoclip', 'int', 1, '(1,6)',
+                'the bend at which to clip if "carotide" (including this bend)'],
+
             ['SnappyHexMeshFilesDir','writedir', 'str' , 1, '',
                  'write directory path for snappyHexMesh stl files'],
 
@@ -165,6 +170,38 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
         return True if self.ClipMode == "picklocations" else False
 
+    def CharacterizeCentelineFromBif(self, centerlines):
+
+        geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
+        geoCenterlines = cl.CenterlineBranching(geoCenterlines)
+
+        # Compute ref. systems to get ICA bif
+        referenceSystems = cl.CenterlineReferenceSystems(geoCenterlines)
+
+        # Get ICA-MCA-ACA bifurcation
+        if self.BifPoint is None:
+            self.BifPoint = tools.SelectSurfacePoint(
+                                self.Surface,
+                                input_text="Select point at the ICA bifurcation\n"
+                            )
+
+        icaBifGroupId = int(
+                            vscop._get_field_value_at_closest_point(
+                                referenceSystems,
+                                self.BifPoint,
+                                names.vmtkGroupIdsArrayName
+                            )
+                        )
+
+        offsetCenterlines = vscop._robust_offset_centerline(
+                                geoCenterlines,
+                                referenceSystems,
+                                icaBifGroupId
+                            )
+
+        return offsetCenterlines
+
+
     def Execute(self):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
@@ -195,11 +232,31 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
             if self.ClipByICABifurcation():
 
-                # Redefine values of clip positions
-                self.OutletRelativeClipValue = 8.0
-                self.InletClipValue = -40.0
+                # Get distal limit of the bend passed
+                if self.BendToClip is None:
+                    self.PrintError(
+                        'If "carotide" clip mode, I need a bend value.\n'
+                    )
 
                 # If clipping by bend: change here the inlet value
+                smoothedCenterlines = self.CharacterizeCentelineFromBif(
+                                          cl.SmoothCenterline(self.Centerlines)
+                                      )
+
+                bendLimits = vscop.ComputeICABendsLimits(smoothedCenterlines)
+
+                if self.BendToClip >= len(bendLimits):
+                    self.OutputText(
+                        "Bend has only {} bends to clip. Clipping at the last one.\n".format(
+                            len(bendLimits) - 1 # excludes the zeroth one
+                        )
+                    )
+
+                    self.InletClipValue = min(bendLimits[len(bendLimits) - 1])
+
+                else:
+                    self.InletClipValue = min(bendLimits[self.BendToClip])
+
 
             elif self.ClipByBABifurcation():
 
