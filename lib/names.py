@@ -67,6 +67,8 @@ MeanCurvatureArrayName     = "Mean_Curvature"
 MaxCurvatureArrayName      = "Maximum_Curvature"
 MinCurvatureArrayName      = "Minimum_Curvature"
 SeamScalarsArrayName       = "SeamScalars"
+TorsionArrayName           = "Torsion"
+CurvatureArrayName         = "Curvature"
 
 SqrGaussCurvatureArrayName = "SqrGaussCurvature"
 SqrMeanCurvatureArrayName  = "SqrMeanCurvature"
