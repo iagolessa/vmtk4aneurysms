@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Collection of tools that operate or are relateed to centerlines."""
+"""Collection of tools that operate or are related to centerlines."""
 
 import vtk
 import numpy as np
@@ -492,3 +492,85 @@ def SmoothCenterline(
     smoother.Execute()
 
     return smoother.Centerlines
+
+def _robust_offset_centerline(
+        centerlines: names.polyDataType,
+        ref_systems: names.polyDataType,
+        bif_group_id: int
+    )   -> names.polyDataType:
+
+    # Get original max length
+    # Compute original range of abscissas
+    maxLength = CenterlineMaxLength(centerlines)
+
+    # TODO: How to better handle this?
+    # Iterate to avoid spourious errors in offsert computation
+    for _ in range(0,1000):
+
+        offsetFilter = vtkvmtk.vtkvmtkCenterlineReferenceSystemAttributesOffset()
+
+        offsetFilter.SetInputData(
+            tools.CopyVtkObject(centerlines)
+        )
+
+        offsetFilter.SetReferenceSystems(ref_systems)
+        offsetFilter.SetAbscissasArrayName(names.vmtkAbscissasArrayName)
+        offsetFilter.SetNormalsArrayName(names.vmtkParallelTransportArrayName)
+
+        offsetFilter.SetOffsetAbscissasArrayName(names.vmtkAbscissasArrayName)
+        offsetFilter.SetOffsetNormalsArrayName(names.vmtkParallelTransportArrayName)
+
+        offsetFilter.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
+        offsetFilter.SetCenterlineIdsArrayName(names.vmtkCenterlineIdsArrayName)
+
+        offsetFilter.SetReferenceSystemsNormalArrayName(
+            names.vmtkReferenceSystemsNormalArrayName
+        )
+
+        offsetFilter.SetReferenceSystemsGroupIdsArrayName(
+            names.vmtkGroupIdsArrayName
+        )
+
+        offsetFilter.SetReferenceGroupId(bif_group_id)
+        offsetFilter.Update()
+
+        offsetCenterlines = offsetFilter.GetOutput()
+
+        newMaxLength = CenterlineMaxLength(offsetCenterlines)
+
+        if not np.abs(newMaxLength - maxLength) > 1.0:
+            break
+
+    return offsetCenterlines
+
+def ComputeCenterlinePropertiesOffBifurcation(
+        centerlines: names.polyDataType,
+        bif_point: tuple
+    )   -> names.polyDataType:
+    """Compue centerline geometry and branching from ref. bifurcation.
+
+    Given a vascular tree centerline and a point next to the reference
+    bifurcation, compute its geometry and branching properties. The Abscissas
+    are offset to the bifurcation closest to the ref. point passed.
+    """
+
+    geoCenterlines = ComputeCenterlineGeometry(centerlines)
+    geoCenterlines = CenterlineBranching(geoCenterlines)
+
+    # Compute ref. systems to get ICA bif
+    referenceSystems = CenterlineReferenceSystems(geoCenterlines)
+
+    # Get ICA-MCA-ACA bifurcation
+    icaBifGroupId = int(
+                        tools.GetFieldValueAtClosestPoint(
+                            referenceSystems,
+                            bif_point,
+                            names.vmtkGroupIdsArrayName
+                        )
+                    )
+
+    return _robust_offset_centerline(
+               geoCenterlines,
+               referenceSystems,
+               icaBifGroupId
+           )

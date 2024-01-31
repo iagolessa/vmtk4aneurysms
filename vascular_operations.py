@@ -2371,38 +2371,6 @@ def ComputeVasculatureElasticityWithAneurysm(
 
     return vascular_surface
 
-def _get_field_value_at_closest_point(
-        vtk_object,
-        point,
-        point_field_name
-    ):
-
-    if point_field_name in tools.GetCellArrays(vtk_object):
-
-        vtk_object = tools.CellFieldToPointField(
-                        vtk_object,
-                        cell_field_name=point_field_name
-                    )
-
-    # Get closest point to ICA at the bifurcation found
-    bifPoint = tools.LocateClosestPointOnPolyData(
-                    vtk_object,
-                    point
-                )
-
-    npVtkObject = dsa.WrapDataObject(vtk_object)
-
-    # Get ID of ICA bifurcation
-    bifId = np.all(
-                npVtkObject.Points == bifPoint,
-                axis=1
-            ).argmax()
-
-    # Get ID of ICA in GroupIds for offset attributes
-    bifGroupIds = npVtkObject.PointData.GetArray(point_field_name)
-
-    return bifGroupIds[bifId]
-
 def _split_centerline_object(centerlines):
     """Split tree centerline into dict of its centerlines components."""
 
@@ -2447,55 +2415,6 @@ def _split_centerline_object(centerlines):
         })
 
     return individualCenterlines
-
-def _robust_offset_centerline(
-        centerlines: names.polyDataType,
-        ref_systems: names.polyDataType,
-        bif_group_id: int
-    )   -> names.polyDataType:
-
-    # Get original max length
-    # Compute original range of abscissas
-    maxLength = cl.CenterlineMaxLength(centerlines)
-
-    # Iterate to avoid spourious errors in offsert computation
-    for _ in range(0,1000):
-
-        offsetFilter = vtkvmtk.vtkvmtkCenterlineReferenceSystemAttributesOffset()
-
-        offsetFilter.SetInputData(
-            tools.CopyVtkObject(centerlines)
-        )
-
-        offsetFilter.SetReferenceSystems(ref_systems)
-        offsetFilter.SetAbscissasArrayName(names.vmtkAbscissasArrayName)
-        offsetFilter.SetNormalsArrayName(names.vmtkParallelTransportArrayName)
-
-        offsetFilter.SetOffsetAbscissasArrayName(names.vmtkAbscissasArrayName)
-        offsetFilter.SetOffsetNormalsArrayName(names.vmtkParallelTransportArrayName)
-
-        offsetFilter.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
-        offsetFilter.SetCenterlineIdsArrayName(names.vmtkCenterlineIdsArrayName)
-
-        offsetFilter.SetReferenceSystemsNormalArrayName(
-            names.vmtkReferenceSystemsNormalArrayName
-        )
-
-        offsetFilter.SetReferenceSystemsGroupIdsArrayName(
-            names.vmtkGroupIdsArrayName
-        )
-
-        offsetFilter.SetReferenceGroupId(bif_group_id)
-        offsetFilter.Update()
-
-        offsetCenterlines = offsetFilter.GetOutput()
-
-        newMaxLength = cl.CenterlineMaxLength(offsetCenterlines)
-
-        if not np.abs(newMaxLength - maxLength) > 1.0:
-            break
-
-    return offsetCenterlines
 
 def ComputeICABendsLimits(
         centerlines: names.polyDataType,
@@ -2710,16 +2629,6 @@ def ClipVasculatureOffBifurcation(
     'bif_point'. If None, the user is prompted to interactively select it.
     """
 
-    # Compute centerlines abscissas and other attributes
-    geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
-
-    # Perform branching
-    geoCenterlines = cl.CenterlineBranching(geoCenterlines)
-
-    # Computing the bifurcation reference system
-    referenceSystems = cl.CenterlineReferenceSystems(geoCenterlines)
-
-    # Get ICA-MCA-ACA bifurcation
     if bif_point is None:
 
         bif_point = tools.SelectSurfacePoint(
@@ -2727,21 +2636,24 @@ def ClipVasculatureOffBifurcation(
                         input_text="Select point at the ICA bifurcation\n"
                     )
 
+    # Compute centerlines abscissas and other attributes
+    offsetCenterlines = cl.ComputeCenterlinePropertiesOffBifurcation(
+                            centerlines,
+                            bif_point
+                        )
+
+    # Computing the bifurcation reference system
+    referenceSystems = cl.CenterlineReferenceSystems(offsetCenterlines)
+
+    # Get ICA-MCA-ACA bifurcation
     # Get closest point to ICA at the bifurcation found
     bifGroupId  = int(
-                      _get_field_value_at_closest_point(
+                      tools.GetFieldValueAtClosestPoint(
                           referenceSystems,
                           bif_point,
                           names.vmtkGroupIdsArrayName
                       )
                   )
-
-    # Offset attributes to the bifurcation
-    offsetCenterlines = _robust_offset_centerline(
-                            geoCenterlines,
-                            referenceSystems,
-                            bifGroupId
-                        )
 
     # Identify the bifurcation GroupId and its Abscissas closer to the aneurysm
     if aneurysm_point is None:
@@ -2765,14 +2677,14 @@ def ClipVasculatureOffBifurcation(
                        )
 
     # Get also the group id of the portion where the aneurysm is
-    iaAbscissasClosestBif = _get_field_value_at_closest_point(
+    iaAbscissasClosestBif = tools.GetFieldValueAtClosestPoint(
                                   onlyBifurcations,
                                   iaClosestPointToBif,
                                   names.vmtkAbscissasArrayName
                             )
 
     # Get also the group id of the portion where the aneurysm is
-    iaGroupIdClosestBif = _get_field_value_at_closest_point(
+    iaGroupIdClosestBif = tools.GetFieldValueAtClosestPoint(
                                 onlyBifurcations,
                                 aneurysm_point,
                                 names.vmtkGroupIdsArrayName
