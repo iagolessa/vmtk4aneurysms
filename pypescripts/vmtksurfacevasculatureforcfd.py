@@ -170,38 +170,6 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
         return True if self.ClipMode == "picklocations" else False
 
-    def CharacterizeCentelineFromBif(self, centerlines):
-
-        geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
-        geoCenterlines = cl.CenterlineBranching(geoCenterlines)
-
-        # Compute ref. systems to get ICA bif
-        referenceSystems = cl.CenterlineReferenceSystems(geoCenterlines)
-
-        # Get ICA-MCA-ACA bifurcation
-        if self.BifPoint is None:
-            self.BifPoint = tools.SelectSurfacePoint(
-                                self.Surface,
-                                input_text="Select point at the ICA bifurcation\n"
-                            )
-
-        icaBifGroupId = int(
-                            vscop._get_field_value_at_closest_point(
-                                referenceSystems,
-                                self.BifPoint,
-                                names.vmtkGroupIdsArrayName
-                            )
-                        )
-
-        offsetCenterlines = vscop._robust_offset_centerline(
-                                geoCenterlines,
-                                referenceSystems,
-                                icaBifGroupId
-                            )
-
-        return offsetCenterlines
-
-
     def Execute(self):
         if self.Surface == None:
             self.PrintError('Error: no Surface.')
@@ -238,9 +206,17 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                         'If "carotide" clip mode, I need a bend value.\n'
                     )
 
+                # Get ICA-MCA-ACA bifurcation
+                if self.BifPoint is None:
+                    self.BifPoint = tools.SelectSurfacePoint(
+                                        self.Surface,
+                                        input_text="Select point at the ICA bifurcation\n"
+                                    )
+
                 # If clipping by bend: change here the inlet value
-                smoothedCenterlines = self.CharacterizeCentelineFromBif(
-                                          cl.SmoothCenterline(self.Centerlines)
+                smoothedCenterlines = cl.ComputeCenterlinePropertiesOffBifurcation(
+                                          cl.SmoothCenterline(self.Centerlines),
+                                          self.BifPoint
                                       )
 
                 bendLimits = vscop.ComputeICABendsLimits(smoothedCenterlines)

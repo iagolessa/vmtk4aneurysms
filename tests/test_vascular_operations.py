@@ -58,26 +58,9 @@ class TestVascularOperationsModule(unittest.TestCase):
         # Get ICA ref. point for case 1
         icaPoint = fn.get_ref_bif_point(caseId)
 
-        geoCenterlines = cl.ComputeCenterlineGeometry(
-                            cl.SmoothCenterline(centerlines)
-                        )
-
-        geoCenterlines = cl.CenterlineBranching(geoCenterlines)
-
-        referenceSystems = cl.CenterlineReferenceSystems(geoCenterlines)
-
-        icaBifGroupId = int(
-                            vscop._get_field_value_at_closest_point(
-                                referenceSystems,
-                                icaPoint,
-                                names.vmtkGroupIdsArrayName
-                            )
-                        )
-
-        offsetCenterlines = vscop._robust_offset_centerline(
-                                geoCenterlines,
-                                referenceSystems,
-                                icaBifGroupId
+        offsetCenterlines = cl.ComputeCenterlinePropertiesOffBifurcation(
+                                cl.SmoothCenterline(centerlines),
+                                icaPoint
                             )
 
         bendLimits = vscop.ComputeICABendsLimits(offsetCenterlines)

@@ -18,6 +18,7 @@
 import os
 import sys
 import math
+import numpy as np
 import pandas as pd
 from typing import Union
 from copy import copy
@@ -47,6 +48,42 @@ def LocateClosestPointOnPolyData(
     closestPointId = locator.FindClosestPoint(point)
 
     return tuple(polydata.GetPoint(closestPointId))
+
+def GetFieldValueAtClosestPoint(
+        vtk_object,
+        point,
+        point_field_name
+    ):
+    """Get the point_field_name value in vtk_object at its closest point to the
+    point passed.
+    """
+
+    if point_field_name in GetCellArrays(vtk_object) and \
+       point_field_name not in GetPointArrays(vtk_object):
+
+        vtk_object = CellFieldToPointField(
+                        vtk_object,
+                        cell_field_name=point_field_name
+                    )
+
+    # Get closest point to ICA at the bifurcation found
+    bifPoint = LocateClosestPointOnPolyData(
+                   vtk_object,
+                   point
+               )
+
+    npVtkObject = dsa.WrapDataObject(vtk_object)
+
+    # Get ID of ICA bifurcation
+    bifId = np.all(
+                npVtkObject.Points == bifPoint,
+                axis=1
+            ).argmax()
+
+    # Get ID of ICA in GroupIds for offset attributes
+    bifGroupIds = npVtkObject.PointData.GetArray(point_field_name)
+
+    return bifGroupIds[bifId]
 
 def UnsGridToPolyData(
         mesh: names.unstructuredGridType
