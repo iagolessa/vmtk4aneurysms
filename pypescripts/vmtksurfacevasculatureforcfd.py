@@ -82,10 +82,10 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 'passed, it is calculated automatically', 'vmtksurfacereader'],
 
             ['ClipMode','clipmode', 'str', 1,
-                '["picklocations", "carotide", "basilar", "abscissas"]',
+                '["picklocations", "ica", "basilar", "abscissas"]',
                 'how to clip the vessels: "picklocations" prompts the user'\
-                 'to select the points on the surface; "carotide" is meant for '\
-                 'a vasculature which inlet is the internal carotide artery '\
+                 'to select the points on the surface; "ica" is meant for '\
+                 'a vasculature which inlet is the internal ica artery '\
                  'and "basilar" for the basilar artery vasculature; '\
                  '"abscissas" the user passes an abscissas value for the '\
                  'inlet and outlets.'],
@@ -118,7 +118,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 'coordinates of point at the aneurysm sac'],
 
             ['BendToClip', 'bendtoclip', 'int', 1, '(1,6)',
-                'the bend at which to clip if "carotide" (including this bend)'],
+                'the bend at which to clip if "ica" (including this bend)'],
 
             ['SnappyHexMeshFilesDir','writedir', 'str' , 1, '',
                  'write directory path for snappyHexMesh stl files'],
@@ -156,7 +156,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
     def ClipByICABifurcation(self):
 
-        return True if self.ClipMode == "carotide" else False
+        return True if self.ClipMode == "ica" else False
 
     def ClipByBABifurcation(self):
 
@@ -203,7 +203,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 # Get distal limit of the bend passed
                 if self.BendToClip is None:
                     self.PrintError(
-                        'If "carotide" clip mode, I need a bend value.\n'
+                        'If "ica" clip mode, I need a bend value.\n'
                     )
 
                 # Get ICA-MCA-ACA bifurcation
@@ -377,7 +377,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
             # Write open profile centers info
             with open(self.OpenProfilesCentersFile, "a") as file_:
 
-                file_.write("ProfileType, CenterX, CenterY, CenterZ\n")
+                file_.write("ProfileType,CenterX,CenterY,CenterZ\n")
 
                 for fname, (_, center) in inletContours.items():
 
