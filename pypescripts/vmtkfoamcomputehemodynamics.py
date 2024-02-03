@@ -43,11 +43,14 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
         self.HemodynamicsSurface = None
         self.PressureSurface = None
         self.TemporalDataFile = None
+        self.FixedPoints = None
+        self.NearWallTransportWssName = "WSS_average"
 
         self.BloodDensity = 1056.0
         self.ComputePressureStats = False
         self.ComputeGon = False
         self.ComputeAfi = False
+        self.ComputeNearWallTransport = True
         self.ScaleSurface = True
 
         self.FoamMultiRegion = False
@@ -84,6 +87,9 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
             ['ComputeAfi', 'computeafi', 'bool', 1, '',
                 'activates computations of the aneurysm formation indicator'],
 
+            ['ComputeNearWallTransport', 'nearwalltransport', 'bool', 1, '',
+                'activates computations of near wall transport features'],
+
             ['ScaleSurface', 'scalesurface', 'bool', 1, '',
                 'scale geometry back to millimeters units'],
 
@@ -102,7 +108,11 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
              'the output surface with hemodynamics data', 'vmtksurfacewriter'],
 
             ['PressureSurface', 'opressure', 'vtkPolyData', 1, '',
-             'the output surface with pressure data', 'vmtksurfacewriter']
+             'the output surface with pressure data', 'vmtksurfacewriter'],
+
+            ['FixedPoints', 'ofixedpoints', 'vtkPolyData', 1, '',
+             'the output fixed points of the near wall transport',
+             'vmtksurfacewriter']
         ])
 
     def Execute(self):
@@ -163,6 +173,15 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
                                            self.PressureSurface,
                                            1.0e3
                                        )
+
+        if self.ComputeNearWallTransport:
+            (
+                self.HemodynamicsSurface,
+                self.FixedPoints
+            ) = hm.NearWallTransportFeatures(
+                    self.HemodynamicsSurface,
+                    self.NearWallTransportWssName
+                )
 
         # Compute temporal evolution of WSS over the *whole surface*
         fieldAvgOverTime = hm.WssSurfaceAverage(
