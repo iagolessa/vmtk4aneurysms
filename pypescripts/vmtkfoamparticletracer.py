@@ -55,6 +55,8 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
             ['FirstTimeStep','firststep','int',1,'(0,)'],
             ['LastTimeStep','laststep','int',1,'(0,)'],
             ['IntervalTimeStep','intervalstep','int',1,'(0,)'],
+            ['CfdMesh','cfdmesh','vtkUnstructuredGrid',1,'','mesh with merged time-steps', 
+				'vmtkmeshreader'],
             ['Source','s','vtkPolyData',1,'','source points', 'vmtksurfacereader'],
             ['Animate','animate','bool',1,'','whether to compute animation'],
             ['MinSpeed','minspeed','float',1,'(0.0,)','lower speed threshold']
@@ -66,6 +68,18 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
         ])
 
     def _merge_time_steps(self):
+        if not self.InputDirectoryName:
+            self.PrintError('Error: no directory.')
+
+        if not self.Pattern:
+            self.PrintError('Error: no pattern.')
+
+        if not self.FirstTimeStep:
+            self.PrintError('Error: no first timestep.')
+
+        if not self.LastTimeStep:
+            self.PrintError('Error: no last timestep.')
+
         timeStepMerger = vmtkscripts.vmtkMeshMergeTimesteps()
         timeStepMerger.InputDirectoryName = self.InputDirectoryName
         timeStepMerger.Pattern = self.Pattern
@@ -84,41 +98,30 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
 
     def Execute(self):
 
-        if not self.InputDirectoryName:
-            self.PrintError('Error: no directory.')
-
-        if not self.Pattern:
-            self.PrintError('Error: no pattern.')
-
-        if not self.FirstTimeStep:
-            self.PrintError('Error: no first timestep.')
-
-        if not self.LastTimeStep:
-            self.PrintError('Error: no last timestep.')
-
         if not self.CfdMesh:
             # Generate merged mesh
             self._merge_time_steps()
 
         # Generate source
         # Remesh it so it have more uniformly distributed points
-        source = tools.RemeshSurface(
-                     tools.Cleaner(self.Source),
-                     target_cell_area=0.01
+        self.Source = tools.RemeshSurface(
+                     tools.Cleaner(self.Source)
+					 # iterations=5
+                     # target_cell_area=0.01
                  )
 
         # Resample the fields of the mesh to the
         # (avoid error from the script)
-        source = tools.ResampleFieldsToSurface(
-                     cfdMesh,
-                     source
-                 )
+        self.Source = tools.ResampleFieldsToSurface(
+						 self.CfdMesh,
+						 self.Source
+					 )
 
         # Compute traces
         particleTracer = vmtkscripts.vmtkParticleTracer()
 
-        particleTracer.Mesh = cfdMesh
-        particleTracer.Source = source
+        particleTracer.Mesh = self.CfdMesh
+        particleTracer.Source = self.Source
 
         # I remember these two args were important to get a correct trace
         particleTracer.MaximumNumberOfSteps = 10000000000
