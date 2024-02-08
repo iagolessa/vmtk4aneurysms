@@ -788,7 +788,7 @@ def ResampleFieldsToSurface(
     # Convert all fields back to cell data in new mesh
     pointToCell = vtk.vtkPointDataToCellData()
     pointToCell.SetInputConnection(resampleToMidSurface.GetOutputPort())
-    pointToCell.PassPointDataOff()
+    pointToCell.PassPointDataOn()
     pointToCell.Update()
 
     return pointToCell.GetOutput()
