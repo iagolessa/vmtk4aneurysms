@@ -20,10 +20,12 @@ import vtk
 import sys
 import os
 
+from math import sqrt, pi
 from vmtk import pypes
 from vmtk import vmtkscripts
 
 from vmtk4aneurysms.lib import polydatatools as tools
+from vmtk4aneurysms.lib import polydatageometry as geo
 
 vmtkfoamparticletracer = 'vmtkFoamParticleTracer'
 
@@ -55,8 +57,6 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
             ['FirstTimeStep','firststep','int',1,'(0,)'],
             ['LastTimeStep','laststep','int',1,'(0,)'],
             ['IntervalTimeStep','intervalstep','int',1,'(0,)'],
-            ['CfdMesh','cfdmesh','vtkUnstructuredGrid',1,'','mesh with merged time-steps', 
-				'vmtkmeshreader'],
             ['Source','s','vtkPolyData',1,'','source points', 'vmtksurfacereader'],
             ['Animate','animate','bool',1,'','whether to compute animation'],
             ['MinSpeed','minspeed','float',1,'(0.0,)','lower speed threshold']
@@ -64,7 +64,9 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
 
         self.SetOutputMembers([
             ['Traces','o','vtkPolyData',1,'','the output traces',
-                'vmtksurfacewriter']
+                'vmtksurfacewriter'],
+            ['CfdMesh','ocfdmesh','vtkUnstructuredGrid',1,'','mesh with merged time-steps', 
+				'vmtkmeshwriter']
         ])
 
     def _merge_time_steps(self):
@@ -80,6 +82,7 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
         if not self.LastTimeStep:
             self.PrintError('Error: no last timestep.')
 
+        self.OutputText("Computing merged mesh\n")
         timeStepMerger = vmtkscripts.vmtkMeshMergeTimesteps()
         timeStepMerger.InputDirectoryName = self.InputDirectoryName
         timeStepMerger.Pattern = self.Pattern
@@ -98,26 +101,28 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
 
     def Execute(self):
 
-        if not self.CfdMesh:
+        # if self.CfdMesh:
             # Generate merged mesh
-            self._merge_time_steps()
+        self._merge_time_steps()
+
+        self.OutputText("Remeshing source\n")
 
         # Generate source
         # Remesh it so it have more uniformly distributed points
         self.Source = tools.RemeshSurface(
-                     tools.Cleaner(self.Source)
-					 # iterations=5
-                     # target_cell_area=0.01
-                 )
+                          tools.Cleaner(self.Source),
+                          target_cell_area=geo.Surface.Area(self.Source)/100.0
+                      )
 
         # Resample the fields of the mesh to the
         # (avoid error from the script)
         self.Source = tools.ResampleFieldsToSurface(
-						 self.CfdMesh,
-						 self.Source
-					 )
+                          self.CfdMesh,
+                          self.Source
+                      )
 
         # Compute traces
+        self.OutputText("Computing traces\n")
         particleTracer = vmtkscripts.vmtkParticleTracer()
 
         particleTracer.Mesh = self.CfdMesh
@@ -135,15 +140,14 @@ class vmtkFoamParticleTracer(pypes.pypeScript):
 
         if self.Animate:
             pass
-            # # Generate the animation
+            # # Generate the animation (with suitable setup for aneurysms cases)
             # particleAnimator = vmtkscripts.vmtkPathLineAnimator()
 
-            # particleAnimator.InputTracesInputFileName =
-            # particleAnimator.Traces =
-            # particleAnimator.TimeStep = 0.001
+            # particleAnimator.Traces = self.Traces
+            # particleAnimator.TimeStep = 1.0e-3
             # particleAnimator.Legend = 1
-            # particleAnimator.Method = "particles"
-            # particleAnimator.ImagesDirectory =
+            # particleAnimator.Method = "streaklines"
+            # particleAnimator.ImagesDirectory = self.InputDirectoryName
             # particleAnimator.ColorMap = "rainbow"
             # particleAnimator.ArrayName = "m/s"
             # particleAnimator.ArrayMax = 0.5
