@@ -406,7 +406,8 @@ def Cleaner(surface):
 def RemeshSurface(
         surface: names.polyDataType,
         target_cell_area: float=0.01,
-        iterations: int=10
+        iterations: int=10,
+        preserve_boundary: bool=True
     )   -> names.polyDataType:
     """Remesh surface using VMTK and tageting the cell area size.
 
@@ -428,7 +429,7 @@ def RemeshSurface(
     remesher.ElementSizeMode = 'area'
     remesher.TargetArea = target_cell_area
     remesher.NumberOfIterations = iterations
-    remesher.PreserveBoundaryEdges = 1
+    remesher.PreserveBoundaryEdges = preserve_boundary
     remesher.Execute()
 
     # Clean up garbage arrays in remesh procedure
