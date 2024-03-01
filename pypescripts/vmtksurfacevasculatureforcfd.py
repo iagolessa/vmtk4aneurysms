@@ -133,7 +133,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 'outlet files prefix (format: .stl)'],
 
             ['OpenProfilesCentersFile', 'ocentersfile', 'str', 1, '',
-             'file to store the centers of each inlet and outlet (CSV extension)']
+             'file to store the centers and radius of each inlet and outlet (CSV extension)']
         ])
 
         self.SetOutputMembers([
@@ -141,12 +141,12 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
                 'the output surface', 'vmtksurfacewriter']
         ])
 
-    def Remesh(self, iterations=10):
+    def Remesh(self, iterations=10, has_aneurysm=True):
 
         remesher = v4aScripts.vmtkSurfaceVasculatureRemeshing()
         remesher.Surface = tools.Cleaner(self.Surface)
         remesher.Centerlines = self.Centerlines
-        remesher.Aneurysm = self.Aneurysm
+        remesher.Aneurysm = has_aneurysm
         remesher.Iterations = iterations
         remesher.MinResolutionValue = self.MinResolutionValue
         remesher.MaxResolutionValue = self.MaxResolutionValue
@@ -177,9 +177,18 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         if self.Centerlines == None:
             self.PrintError('Error: no centerlines.')
 
+        if self.ClipByICABifurcation() and self.BendToClip is None:
+            self.PrintError(
+                'If "ica" clip mode, I need a bend value.\n'
+            )
+
         # We will have to do 2 remeshings: one to get a better initial surface
-        # Remesh with vasculature remshing script
-        self.Remesh(iterations=5)
+        # First remesh: do not include aneurysm to avoid interactive screen
+        # twice
+        self.Remesh(
+            iterations=5,
+            has_aneurysm=False
+        )
 
         # Smooth surface with Taubin's algorithm: allow change of boundary
         # points
@@ -199,12 +208,6 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         else:
 
             if self.ClipByICABifurcation():
-
-                # Get distal limit of the bend passed
-                if self.BendToClip is None:
-                    self.PrintError(
-                        'If "ica" clip mode, I need a bend value.\n'
-                    )
 
                 # Get ICA-MCA-ACA bifurcation
                 if self.BifPoint is None:
@@ -276,7 +279,11 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
         self.Surface = flowExtensions.Surface
 
-        self.Remesh(iterations=5)
+        # Second remeshing: include aneurysm if passed by user
+        self.Remesh(
+            iterations=5,
+            has_aneurysm=self.Aneurysm
+        )
 
         # Capping surface and saving the open profile caps to separate files
         # as required by snappyHexMesh
@@ -321,18 +328,44 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
             referenceSystems = boundarySystems.GetOutput()
 
             # get all open profile centers
-            openProfilesCenters =  [referenceSystems.GetPoint(idx)
-                                    for idx in range(referenceSystems.GetNumberOfPoints())]
+            openProfilesCenters = [
+                referenceSystems.GetPoint(idx)
+                for idx in range(referenceSystems.GetNumberOfPoints())
+            ]
 
             # Local only inlets based on user input
-            inletCenters = [tools.LocateClosestPointOnPolyData(
-                                referenceSystems,
-                                inletSeeds.GetPoint(idx)
-                            ) for idx in range(inletSeeds.GetNumberOfPoints())]
+            inletCenters = [
+                tools.LocateClosestPointOnPolyData(
+                    referenceSystems,
+                    inletSeeds.GetPoint(idx)
+                ) for idx in range(inletSeeds.GetNumberOfPoints())
+            ]
 
             # Get outlet centers
-            outletCenters = [point for point in openProfilesCenters
-                             if point not in inletCenters]
+            outletCenters = [
+                point
+                for point in openProfilesCenters
+                if point not in inletCenters
+            ]
+
+            # Get radius of profile to store it
+            # (the radius may be important to compute radius-dependent flow
+            # rate of vascular models
+            inletRadius = [
+                tools.GetFieldValueAtClosestPoint(
+                     referenceSystems,
+                     inletSeeds.GetPoint(idx),
+                     "Radius"
+                ) for idx in range(inletSeeds.GetNumberOfPoints())
+            ]
+
+            outletRadius = [
+                tools.GetFieldValueAtClosestPoint(
+                     referenceSystems,
+                     point,
+                     "Radius"
+                ) for point in outletCenters
+            ]
 
             # Get boundaries contours
             boundaryExtractor = vtkvmtk.vtkvmtkPolyDataBoundaryExtractor()
@@ -345,26 +378,40 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
             # identification of inlet and outlet
 
             # Store each contour with its file name in a dict for later writing
-            inletContours = {self.InletPrefix + str(idx + 1): (
-                                 tools.ExtractConnectedRegion(
-                                     boundaries,
-                                     method="closest",
-                                     closest_point=center
-                                 ), center
-                             ) for idx, center in enumerate(inletCenters)}
+            inletContours = {
+                self.InletPrefix + str(idx + 1): (
+                    tools.ExtractConnectedRegion(
+                        boundaries,
+                        method="closest",
+                        closest_point=center
+                    ), center, radius
+                )   for idx, (center, radius) in enumerate(
+                                                     zip(
+                                                         inletCenters,
+                                                         inletRadius
+                                                     )
+                                                 )
+            }
 
-            outletContours = {self.OutletPrefix + str(idx + 1): (
-                                  tools.ExtractConnectedRegion(
-                                      boundaries,
-                                      method="closest",
-                                      closest_point=center
-                                  ), center
-                              ) for idx, center in enumerate(outletCenters)}
+            outletContours = {
+                self.OutletPrefix + str(idx + 1): (
+                    tools.ExtractConnectedRegion(
+                        boundaries,
+                        method="closest",
+                        closest_point=center
+                    ), center, radius
+                ) for idx, (center, radius) in enumerate(
+                                                   zip(
+                                                       outletCenters,
+                                                       outletRadius
+                                                   )
+                                               )
+            }
 
             inletContours.update(outletContours)
 
             # Write them
-            for fname, (contour, _) in inletContours.items():
+            for fname, (contour, _, _) in inletContours.items():
 
                 tools.WriteSurface(
                     tools.FillContourWithPlaneSurface(contour),
@@ -377,16 +424,17 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
             # Write open profile centers info
             with open(self.OpenProfilesCentersFile, "a") as file_:
 
-                file_.write("ProfileType,CenterX,CenterY,CenterZ\n")
+                file_.write("ProfileType,CenterX,CenterY,CenterZ,Radius\n")
 
-                for fname, (_, center) in inletContours.items():
+                for fname, (_, center, radius) in inletContours.items():
 
                     file_.write(
-                        "{}, {}, {}, {}\n".format(
+                        "{}, {}, {}, {}, {}\n".format(
                             fname,
                             center[0],
                             center[1],
-                            center[2]
+                            center[2],
+                            radius
                         )
                     )
 
