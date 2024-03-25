@@ -24,8 +24,9 @@ import os
 import sys
 import warnings
 import numpy as np
-
 import vtk
+
+from scipy.interpolate import interp1d
 from vmtk import vtkvmtk
 from vtk.numpy_interface import dataset_adapter as dsa
 
@@ -161,8 +162,25 @@ def _folders_in(path_to_parent):
         if os.path.isdir(os.path.join(path_to_parent,fname)):
             yield fname
 
+def _select_norm_profile(type: str):
+
+    if type == "measured_ica_older":
+        return names.getHoiICAProfile()
+
+    elif type == "measured_ica_young":
+        return names.getFordICAProfile()
+
+    elif type == "measured_va_young":
+        return names.getFordVAProfile()
+
+    else:
+        raise ValueError(
+                    "'type' arg either 'measured_ica_older', 'measured_ica_young' or 'measured_va_young'"
+                )
+
 # TODO: is there a way to generalize this function? i.e. make it independent of
-# the OF case folder
+# the OF case folder... maybe now yeah, based on the temporal profiles that I
+# have just introduced in this module
 def GetCardiacCyclePeakAndDiastoleInstants(case_folder):
     """Get peak and low diastole instants of aneurysm simulation by reading the
     OpenFOAM case folder with the time steps."""
@@ -179,6 +197,96 @@ def GetCardiacCyclePeakAndDiastoleInstants(case_folder):
 
     else:
         return (0.12, 0.93)
+
+
+def GenerateBloodFlowRateProfile(
+        time_step: float=0.01,
+        ncycles: int=2,
+        t0: float=0.0,
+        profile_type: str="measured_ica_older",
+        Qavg: float=1.0
+        # scale_cycle_period: bool=False,
+        # heart_rate_frequency: float=None
+    ):
+    """Compute array with temporal variation of blood flow rate.
+
+    Given time-step, number of cycles, generate an array with the temporal
+    blood flow rate along a cardiac cycle as measured or predicted by diferent
+    studies and/or methods, as can be selected by the keyword argument
+    'profile_type', which takes the values:
+
+        - 'measured_ica_older' (default): populational-averaged temporal
+          profile measured by the study
+
+          Y. Hoi et al., “Characterization of volumetric flow rate waveforms at
+          the carotid bifurcations of older adults”, Physiological Measurement,
+          vol. 31, nº 3, p. 291–302, 2010, doi: 10.1088/0967-3334/31/3/002.
+
+          for patients with average age 68 +- 8 years. This study only measured
+          it at the ICA (and ECA and CCA).
+
+        - 'measured_ica_young' or 'measured_va_young: populational-averaged
+          temporal profiles measured by the study
+
+          M. D. Ford, N. Alperin, S. H. Lee, D. W. Holdsworth, e D. A.
+          Steinman, “Characterization of volumetric flow rate waveforms in the
+          normal internal carotid and vertebral arteries”, Physiological
+          Measurement, vol. 26, nº 4, p. 477–488, 2005, doi:
+          10.1088/0967-3334/26/4/013.
+
+          for patients with average age 28 +- 7 years at the ICA and VA,
+          respectively.
+
+    The array is normalized, by default, as provided by the afore- mentioned
+    studies, but it can be dimensionalized back by providing an average or
+    patient-specific blood flow rate through the argument 'Qavg'.
+
+    In the study by Ford et al. (2005), the authors found a strong correlation
+    between peak-systolic blood flow rate (Qpeak) and the the cardic-cycle
+    average for a patient, in the form:
+
+        Qpeak = 1.6*Qavg + 15 mL/min
+
+    which could be used to infer the Qavg from patient measurement of Qpeak.
+    """
+
+    # get the normlized prof. in case of experimental profiles
+    normProfile = _select_norm_profile(profile_type)
+
+    timeRange = normProfile[:, 0]
+
+    # Select time max
+    # TODO: scale the period to account for heart rate variability, as
+    # suggested by the authors
+    timeMax = ncycles*timeRange.max()
+
+    # Build new time samples
+    newTimeRange = np.linspace(
+                    t0,
+                    timeMax,
+                    int(
+                        np.round(
+                            (timeMax - t0)/time_step
+                        )
+                    )
+                )
+
+    # Generate function object
+    resample = interp1d(
+                    normProfile[:, 0],
+                    normProfile[:, 1],
+                    kind='cubic'
+                )
+
+    # Apply to transformed time sample to get pulsatile behaviour
+    normFlowRate = Qavg*resample(
+                        np.mod(newTimeRange,timeRange.max())
+                    )
+
+    return np.hstack(
+                (newTimeRange.reshape(len(newTimeRange), 1),
+                 normFlowRate.reshape(len(normFlowRate), 1))
+            )
 
 def Hemodynamics(
         foam_case: str,
