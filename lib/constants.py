@@ -39,6 +39,7 @@ oneHundred = 100.0
 degToRad = pi/180.0
 radToDeg = 180.0/pi
 millimeterToMeterFactor = 1000.0
+mLMinToM3Sec = 1.0e-6/60.0 # m3/s
 nSpatialDimensions = int(three)
 
 # Name of the field defined on a vascular surface that identifies the aneurysm
@@ -64,3 +65,18 @@ bloodDensity = 1056.0 # kg/m3
 IaWallTypes = {"RegularWall": 0,
                "AtheroscleroticWall": 1,
                "RedWall": 2}
+
+# Average blood flow rates as measured by
+# L. Zarrinkoob, K. Ambarki, A. Wåhlin, R. Birgander, A. Eklund, e J. Malm,
+# “Blood flow distribution in cerebral arteries”, Journal of Cerebral Blood
+# Flow and Metabolism, vol. 35, p. 648–654, 2015, doi: 10.1038/jcbfm.2014.241.
+# Here only for the internal carotid artery and the basilar artery
+
+# For the ICA, Ford and Hoi results are in agreement with measurements by
+# Zarrinkoob. Hoi's study (didn't measured the VA flow rate). Also, the meand
+# and sd. of Zarro=inkoobs subjects are within the mean and sd. of Ford and
+# Hoi's subjects.
+BfrAvgICAOlderAdults = 236.0*mLMinToM3Sec
+BfrAvgICAYoungAdults = 276.0*mLMinToM3Sec
+BfrAvgBAYoungAdults  = 162.0*mLMinToM3Sec
+BfrAvgBAOlderAdults  = 128.0*mLMinToM3Sec

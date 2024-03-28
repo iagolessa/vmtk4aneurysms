@@ -165,43 +165,61 @@ def _folders_in(path_to_parent):
 def _select_norm_profile(type: str):
 
     if type == "measured_ica_older":
-        return names.getHoiICAProfile()
+        return names.GetHoiICAProfile()
 
     elif type == "measured_ica_young":
-        return names.getFordICAProfile()
+        return names.GetFordICAProfile()
 
     elif type == "measured_va_young":
-        return names.getFordVAProfile()
+        return names.GetFordVAProfile()
 
     else:
         raise ValueError(
                     "'type' arg either 'measured_ica_older', 'measured_ica_young' or 'measured_va_young'"
                 )
 
+def GetCardiacCyclePeriod(
+        profile_type: str="measured_ica_older"
+    )   -> float:
+    """Get cardiac cycle period."""
+
+    normProfile = _select_norm_profile(profile_type)
+
+    return normProfile[-1, 0]
+
 # TODO: is there a way to generalize this function? i.e. make it independent of
 # the OF case folder... maybe now yeah, based on the temporal profiles that I
 # have just introduced in this module
-def GetCardiacCyclePeakAndDiastoleInstants(case_folder):
+# How to operationalize this? Maybe do this in a class of temporal profiles...
+def GetCardiacCyclePeakAndDiastoleInstants(
+        profile_type: str="measured_ica_older",
+        ncycles: int=3
+    )   -> tuple:
     """Get peak and low diastole instants of aneurysm simulation by reading the
-    OpenFOAM case folder with the time steps."""
+    OpenFOAM case folder with the time steps.
 
-    timeFolders = list(
-                      _folders_in(case_folder)
-                  )
+    Given the type of blood flow rate profile and the number of cycles to be
+    used, return the peak systole and low diastole instants of the cardiac
+    cycle at the last cycle. The options of the profile type are the same as
+    the ones used in the function GenerateBloodFlowRateProfile:
+    'measured_ica_young','measured_ica_older', and 'measured_va_young'.
+    """
 
-    if '2' in timeFolders:
-        return (2, 2.81)
+    normProfile = _select_norm_profile(profile_type)
+    period      = GetCardiacCyclePeriod(profile_type=profile_type)
 
-    elif '1.06' in timeFolders:
-        return (1.06, 1.87)
+    lowDiastoleInstant = normProfile[-1, 0]
+    peakSystoleInstant = normProfile[normProfile[:, 1].argmax(), 0]
 
-    else:
-        return (0.12, 0.93)
+    # Return updates to ncycles
+    lowDiastoleInstant += (ncycles - 1)*period
+    peakSystoleInstant += (ncycles - 1)*period
 
+    return lowDiastoleInstant, peakSystoleInstant
 
 def GenerateBloodFlowRateProfile(
         time_step: float=0.01,
-        ncycles: int=2,
+        ncycles: int=3,
         t0: float=0.0,
         profile_type: str="measured_ica_older",
         Qavg: float=1.0

@@ -142,7 +142,7 @@ curvMetricsList = [areaAvgGaussCurvature,
 # (2005) (see docstring of function hemodynamics.generateBloodFlorProfile)
 # The coordinates were extracted directly from the data plots provided by the
 # study
-def getHoiICAProfile():
+def GetHoiICAProfile():
     HoiICAProfile = [
         [-0.06, 0.55],
         [-0.04, 0.62],
@@ -193,7 +193,7 @@ def getHoiICAProfile():
 
     return npHoiICAProfile
 
-def getFordICAProfile():
+def GetFordICAProfile():
 
     FordICAProfile = [
         [-0.06000, 0.67371],
@@ -245,7 +245,7 @@ def getFordICAProfile():
 
     return npFordICAProfile
 
-def getFordVAProfile():
+def GetFordVAProfile():
     FordVAProfile = [
         [-0.064,0.636],
         [-0.049,0.665],
