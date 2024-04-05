@@ -187,10 +187,6 @@ def GetCardiacCyclePeriod(
 
     return normProfile[-1, 0]
 
-# TODO: is there a way to generalize this function? i.e. make it independent of
-# the OF case folder... maybe now yeah, based on the temporal profiles that I
-# have just introduced in this module
-# How to operationalize this? Maybe do this in a class of temporal profiles...
 def GetCardiacCyclePeakAndDiastoleInstants(
         profile_type: str="measured_ica_older",
         ncycles: int=3
@@ -305,6 +301,53 @@ def GenerateBloodFlowRateProfile(
                 (newTimeRange.reshape(len(newTimeRange), 1),
                  normFlowRate.reshape(len(normFlowRate), 1))
             )
+
+def ResistanceOutflowPressure(
+        flow_rate_tprofile: np.ndarray,
+        scale_pressure_by_density: bool=True,
+        density: float=const.bloodDensity
+    )   -> np.ndarray:
+    """Compute the outflow pressure by the resistance model.
+
+    Given the blood flow rate profile over time, compute the outflow pressure
+    based on the resistance model, i.e. the pressure over time is proportioanal
+    to the blood flow rate over time:
+
+        P(t) = P0 + R*Q(t)
+
+    where P0 is the minimum pressure and R is the resistance. Both constants
+    are computed from the flow rate temporal profile.
+
+    Returns the profile of pressure over time in Pascals per unity density
+    (this can be disabled by selecting 'False' the argument
+    'scale_pressure_by_density'.
+    """
+
+    minPressure = 80*const.mmHgToPa    # Pa
+    maxPressure = 120*const.mmHgToPa   # Pa
+
+    if scale_pressure_by_density:
+        minPressure /= density
+        maxPressure /= density
+
+    # Get max and min flow rate
+    minQ = min(flow_rate_tprofile[:,1])
+    maxQ = max(flow_rate_tprofile[:,1])
+
+    # Assemble system matrix and source vector
+    A = np.array([[1,minQ],
+                  [1,maxQ]])
+
+    b = np.array([minPressure,
+                  maxPressure])
+
+    # Solve system
+    P0, R = np.linalg.solve(A,b)
+
+    pressureProfile = flow_rate_tprofile.copy()
+    pressureProfile[:,1] = P0 + R*pressureProfile[:,1]
+
+    return pressureProfile
 
 def Hemodynamics(
         foam_case: str,
