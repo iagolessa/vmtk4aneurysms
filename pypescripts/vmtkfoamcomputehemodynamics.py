@@ -36,9 +36,9 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
         pypes.pypeScript.__init__(self)
 
         self.FoamCasePath = None
-        self.WallPatchName = None
         self.PeakSystoleInstant = None
         self.LowDiastoleInstant = None
+        self.WallPatchName = None
 
         self.HemodynamicsSurface = None
         self.PressureSurface = None
@@ -136,6 +136,8 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
             )
         )
 
+        print(self.WallPatchName)
+
         self.HemodynamicsSurface = hm.Hemodynamics(
                                        self.FoamCasePath,
                                        self.PeakSystoleInstant,
@@ -187,6 +189,7 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
         fieldAvgOverTime = hm.WssSurfaceAverage(
                                self.FoamCasePath,
                                density=self.BloodDensity,
+                               patch=self.WallPatchName,
                                multi_region=self.FoamMultiRegion,
                                region_name=self.RegionName
                            )
