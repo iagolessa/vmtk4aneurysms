@@ -25,6 +25,9 @@ import pandas as pd
 import vasculature as vsc
 from lib import polydatatools as tools
 
+# TODO: I need to build this geometry here, on the fly with some geo module
+modelFile = "./tests/example-data/aneurysm_vascular_model.stl"
+modelHealthyFile = "./tests/example-data/aneurysm_model_healthy_vasculature.stl"
 
 class TestVasculatureModule(unittest.TestCase):
 
