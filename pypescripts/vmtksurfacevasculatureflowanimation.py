@@ -38,9 +38,35 @@ class vmtkSurfaceVasculatureFlowAnimation(pypes.pypeScript):
         self.FramesDirectory = "/tmp/"
         self.VideoOutputFile = None
         self.ScaleSurface = True
+        self.Pattern = "frame_%05d.png"
+
+        self.StreakLineTimeLength = 0.05
+        self.Legend = 0
+        self.ColorMap = 'blackbody'
+        self.MinTime = 0.0
+        self.MaxTime = 1.0
+        self.TimeStep = 0.005
+        self.ArrayMax = 1.5
+        self.LineWidth = 8 # better for recording
+
+        self.ImageResize = 60
+        self.BackgroundColor = [24, 24, 31]
+        self.VideoLoopCount = 3
+        self.VideoFramesPerSec = 30
 
         self.SetScriptName('vmtksurfacevasculatureflowanimation')
-        self.SetScriptDoc('render animation of flow inside vessels')
+        self.SetScriptDoc(
+            """ render or store animation of vasculature flow, through
+            streaklines, using traces previously computed and the vascular
+            surface. Warning: if you choose to store a video, bear in mind that
+            this screpts uses the 'convert' bin of ImageMagick and 'ffmpeg'
+            commands as also "parallel" for parallel processing the batch of
+            images generated. These are not part of a typical VMTK
+            installation. You must have them installed in your system. Also,
+            ffmpeg may used a lot of RAM memory, so try to resize the image by
+            using the argument ImageResize.
+            """
+        )
 
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '',
@@ -62,6 +88,31 @@ class vmtkSurfaceVasculatureFlowAnimation(pypes.pypeScript):
             ['ScaleSurface','scalesurface','bool', 1, '',
              'to scale surface from meter to millimeter to match traces units',],
 
+            # Entries derived directly from vmtkpathlineanimator
+            ['StreakLineTimeLength','streaklinetimelength','float',1,'(0.0,)'],
+            ['Legend', 'legend', 'bool', 1, '', 'toggle scalar bar'],
+            ['ColorMap', 'colormap', 'str', 1,
+                '["rainbow","blackbody","cooltowarm","grayscale"]',
+                'change the color map'],
+
+            ['MinTime', 'mintime', 'float', 1, '(0.0,)'],
+            ['MaxTime', 'maxtime', 'float', 1, '(0.0,)'],
+            ['TimeStep', 'timestep', 'float', 1, '(0.0,)'],
+            ['ArrayMax', 'arraymax', 'float', 1, '(0.0,)'],
+            ['LineWidth', 'linewidth', 'int', 1, '(1,)'],
+
+            ['ImageResize', 'imageresize', 'int', 1, '(100,0)',
+                "resize image by this percentage"],
+
+            ['BackgroundColor', 'backgroundcolor', 'int', -1, '',
+                'color of the background video, in RGB format'],
+
+            ['VideoLoopCount', 'videoloopcount', 'int', 1, '(,0)',
+                "number of count of video loop"],
+
+            ['VideoFramesPerSec', 'fps', 'int', 1, '(,0)',
+                "video frames rate"],
+
             ['VideoOutputFile', 'videofile', 'str', 1, '',
              'file path where to store video (with extension; MP4 or MKV)']
         ])
@@ -73,17 +124,19 @@ class vmtkSurfaceVasculatureFlowAnimation(pypes.pypeScript):
         if not self.Surface:
             self.PrintError('Error: no Surface.')
 
-        # # Filter input surface
-        # triangleFilter = vtk.vtkTriangleFilter()
-        # triangleFilter.SetInputData(self.Surface)
-        # triangleFilter.Update()
-
-        # self.Surface = triangleFilter.GetOutput()
-
         if self.ScaleSurface:
-            self.Surface = tools.ScaleVtkObject(self.Surface, 1e-3)
-            self.SurfaceExtra = tools.ScaleVtkObject(self.SurfaceExtra, 1e-3)
+            self.Surface = tools.ScaleVtkObject(
+                                self.Surface,
+                                1.0e-3
+                            )
 
+            if self.SurfaceExtra:
+                self.SurfaceExtra = tools.ScaleVtkObject(
+                                        self.SurfaceExtra,
+                                        1.0e-3
+                                    )
+
+        # Construct view
         self.vmtkRenderer = vmtkscripts.vmtkRenderer()
         self.vmtkRenderer.Initialize()
 
@@ -104,39 +157,76 @@ class vmtkSurfaceVasculatureFlowAnimation(pypes.pypeScript):
             surfaceViewer2.Display = 1
             surfaceViewer2.BuildView()
 
+        # Animate
         pathlineAnimator = vmtkscripts.vmtkPathLineAnimator()
 
         pathlineAnimator.InputTraces = self.Traces
         pathlineAnimator.Method = "streaklines"
-        pathlineAnimator.StreakLineTimeLength = 0.05
-        pathlineAnimator.Legend = 0
-        pathlineAnimator.ColorMap = "blackbody"
-        pathlineAnimator.MinTime = 0
-        pathlineAnimator.MaxTime = 0.3 # 1.0
-        pathlineAnimator.TimeStep = 0.005 # ideal 0.001
+        pathlineAnimator.StreakLineTimeLength = self.StreakLineTimeLength
+        pathlineAnimator.Legend = self.Legend
+        pathlineAnimator.ColorMap = self.ColorMap
+        pathlineAnimator.MinTime = self.MinTime
+        pathlineAnimator.MaxTime = self.MaxTime
+        pathlineAnimator.TimeStep = self.TimeStep
         pathlineAnimator.ImagesDirectory = self.FramesDirectory
         pathlineAnimator.WithScreenshots = self.StoreVideo
-        pathlineAnimator.LineWidth = 8
-        pathlineAnimator.ArrayMax = 1.5
+        pathlineAnimator.Pattern = self.Pattern
+        pathlineAnimator.LineWidth = self.LineWidth
+        pathlineAnimator.ArrayMax = self.ArrayMax
         pathlineAnimator.ArrayUnit = "m/s"
         pathlineAnimator.vmtkRenderer = self.vmtkRenderer
         pathlineAnimator.Execute()
 
         # Store video
         if self.StoreVideo:
+            # Not the cleanest way, but it was quick and effective
+            # TODO(?): turn this to pure python? It would uintroduce new
+            # dependecies any way
+            parallelCommandSuffix = "parallel -I {}"
+            filesBashPattern = self.FramesDirectory + "/frame_0*.png"
+            filesPattern = self.FramesDirectory + self.Pattern
+
+            convertResizeOptions = "-resize '" + str(self.ImageResize) + "%'"
+
+            convertFillOption = "-fill 'rgb\(" + \
+                                ",".join(str(c) for c in self.BackgroundColor) + \
+                                "\)'"
+
+            ffmpegOtherOptions = "-vcodec libx264 -pix_fmt yuv420p"
+
 
             os.system(
-                "parallel -I {} convert -resize '20%' {} {} ::: " + self.FramesDirectory + "/frame_0*.png"
-            )   
-
-            os.system(
-                "parallel -I {} convert {} -fill 'rgb\(24,24,31\)' -opaque 'rgb\(26,26,51\)' -flatten {} ::: " + self.FramesDirectory + "/frames_*.png"
+                " ".join([
+                    parallelCommandSuffix,
+                    "convert",
+                    convertResizeOptions,
+                    "{} {} :::",
+                    filesBashPattern
+                ])
             )
 
             os.system(
-                "ffmpeg -r 30 -stream_loop 2 -i " + self.FramesDirectory + "/frame_%04d.png -vcodec libx264 -pix_fmt yuv420p " + self.VideoOutputFile
+                " ".join([
+                    parallelCommandSuffix,
+                    "convert {}",
+                    convertFillOption,
+                    "-opaque 'rgb\(26,26,51\)' -flatten",
+                    "{} :::",
+                    filesBashPattern
+                ])
             )
-            
+
+            os.system(
+                " ".join([
+                    "ffmpeg",
+                    "-r " + str(self.VideoFramesPerSec),
+                    "-stream_loop " + str(self.VideoLoopCount - 1),
+                    "-i " + filesPattern,
+                    ffmpegOtherOptions,
+                    self.VideoOutputFile
+                ])
+            )
+
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
