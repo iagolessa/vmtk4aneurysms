@@ -17,15 +17,29 @@
 
 import sys
 import vtk
+import pandas as pd
 
 from vmtk import pypes
 from vmtk import vmtkscripts
 from pprint import PrettyPrinter
 
-from vmtk4aneurysms.lib.polydatatools import RemeshSurface
 from vmtk4aneurysms.vasculature import Vasculature
 
 vmtksurfacevasculatureinfo = 'vmtkSurfaceVasculatureInfo'
+
+def _flatten_dict(
+        pyobj,
+        keystring=''
+    ):
+
+    if type(pyobj) == dict:
+        keystring = keystring + '_' if keystring else keystring
+
+        for k in pyobj:
+            yield from _flatten_dict(pyobj[k], keystring + str(k))
+
+    else:
+        yield keystring, pyobj
 
 class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
@@ -44,11 +58,13 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         self.AneurysmSurface     = None
         self.OstiumSurface       = None
         self.HullSurface         = None
+        self.VascularInfoFile    = None
 
         self.ShowVascularModel = False
+        self.AneurysmMetricsDataFrame = None
 
         self.SetScriptName('vmtksurfacevasculatureinfo')
-        self.SetScriptDoc('extract vasculature infos')
+        self.SetScriptDoc('extract vasculature metrics')
 
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '',
@@ -72,7 +88,10 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
                 'vmtksurfacereader'],
 
             ['ShowVascularModel','showvascularmodel','bool', 1, '',
-             'toggle visualization of the vascular model and aneurysm']
+             'toggle visualization of the vascular model and aneurysm'],
+
+            ['VascularInfoFile', 'ovascularinfofile', 'str', 1, '',
+             'tabular file (.csv) with morphological and hemodynamic data']
         ])
 
         self.SetOutputMembers([
@@ -194,16 +213,20 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         self.OutputText("Computing metrics of aneurysm models.\n")
 
         # self.Surface = vascularModel.GetBranchedSurface()
+        self.Surface = vascularModel.GetSurface().GetSurfaceObject()
 
         if self.Aneurysm:
+
             aneurysmModel = vascularModel.GetAneurysm()
 
             self.AneurysmSurface = aneurysmModel.GetSurface()
+
             self.HullSurface = aneurysmModel.GetHullSurface()
             self.OstiumSurface = aneurysmModel.GetOstiumSurface()
 
             # Print aneurysm indices and metrics
-            methods = [param for param in dir(aneurysmModel)
+            methods = [param
+                       for param in dir(aneurysmModel)
                        if param.startswith("Get")]
 
             # Remove metrics that are not analyzed
@@ -211,12 +234,26 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
             methods.remove("GetOstiumSurface")
             methods.remove("GetHullSurface")
 
-            attributes = {method.replace("Get",''): getattr(aneurysmModel, method)()
-                          for method in methods}
+            attributes = {
+                method.replace("Get",''): getattr(aneurysmModel, method)()
+                for method in methods
+            }
 
             pp.pprint(
                 attributes
             )
+
+            # Flatten the attributes dict
+            self.AneurysmMetricsDataFrame = pd.DataFrame(
+                                                _flatten_dict(attributes)
+                                            )
+
+            if self.VascularInfoFile is not None:
+
+                self.AneurysmMetricsDataFrame.to_csv(
+                    self.VascularInfoFile,
+                    index=False
+                )
 
             if self.ShowVascularModel:
                 # Render surfaces
