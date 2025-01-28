@@ -38,7 +38,10 @@ oneHundred = 100.0
 
 degToRad = pi/180.0
 radToDeg = 180.0/pi
+
 millimeterToMeterFactor = 1000.0
+meterToCmFactor = 1e2
+cm3PerSecToM3PerSecFactor = 1e-6
 
 mLMinToM3Sec = 1.0e-6/60.0 # m3/s
 mmHgToPa     = 133.3223    # Pa/mmHg

@@ -178,6 +178,23 @@ def _select_norm_profile(type: str):
                     "'type' arg either 'measured_ica_older', 'measured_ica_young' or 'measured_va_young'"
                 )
 
+def MeanBloodFlowRateICA(section_area: float) -> float:
+    """Mean blood flow rate (in m3/s) as a function of the section area.
+
+    This relationship was found experimentally by
+
+        Cebral et al. (2008) "Flow-area relationship in internal carotid and
+        vertebral arteries".
+
+    Arguments:
+    area --  artery section area, in centimeters squared [cm2].
+    """
+    # Cebral's parameter
+    k = 48.21 # (cm3/s)/(cm2)^n
+    n = 1.84
+
+    return const.cm3PerSecToM3PerSec*(k*area**n)
+
 def GetCardiacCyclePeriod(
         profile_type: str="measured_ica_older"
     )   -> float:
