@@ -1687,13 +1687,13 @@ def ClipAneurysmSacSurface(
     copiedSurface = tools.CopyVtkObject(vascular_surface)
 
     # Perform the procedure on a clean surface
-    vascular_surface = tools.CleanupArrays(vascular_surface)
+    copiedSurface = tools.CleanupArrays(copiedSurface)
 
     if mode == "plane":
 
         # Get plane neck and aneurysm clipped
         neckPlane, clippedAneurysmSurface = ComputeAneurysmNeckPlane(
-                                                vascular_surface,
+                                                copiedSurface,
                                                 aneurysm_type=aneurysm_type,
                                                 parent_vascular_surface=parent_vascular_surface,
                                                 min_variable="area",
@@ -1702,21 +1702,26 @@ def ClipAneurysmSacSurface(
 
         # Clip the rest of the surface
         vascularSurfaceNoAneurysm = tools.ClipWithPlane(
-                                        vascular_surface,
+                                        copiedSurface,
                                         neckPlane.GetOrigin(),
                                         neckPlane.GetNormal(),
                                         inside_out=True
                                     )
 
     else:
-        # Based on the available methods, mark the surface with the neck array
-        markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
-                            vascular_surface,
-                            mode=mode,
-                            parent_vascular_surface=parent_vascular_surface,
-                            aneurysm_type=aneurysm_type,
-                            aneurysm_point=aneurysm_point
-                        )
+
+        if names.DistanceToNeckArrayName in tools.GetPointArrays(vascular_surface):
+            markedSurface = tools.CopyVtkObject(vascular_surface)
+
+        else:
+            # Based on the available methods, mark the surface with the neck array
+            markedSurface = ComputeGeodesicDistanceToAneurysmNeck(
+                                copiedSurface,
+                                mode=mode,
+                                parent_vascular_surface=parent_vascular_surface,
+                                aneurysm_type=aneurysm_type,
+                                aneurysm_point=aneurysm_point
+                            )
 
         # Clip the aneurysm sac (aneurysm marked with negative values)
         clippedAneurysmSurface = tools.ClipWithScalar(
