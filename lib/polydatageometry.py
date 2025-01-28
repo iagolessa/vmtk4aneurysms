@@ -907,14 +907,25 @@ class Surface():
         maxCurvature.SetCurvatureTypeToMaximum()
         maxCurvature.Update()
 
-        cellCurvatures = vtk.vtkPointDataToCellData()
-        cellCurvatures.SetInputData(maxCurvature.GetOutput())
-        cellCurvatures.PassPointDataOn()
-        cellCurvatures.Update()
+        # Convert Gauss and mean to cell data to compute local shape of cells
+        cellCurvatures = tools.PointFieldToCellField(
+                            maxCurvature.GetOutput(),
+                            point_field_name=names.GaussCurvatureArrayName
+                        )
 
-        npCurvatures   = dsa.WrapDataObject(cellCurvatures.GetOutput())
-        GaussCurvature = npCurvatures.GetCellData().GetArray(names.GaussCurvatureArrayName)
-        meanCurvature  = npCurvatures.GetCellData().GetArray(names.MeanCurvatureArrayName)
+        cellCurvatures = tools.PointFieldToCellField(
+                            cellCurvatures,
+                            point_field_name=names.MeanCurvatureArrayName
+                        )
+
+        npCurvatures   = dsa.WrapDataObject(cellCurvatures)
+        GaussCurvature = npCurvatures.GetCellData().GetArray(
+                            names.GaussCurvatureArrayName
+                        )
+
+        meanCurvature  = npCurvatures.GetCellData().GetArray(
+                            names.MeanCurvatureArrayName
+                        )
 
         surfaceLocalShapes = {
             'ellipticalConvex' :
