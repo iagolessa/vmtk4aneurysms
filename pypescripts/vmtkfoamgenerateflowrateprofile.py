@@ -182,14 +182,21 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
             comments=''
         )
 
+        # Get cardiac period and peak systole and low diastole instants
+        cardiacPeriod = hm.GetCardiacCyclePeriod(
+                            profile_type=profileType
+                        )
+
         ldInstant, psInstant = hm.GetCardiacCyclePeakAndDiastoleInstants(
                                    profile_type=profileType,
                                    ncycles=self.NCycles
                                )
 
         self.OutputText(
-            "\nPeak-systole instant: {:.3f} s\n"\
-            "Low-diastole instant: {:.3f} s\n\n".format(
+            "\nCardiac cycle period: {:.2f} s\n"\
+            "Peak-systole instant: {:.2f} s\n"\
+            "Low-diastole instant: {:.2f} s\n\n".format(
+                cardiacPeriod,
                 psInstant,
                 ldInstant
             )
