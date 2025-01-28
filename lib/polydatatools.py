@@ -1195,6 +1195,8 @@ def PointFieldToCellField(
         By default, it leaves the point field on the object.
     """
     pointFields = GetPointArrays(vtk_object)
+    # Get already existent cell fields to be kept
+    cellFields = GetCellArrays(vtk_object)
 
     if point_field_name is not None:
         if point_field_name not in pointFields:
@@ -1205,8 +1207,14 @@ def PointFieldToCellField(
         # To allow the behavior of a single field being interpolated,
         # the fields that will be kept as cells fields only must be
         # deleted after the operation, so keep a list with them
-        pointFieldsToKeep = copy(pointFields)
-        pointFieldsToKeep.remove(point_field_name)
+        pointFieldsToDelete = copy(pointFields)
+        pointFieldsToDelete.remove(point_field_name)
+
+        # also remove the original cell arrays of the list
+        # if the names match
+        pointFieldsToDelete = [pfield
+                               for pfield in pointFieldsToDelete
+                               if pfield not in cellFields]
 
     pointToCell = vtk.vtkPointDataToCellData()
     pointToCell.SetInputData(vtk_object)
@@ -1216,8 +1224,8 @@ def PointFieldToCellField(
     vtk_object = pointToCell.GetOutput()
 
     if point_field_name is not None:
-        # Now delete all the cell fields in pointFieldsToKeep
-        for cfield in pointFieldsToKeep:
+        # Now delete all the cell fields in pointFieldsToDelete
+        for cfield in pointFieldsToDelete:
             vtk_object.GetCellData().RemoveArray(cfield)
 
     return vtk_object
