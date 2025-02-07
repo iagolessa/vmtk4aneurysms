@@ -268,7 +268,7 @@ def GenerateBloodFlowRateProfile(
           for patients with average age 28 +- 7 years at the ICA and VA,
           respectively.
 
-    The array is normalized, by default, as provided by the afore- mentioned
+    The array is normalized, by default, as provided by the aforementioned
     studies, but it can be dimensionalized back by providing an average or
     patient-specific blood flow rate through the argument 'Qavg'.
 

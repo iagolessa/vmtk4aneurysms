@@ -37,9 +37,10 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
         self.TimeIncrement = 0.01
         self.BloodDensity = const.bloodDensity
         self.ScaledPressureByDensity = True
+        self.MassFlowRate = False
 
         self.PatientAge = None
-        self.AneurysmLocation = None # ica or basilar if posterior circulation
+        self.InletLocation = None # ica or basilar if posterior circulation
 
         self.FlowRateDataFile = None
         self.OutflowPressureDataFile = None
@@ -65,11 +66,17 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
             ['PatientAge', 'patientage', 'int' , 1, '',
                 'patient age'],
 
-            ['AneurysmLocation', 'aneurysmlocation', 'str', 1, '',
-                'aneurysm main tree location (ica or basilar)'],
+            ['InletLocation', 'inletlocation', 'str', 1, '',
+                'artery where the inlet flow is located (ica or basilar)'],
 
             ['BloodDensity', 'blooddensity', 'float', 1, '',
                 'the density of blood'],
+
+            ['ScaledPressureByDensity', 'scaledpressurebydensity', 'bool', 1, '',
+                'to divide the pressure by the density of blood'],
+
+            ['MassFlowRate', 'massflowrate', 'bool', 1, '',
+                'to output the mass flow rate (kg/s) instead of volume flow rate'],
 
             ['FlowRateDataFile', 'oflowratefile', 'str', 1, '',
              'text file to store the flow rate profile (no extension)'],
@@ -137,33 +144,35 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
         # Generate blood flow rate profile for the case
         profileType, Qavg = self._select_norm_flow_rate(
                                 self.PatientAge,
-                                self.AneurysmLocation
+                                self.InletLocation
                             )
 
         # Generate the inlet flow profile according to age and aneurysm location
-        normFlowProfile = hm.GenerateBloodFlowRateProfile(
+        flowRateWaveform = hm.GenerateBloodFlowRateProfile(
                               time_step=self.TimeIncrement,
                               ncycles=self.NCycles,
                               profile_type=profileType,
-                              Qavg=Qavg
+                              Qavg=self.BloodDensity*Qavg if self.MassFlowRate else Qavg
                           )
 
         # Get pressure profile (for incompressible OF simulation)
         pressureProfile = hm.ResistanceOutflowPressure(
-                                normFlowProfile,
+                                flowRateWaveform,
                                 scale_pressure_by_density=self.ScaledPressureByDensity,
                           )
 
         # Write profiles in OpenFOAM list syntax
         np.savetxt(
             self.FlowRateDataFile,
-            normFlowProfile,
+            flowRateWaveform,
             fmt='\t(%5.3f\t%5.4e)',
             header='//Flow rate profile at {} of {} patients dimensionalized by '\
-                   '{:.3e} m3/s\nvolumetricFlowRate table\n('.format(
-                        self.AneurysmLocation.upper(),
+                   '{:.3e} {}\n{}FlowRate table\n('.format(
+                        self.InletLocation.upper(),
                         "older" if self._patient_is_older(self.PatientAge) else "young",
-                        Qavg
+                        self.BloodDensity*Qavg if self.MassFlowRate else Qavg,
+                        "kg/s" if self.MassFlowRate else "m^3/s",
+                        "mass" if self.MassFlowRate else "volumetric"
                     ),
             footer=');',
             comments=''
@@ -173,10 +182,11 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
             self.OutflowPressureDataFile,
             pressureProfile,
             fmt='\t(%5.3f\t%5.4f)',
-            header='//Pressure profile at {} of {} patients\n'\
+            header='//Pressure profile at {} of {} patients [{}]\n'\
                    'uniformValue table\n('.format(
-                        self.AneurysmLocation.upper(),
-                        "older" if self._patient_is_older(self.PatientAge) else "young"
+                        self.InletLocation.upper(),
+                        "older" if self._patient_is_older(self.PatientAge) else "young",
+                        "m^2/s^2" if self.ScaledPressureByDensity else "Pa"
                     ),
             footer=');',
             comments=''
