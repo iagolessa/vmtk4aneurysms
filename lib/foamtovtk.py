@@ -84,18 +84,28 @@ def _read_foam_data(
     ofReader.Update()
 
     # Update OF reader with only selected patch
-    patches = list((ofReader.GetPatchArrayName(index)
-                    for index in range(ofReader.GetNumberOfPatchArrays())))
+    # Get list of groups and patches
+    patchesAndGroups = [ofReader.GetPatchArrayName(index)
+                        for index in range(ofReader.GetNumberOfPatchArrays())]
 
-    if active_patch_name not in patches:
+    # Now it outpurs a list of patches and of groups together
+    # So parse it and get only the patches names here
+    listPatches = [ofReader.GetPatchArrayName(index).split("/")[-1]
+                   for index in range(ofReader.GetNumberOfPatchArrays())
+                   if ofReader.GetPatchArrayName(index).startswith("patch")]
+
+    if active_patch_name != "internalMesh" and \
+       active_patch_name not in listPatches:
         raise ValueError(
                   "Patch {} not in geometry surface.".format(active_patch_name)
               )
 
     # Set active patch
-    for patchName in patches:
-        if patchName == active_patch_name:
+    for patchName in patchesAndGroups:
+
+        if patchName.split("/")[-1] == active_patch_name:
             ofReader.SetPatchArrayStatus(patchName, 1)
+
         else:
             ofReader.SetPatchArrayStatus(patchName, 0)
 
