@@ -473,7 +473,8 @@ class Vasculature:
 
                 bifurcationSystem = vtk.vtkThresholdPoints()
                 bifurcationSystem.SetInputData(bifsRefSystem.ReferenceSystems)
-                bifurcationSystem.ThresholdBetween(index, index)
+                bifurcationSystem.SetLowerThreshold(index)
+                bifurcationSystem.SetUpperThreshold(index)
                 bifurcationSystem.Update()
 
                 bifVectors.BifurcationVectors.GetPointData().SetActiveScalars(

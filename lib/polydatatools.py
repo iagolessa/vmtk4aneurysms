@@ -852,7 +852,8 @@ def ExtractPortion(
         array_name
     )
 
-    threshold.ThresholdBetween(isovalue, isovalue)
+    threshold.SetLowerThreshold(isovalue)
+    threshold.SetUpperThreshold(isovalue)
     threshold.Update()
 
     # Converts vtkUnstructuredGrid -> vtkPolyData, if needed
