@@ -32,7 +32,7 @@ from vmtk4aneurysms import aneurysms as an
 from vmtk4aneurysms import vasculature as vsc
 from vmtk4aneurysms.lib import polydatamath as pmath
 
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 from vmtk4aneurysms.lib import names
 
 vmtkfoambifurcationflow = 'vmtkFoamBifurcationFlow'

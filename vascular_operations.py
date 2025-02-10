@@ -31,7 +31,7 @@ from vmtk import vmtkscripts
 from scipy import interpolate
 
 from scipy.signal import find_peaks_cwt
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from .lib import names
 from .lib import centerlines as cl

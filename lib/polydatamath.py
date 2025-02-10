@@ -16,13 +16,13 @@
 """Collection of mathematical functions that operates on VTK objects."""
 
 import sys
-import numpy as np
-from typing import Union
-from scipy.integrate import simps
-
 import vtk
+import numpy as np
 
-from vtk.numpy_interface import dataset_adapter as dsa
+from typing import Union
+from scipy.integrate import simpson
+from vtkmodules.numpy_interface import dataset_adapter as dsa
+
 from . import names
 from . import constants as const
 from . import polydatatools as tools
@@ -109,7 +109,7 @@ def TimeAverage(y_array, time_array):
 
     period = time_array.max() - time_array.min()
 
-    return simps(y_array, x=time_array, axis=0)/period
+    return simpson(y_array, x=time_array, axis=0)/period
 
 # TODO: improve this computattion. I thought about using vtkIntegrateAttributes
 # but is not available in the version shipped with vmtk!

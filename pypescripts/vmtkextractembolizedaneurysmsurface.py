@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import #NEEDS TO STAY AS TOP LEVEL MODULE FOR Py2-3 COMPATIBILITY
 import sys
 import vtk
 from numpy import mean, where
@@ -22,7 +23,7 @@ from numpy import mean, where
 from vmtk import pypes
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from vmtk4aneurysms.lib import polydatatools as tools
 

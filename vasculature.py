@@ -20,7 +20,7 @@ from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 
 from numpy import delete, where
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 from vmtk4aneurysms.aneurysms import Aneurysm
 from vmtk4aneurysms.vascular_operations import ClipAneurysmSacSurface
 

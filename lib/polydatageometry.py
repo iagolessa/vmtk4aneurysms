@@ -24,7 +24,7 @@ from scipy.spatial import ConvexHull
 
 from vmtk import vtkvmtk
 from numpy import array, multiply, zeros, where
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from . import names
 from . import constants as const
@@ -366,7 +366,7 @@ def WarpPolydata(
 
 def SurfaceEuclideanDistanceToContour(
         surface: names.polyDataType,
-        id_list: vtk.vtkCommonCorePython.vtkIdList,
+        id_list: names.idList,
         distance_array_name: str=names.EuclideanDistanceArrayName
     )   -> names.polyDataType:
     """Add the Euclidean distance from a loop of points defined on
@@ -411,7 +411,7 @@ def SurfaceEuclideanDistanceToContour(
 
 def SurfaceGeodesicDistanceToContour(
         surface: names.polyDataType,
-        id_list: vtk.vtkCommonCorePython.vtkIdList,
+        id_list: names.idList,
         gdistance_array_name: str=names.GeodesicDistanceArrayName
     )   -> names.polyDataType:
     """Compute the geodesic distance from a contour on a surface.

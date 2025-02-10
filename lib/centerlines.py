@@ -18,7 +18,7 @@
 import vtk
 import numpy as np
 from morphman.manipulate_curvature import extract_single_line
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts

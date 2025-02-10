@@ -28,7 +28,7 @@ import vtk
 
 from scipy.interpolate import interp1d
 from vmtk import vtkvmtk
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const

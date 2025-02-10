@@ -15,7 +15,7 @@
 
 """Collection of vascular models."""
 
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from numpy import (
         array, sqrt,

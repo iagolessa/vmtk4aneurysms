@@ -15,18 +15,26 @@
 
 """Definitions of names and other variables."""
 
-import vtk
 from numpy import array
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtk import (
+    vtkPolyData,
+    vtkUnstructuredGrid,
+    vtkMultiBlockDataSet,
+    vtkIdList,
+    vtkPlane
+)
+
+from vtkmodules.vtkIOParallel import vtkPOpenFOAMReader
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 # Attribute array names
-polyDataType = vtk.vtkCommonDataModelPython.vtkPolyData
-unstructuredGridType = vtk.vtkCommonDataModelPython.vtkUnstructuredGrid
-multiBlockType = vtk.vtkCommonDataModelPython.vtkMultiBlockDataSet
-foamReaderType = vtk.vtkIOParallelPython.vtkPOpenFOAMReader
-idList = vtk.vtkCommonCorePython.vtkIdList
+idList = vtkIdList
+polyDataType = vtkPolyData
+unstructuredGridType = vtkUnstructuredGrid
+multiBlockType = vtkMultiBlockDataSet
+planeType = vtkPlane
 
-planeType = vtk.vtkCommonDataModelPython.vtkPlane
+foamReaderType = vtkPOpenFOAMReader
 vtkArrayType = dsa.VTKArray
 
 # Field-type labels

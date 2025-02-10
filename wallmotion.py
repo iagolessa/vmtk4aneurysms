@@ -17,7 +17,7 @@
 
 import sys
 import vtk
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from .lib import names
 from .lib import constants as const

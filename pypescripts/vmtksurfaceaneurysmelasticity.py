@@ -20,7 +20,7 @@ import sys
 import vtk
 import math
 import numpy as np
-import vtk.numpy_interface.dataset_adapter as dsa
+import vtkmodules.numpy_interface.dataset_adapter as dsa
 
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts

@@ -28,7 +28,7 @@ import vtk
 from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from . import constants as const
 from . import names

@@ -22,7 +22,7 @@ from typing import Union
 from itertools import compress, repeat
 
 import vtk
-from vtk.numpy_interface import dataset_adapter as dsa
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 from vmtk import vtkvmtk
 
 from . import names
