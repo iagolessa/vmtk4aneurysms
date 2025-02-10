@@ -23,6 +23,8 @@ from vmtk import pypes
 from vmtk import vmtkscripts
 from pprint import PrettyPrinter
 
+from vmtk4aneurysms.lib.names import DistanceToNeckArrayName
+from vmtk4aneurysms.lib.polydatatools import GetPointArrays
 from vmtk4aneurysms.vasculature import Vasculature
 from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
 
@@ -128,12 +130,13 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         # Compute the geodesic distance to the aneurysm neck so the
         # neck contour is kept into the surface before the Vasculature
         # construction, which deletes it
-        self.Surface = ComputeGeodesicDistanceToAneurysmNeck(
-                           self.Surface,
-                           mode=self.ComputationMode,
-                           aneurysm_type=self.AneurysmType,
-                           parent_vascular_surface=self.ParentVesselSurface
-                       )
+        if DistanceToNeckArrayName not in GetPointArrays(self.Surface):
+            self.Surface = ComputeGeodesicDistanceToAneurysmNeck(
+                               self.Surface,
+                               mode=self.ComputationMode,
+                               aneurysm_type=self.AneurysmType,
+                               parent_vascular_surface=self.ParentVesselSurface
+                           )
 
         # Generate an aneurysm object
         vascularModel = Vasculature(
