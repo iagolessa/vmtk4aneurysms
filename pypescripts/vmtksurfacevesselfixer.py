@@ -38,6 +38,8 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.vmtkRenderer = None
         self.OwnRenderer  = 0
         self.Remesh = False
+        self.Edgelength = 0.15
+        self.Iterations = 5
         self.Smooth = True
         self.Clip = True
 
@@ -49,17 +51,19 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.FillValue   = 1.0
 
         self.SetScriptName('vmtksurfacevesselfixer')
-        self.SetScriptDoc("Function to interactively fix a surface of a"
-                          "vessel segment with holes and other weird"
-                          "artifacts. The function works internally with"
-                          "the region drawing script and clipper with"
-                          "array."
-                          "Two forms of tools are available: one that directly"
-                          "fix (=clip and cap) the surface by selecting a closed"
-                          "region; and the other asks for the user to draw the"
-                          "region to be removed by interactively filling it with"
-                          "closed contours (this option is mainly designed to"
-                          "fix joined regions of the vessels).")
+        self.SetScriptDoc(
+            "Function to interactively fix a surface of a"
+            "vessel segment with holes and other weird"
+            "artifacts. The function works internally with"
+            "the region drawing script and clipper with"
+            "array."
+            "Two forms of tools are available: one that directly"
+            "fix (=clip and cap) the surface by selecting a closed"
+            "region; and the other asks for the user to draw the"
+            "region to be removed by interactively filling it with"
+            "closed contours (this option is mainly designed to"
+            "fix joined regions of the vessels)."
+        )
 
         self.SetInputMembers([
             ['Surface', 'i', 'vtkPolyData', 1, '',
@@ -70,6 +74,12 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
             ['Remesh' , 'remesh', 'bool', 1, '',
                 'to apply remeshing procedure after fixing it'],
+
+            ['Iterations', 'iterations', 'int', 1, '',
+                'number of iterations of the remeshing step'],
+
+            ['Edgelength', 'edgelength', 'float', 1, '',
+                'the target triangle edgelength for remeshing'],
 
             ['Smooth' , 'smooth','bool',1,'',
                 'if surface must be smoothed before fixing'],
@@ -338,18 +348,19 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         if self.Clip:
             surfaceClipper = vmtkscripts.vmtkSurfaceClipper()
             surfaceClipper.Surface = self.Surface
-            surfaceClipper.InsideOut = True
+            surfaceClipper.InsideOut = False
+            surfaceClipper.WidgetType = 'sphere'
             surfaceClipper.Execute()
 
             self.Surface = surfaceClipper.Surface
 
-        connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-        connectivityFilter.SetInputData(self.Surface)
-        connectivityFilter.ColorRegionsOff()
-        connectivityFilter.SetExtractionModeToLargestRegion()
-        connectivityFilter.Update()
+            connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
+            connectivityFilter.SetInputData(self.Surface)
+            connectivityFilter.ColorRegionsOff()
+            connectivityFilter.SetExtractionModeToLargestRegion()
+            connectivityFilter.Update()
 
-        self.Surface = connectivityFilter.GetOutput()
+            self.Surface = connectivityFilter.GetOutput()
 
         # Smooth and subdivide before fixing
         if self.Smooth:
@@ -359,12 +370,6 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             smoother.PassBand = 0.1
             smoother.NumberOfIterations = 30
             smoother.Execute()
-
-            # subdivider = vmtkscripts.vmtkSurfaceSubdivision()
-            # subdivider.Surface = smoother.Surface
-            # subdivider.Method  = 'butterfly'
-            # # subdivider.NumberOfSubdivisions = 2
-            # subdivider.Execute()
 
             self.Surface = smoother.Surface
 
@@ -455,8 +460,9 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
             remesher = vmtkscripts.vmtkSurfaceRemeshing()
             remesher.Surface = self.Surface
             remesher.ElementSizeMode = "edgelength"
-            remesher.TargetEdgeLength = 0.20
-            remesher.OutputText("Remeshing procedure ...")
+            remesher.TargetEdgeLength = self.Edgelength
+            remesher.NumberOfIterations = self.Iterations
+            remesher.OutputText("Remeshing...")
             remesher.Execute()
 
             self.Surface = remesher.Surface
