@@ -95,6 +95,21 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
         self.Surface = arraySmoother.Surface
 
+    def _addEmptyContourArray(self):
+
+        # Define contour field on surface
+        contourScalars = vtk.vtkDoubleArray()
+        contourScalars.SetNumberOfComponents(1)
+        contourScalars.SetNumberOfTuples(self.Surface.GetNumberOfPoints())
+        contourScalars.SetName(self.ContourScalarsArrayName)
+        contourScalars.FillComponent(0,self.FillValue)
+
+        # Add array to surface
+        self.Surface.GetPointData().AddArray(contourScalars)
+        self.Surface.GetPointData().SetActiveScalars(
+                self.ContourScalarsArrayName
+            )
+
     def DeleteContourCallback(self, obj):
         self.ContourWidget.Initialize()
 
@@ -188,8 +203,11 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         capper.Update()
 
         # Update mapper
+        self.Surface = capper.GetOutput()
+        self._addEmptyContourArray()
+
         self.vmtkRenderer.Renderer.RemoveActor(self.Actor)
-        self.mapper.SetInputData(capper.GetOutput())
+        self.mapper.SetInputData(self.Surface)
         self.mapper.ScalarVisibilityOn()
         self.mapper.Update()
 
@@ -198,14 +216,11 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Actor.SetMapper(self.mapper)
         self.Actor.GetMapper().SetScalarRange(-1.0, 0.0)
         self.Actor.Modified()
+        self.vmtkRenderer.Renderer.AddActor(self.Actor)
 
         # Get output
-        self.Surface = capper.GetOutput()
+        self.Surface.Modified()
         self.ContourWidget.Initialize()
-
-        # Call Representation to initialize contour widget
-        # on new clipped surface
-        self.Representation()
 
     def FixMarkedRegion(self, obj):
         rep = vtk.vtkOrientedGlyphContourRepresentation.SafeDownCast(
@@ -281,8 +296,11 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         capper.Update()
 
         # Update mapper
+        self.Surface = capper.GetOutput()
+        self._addEmptyContourArray()
+
         self.vmtkRenderer.Renderer.RemoveActor(self.Actor)
-        self.mapper.SetInputData(capper.GetOutput())
+        self.mapper.SetInputData(self.Surface)
         self.mapper.ScalarVisibilityOn()
         self.mapper.Update()
 
@@ -291,28 +309,66 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
         self.Actor.SetMapper(self.mapper)
         self.Actor.GetMapper().SetScalarRange(-1.0, 0.0)
         self.Actor.Modified()
+        self.vmtkRenderer.Renderer.AddActor(self.Actor)
 
         # Get output
-        self.Surface = capper.GetOutput()
+        self.Surface.Modified()
         self.ContourWidget.Initialize()
 
-        # Call Representation to initialize contour widget
-        # on new clipped surface
-        self.Representation()
+    def Execute(self):
+        if not self.Surface:
+            self.PrintError('Error: no Surface.')
 
-    def Representation(self):
-        # Define contour field on surface
-        contourScalars = vtk.vtkDoubleArray()
-        contourScalars.SetNumberOfComponents(1)
-        contourScalars.SetNumberOfTuples(self.Surface.GetNumberOfPoints())
-        contourScalars.SetName(self.ContourScalarsArrayName)
-        contourScalars.FillComponent(0,self.FillValue)
+        # Initialize renderer
+        if not self.vmtkRenderer:
+            self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
+            self.vmtkRenderer.Initialize()
+            self.OwnRenderer = 1
 
-        # Add array to surface
-        self.Surface.GetPointData().AddArray(contourScalars)
-        self.Surface.GetPointData().SetActiveScalars(
-                self.ContourScalarsArrayName
-            )
+        self.vmtkRenderer.RegisterScript(self)
+
+        # Filter input surface
+        triangleFilter = vtk.vtkTriangleFilter()
+        triangleFilter.SetInputData(self.Surface)
+        triangleFilter.Update()
+
+        self.Surface = triangleFilter.GetOutput()
+
+        # If clip is true, clip surface
+        if self.Clip:
+            surfaceClipper = vmtkscripts.vmtkSurfaceClipper()
+            surfaceClipper.Surface = self.Surface
+            surfaceClipper.InsideOut = True
+            surfaceClipper.Execute()
+
+            self.Surface = surfaceClipper.Surface
+
+        connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
+        connectivityFilter.SetInputData(self.Surface)
+        connectivityFilter.ColorRegionsOff()
+        connectivityFilter.SetExtractionModeToLargestRegion()
+        connectivityFilter.Update()
+
+        self.Surface = connectivityFilter.GetOutput()
+
+        # Smooth and subdivide before fixing
+        if self.Smooth:
+            smoother = vmtkscripts.vmtkSurfaceSmoothing()
+            smoother.Surface  = self.Surface
+            smoother.Method   = 'taubin'
+            smoother.PassBand = 0.1
+            smoother.NumberOfIterations = 30
+            smoother.Execute()
+
+            # subdivider = vmtkscripts.vmtkSurfaceSubdivision()
+            # subdivider.Surface = smoother.Surface
+            # subdivider.Method  = 'butterfly'
+            # # subdivider.NumberOfSubdivisions = 2
+            # subdivider.Execute()
+
+            self.Surface = smoother.Surface
+
+        self._addEmptyContourArray()
 
         # Create mapper and actor to scene
         self.mapper = vtk.vtkPolyDataMapper()
@@ -389,64 +445,10 @@ class vmtkSurfaceVesselFixer(pypes.pypeScript):
 
         self.Display()
 
-    def Execute(self):
-        if not self.Surface:
-            self.PrintError('Error: no Surface.')
-
-        # Initialize renderer
-        if not self.vmtkRenderer:
-            self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
-            self.vmtkRenderer.Initialize()
-            self.OwnRenderer = 1
-
-        self.vmtkRenderer.RegisterScript(self)
-
-        # Filter input surface
-        triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInputData(self.Surface)
-        triangleFilter.Update()
-
-        self.Surface = triangleFilter.GetOutput()
-
-        # If clip is true, clip surface
-        if self.Clip:
-            surfaceClipper = vmtkscripts.vmtkSurfaceClipper()
-            surfaceClipper.Surface = self.Surface
-            surfaceClipper.InsideOut = True
-            surfaceClipper.Execute()
-
-            self.Surface = surfaceClipper.Surface
-
-        connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-        connectivityFilter.SetInputData(self.Surface)
-        connectivityFilter.ColorRegionsOff()
-        connectivityFilter.SetExtractionModeToLargestRegion()
-        connectivityFilter.Update()
-
-        self.Surface = connectivityFilter.GetOutput()
-
-        # Smooth and subdivide before fixing
-        if self.Smooth:
-            smoother = vmtkscripts.vmtkSurfaceSmoothing()
-            smoother.Surface  = self.Surface
-            smoother.Method   = 'taubin'
-            smoother.PassBand = 0.1
-            smoother.NumberOfIterations = 30
-            smoother.Execute()
-
-            # subdivider = vmtkscripts.vmtkSurfaceSubdivision()
-            # subdivider.Surface = smoother.Surface
-            # subdivider.Method  = 'butterfly'
-            # # subdivider.NumberOfSubdivisions = 2
-            # subdivider.Execute()
-
-            self.Surface = smoother.Surface
-
-        # Start representation and access to all operations
-        self.Representation()
-
         # Clean up surface arrays
-        self.Surface.GetPointData().RemoveArray(self.ContourScalarsArrayName)
+        self.Surface.GetPointData().RemoveArray(
+            self.ContourScalarsArrayName
+        )
 
         # Remesh procedure to increase surface quality
         if self.Remesh:
