@@ -73,8 +73,7 @@ class vmtkExtractRawSurface(pypes.pypeScript):
                 'smoothing iterations of level sets algorithm'],
 
             ['ShowOutput','showoutput','bool',1,'',
-                'whether to see the final surface with image'],
-
+                'whether to see the final surface with image']
         ])
 
         self.SetOutputMembers([
@@ -84,15 +83,6 @@ class vmtkExtractRawSurface(pypes.pypeScript):
             ['Surface','o','vtkPolyData',1,'',
                 'the output surface','vmtksurfacewriter']
         ])
-
-
-    def ShowInputImage(self,obj):
-
-        # Turn opacity of surface and show image
-        self.imageViewer = vmtkscripts.vmtkImageViewer()
-        self.imageViewer.vmtkRenderer = self.vmtkRenderer
-        self.imageViewer.Image = self.Image
-        self.imageViewer.BuildView()
 
 
     def Execute(self):
@@ -149,12 +139,6 @@ class vmtkExtractRawSurface(pypes.pypeScript):
         if self.ShowOutput:
             # Initialize renderer = surface + image
             self.vmtkRenderer = vmtkscripts.vmtkRenderer()
-            self.vmtkRenderer.AddKeyBinding(
-                'space',
-                'Show input image',
-                self.ShowInputImage
-            )
-
             self.vmtkRenderer.Initialize()
 
             self.surfaceViewer = vmtkscripts.vmtkSurfaceViewer()
@@ -162,10 +146,17 @@ class vmtkExtractRawSurface(pypes.pypeScript):
             self.surfaceViewer.Surface = self.Surface
             self.surfaceViewer.Color = [1.0, 0.0, 0.0]
             self.surfaceViewer.Opacity = 0.4
+            self.surfaceViewer.Display = 0
             self.surfaceViewer.BuildView()
 
-            self.vmtkRenderer.Deallocate()
+            # Turn opacity of surface and show image
+            self.imageViewer = vmtkscripts.vmtkImageViewer()
+            self.imageViewer.vmtkRenderer = self.vmtkRenderer
+            self.imageViewer.Image = self.Image
+            self.imageViewer.Display = 1
+            self.imageViewer.BuildView()
 
+            self.vmtkRenderer.Deallocate()
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
