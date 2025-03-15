@@ -78,6 +78,7 @@ MinCurvatureArrayName      = "Minimum_Curvature"
 SeamScalarsArrayName       = "SeamScalars"
 TorsionArrayName           = "Torsion"
 CurvatureArrayName         = "Curvature"
+BendsIdsFieldName          = "BendIds"
 
 SqrGaussCurvatureArrayName = "SqrGaussCurvature"
 SqrMeanCurvatureArrayName  = "SqrMeanCurvature"

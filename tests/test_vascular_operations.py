@@ -63,7 +63,7 @@ class TestVascularOperationsModule(unittest.TestCase):
                                 icaPoint
                             )
 
-        bendLimits = vscop.ComputeICABendsLimits(offsetCenterlines)
+        bendLimits = cl.ComputeICABendsLimits(offsetCenterlines)
 
         self.assertTrue(
             len(bendLimits) == correctNumberOfBifurcations

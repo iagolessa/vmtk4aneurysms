@@ -30,7 +30,6 @@ from vmtk import vtkvmtk
 from vmtk import vmtkscripts
 from scipy import interpolate
 
-from scipy.signal import find_peaks_cwt
 from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 from .lib import names
@@ -2376,227 +2375,59 @@ def ComputeVasculatureElasticityWithAneurysm(
 
     return vascular_surface
 
-def _split_centerline_object(centerlines):
-    """Split tree centerline into dict of its centerlines components."""
-
-    npCenterlines = dsa.WrapDataObject(centerlines)
-
-    centerlineIds = list(
-                        set(
-                            npCenterlines.CellData.GetArray(
-                                names.vmtkCenterlineIdsArrayName
-                            )
-                        )
-                    )
-
-    # Cretae dict to better storing of separate centerlines
-    individualCenterlines = {}
-
-    for cl_id in centerlineIds:
-
-        individualCenterlines[cl_id] = {}
-
-        # Extract centerline portion and transfrom GroupId to point for later
-        clPortion = tools.CellFieldToPointField(
-                        tools.ExtractPortion(
-                            centerlines,
-                            names.vmtkCenterlineIdsArrayName,
-                            cl_id
-                        ),
-                        cell_field_name=names.vmtkGroupIdsArrayName
-                    )
-
-        individualCenterlines[cl_id].update(
-            {"object": clPortion}
-        )
-
-        # Add total length of each
-        individualCenterlines[cl_id].update({
-            "length": max(
-                          clPortion.GetCellData().GetArray(
-                             names. vmtkLengthArrayName
-                          ).GetRange()
-                      )
-        })
-
-    return individualCenterlines
-
-def ComputeICABendsLimits(
+def SplitICAModelIntoBends(
+        vascular_model: names.polyDataType,
         centerlines: names.polyDataType,
-        abscissas_peak_widths: np.ndarray=np.arange(30,40)
-    )   -> list:
-    """Given the vascular tree centerline containing the ICA segment with
-    Abscissas defined from its bifurcation, compute the intervals of its bends.
+        bif_point: tuple
+    )   -> names.polyDataType:
 
-    A precise definition of the bends of the internal carotide artery (ICA) was
-    provided by the work:
-
-        M. Piccinelli et al., “Geometry of the Internal Carotid Artery and
-        Recurrent Patterns in Location, Orientation, and Rupture Status of
-        Lateral Aneurysms: An Image-Based Computational Study”, Neurosurgery,
-        vol. 68, nº 5, p. 1270–1285, maio 2011, doi:
-        10.1227/NEU.0b013e31820b5242.
-
-    which subdivides the ICA intro bends defined by torsion and curvature
-    peaks. This functions implements it based on the procedure proposed in the
-    paper. However, the procedure is sensitive to some arguments. For example,
-    its is recommended that the passed centerline be smoothed with the
-    centerline smoothing procedure in VMTK (a function that encapsulates the
-    procedure with suitable arguments tuned for this subdivision of the ICA is
-    in the lib/centerline.py module, see 'SmoothCenterline').
-
-    Also, the subdivision depends on the identification of peaks of torsion
-    sand curvature of the centerline that is normally a relatively noisy field
-    for discretized centerline (hence the recommendation to smooth it). In this
-    case the peaks are found with the scipy.signal.find_peaks_cwt function
-    which depends on the 'width' argument passsed to the wavelets functions.
-    These widths are a lista of possible widths between peaks of the torsion
-    and curvature signal, which depends on each vascular case. These argument
-    can be passed to this function in the 'abscissas_peak_widths' argument. If
-    None is passed, then the default is between 30 and 40, which is pretty
-    arbitrary, but were found based on testing with the aneurisk repository
-    cases and yield the best results.
-
-    .. warning::
-        It is highly recommended to smooth the centerline prior to passing it
-        to this function.
-    """
-
-    individualCenterlines = _split_centerline_object(centerlines)
-
-    # Get longest centerline
-    # ID of ICA clip will be identified in this portion
-    idLongestCenterline = max(
-                              individualCenterlines,
-                              key=lambda idx: individualCenterlines[idx]["length"]
+    smoothedCenterlines = cl.ComputeCenterlinePropertiesOffBifurcation(
+                              centerlines,
+                              bif_point
                           )
 
+    bendLimits = cl.ComputeICABendsLimits(smoothedCenterlines)
+    individualCenterlines = cl.SplitCenterlineObject(smoothedCenterlines)
+
+    # Get longest centerline
+    idLongestCenterline = max(
+                          individualCenterlines,
+                          key=lambda idx: individualCenterlines[idx]["length"]
+                      )
+
     longestCenterline = individualCenterlines[idLongestCenterline]["object"]
+    npCenterlines = dsa.WrapDataObject(longestCenterline)
 
-    minAbscissas, _ = longestCenterline.GetPointData().GetArray(
-                          names.vmtkAbscissasArrayName
-                      ).GetRange()
-
-    icaCenterline = tools.ClipWithScalar(
-                        longestCenterline,
-                        names.vmtkAbscissasArrayName,
-                        const.zero
+    bendIdsField = -dsa.VTKArray(
+                        np.ones(
+                            shape=longestCenterline.GetNumberOfPoints(),
+                            dtype=int
+                        )
                     )
 
-    npIcaCenterline = dsa.WrapDataObject(icaCenterline)
+    abscissasField = npCenterlines.PointData.GetArray(
+                        names.vmtkAbscissasArrayName
+                    )
 
-    icaTorsionField   = npIcaCenterline.GetPointData().GetArray(
-                            names.TorsionArrayName
-                        )
+    for bend_id, (min_, max_) in enumerate(bendLimits):
 
-    icaCurvatureField = npIcaCenterline.GetPointData().GetArray(
-                            names.CurvatureArrayName
-                        )
+        bendIdsField[
+            (abscissasField <= min_) &
+            (abscissasField >  max_)
+        ] = bend_id
 
-    icaAbscissasField = npIcaCenterline.GetPointData().GetArray(
-                            names.vmtkAbscissasArrayName
-                        )
+    # When adding to the Numpy wrap object, it automatically
+    # adds to the underlying VTK object
+    npCenterlines.PointData.append(
+        bendIdsField,
+        names.BendsIdsFieldName
+    )
 
-    # Find ids of torsion peaks in smoothed centerline
-    # Estimate widths between peaks: between a subdivision of 5 and 2
-    # the length of the ICA
-    torsionPeaksIds = find_peaks_cwt(
-                            abs(icaTorsionField),
-                            widths=abscissas_peak_widths
-                        )
-
-    # Find ids of torsion peaks in smoothed centerline
-    curvaturePeaksIds = find_peaks_cwt(
-                            icaCurvatureField,
-                            widths=abscissas_peak_widths
-                        )
-
-    # Get the peaks and add min and max of ICA abscissas
-    torsionPeaksAbscissas = sorted(
-                                np.append(
-                                    icaAbscissasField[torsionPeaksIds],
-                                    [const.zero,
-                                     minAbscissas]
-                                )
-                            )
-
-    curvaturePeaksAbscissas = sorted(
-                                    np.append(
-                                        icaAbscissasField[curvaturePeaksIds],
-                                        [const.zero,
-                                         minAbscissas]
-                                    )
-                                )
-
-    # Sort arrays
-    torsionPeaksAbscissas = np.array(list(reversed(torsionPeaksAbscissas)))
-    curvaturePeaksAbscissas = np.array(list(reversed(curvaturePeaksAbscissas)))
-
-    # Get distal and proximal torsian peaks
-    # with curvature peaks within it
-    bendLimits = []
-    saveValueForNext = []
-
-    curvatureIntervals = zip(
-                            curvaturePeaksAbscissas,
-                            curvaturePeaksAbscissas[1:],
-                            curvaturePeaksAbscissas[2:]
-                        )
-
-    # Identify distal and proximal values to curvature peaks
-    for max_abs, centre, min_abs in curvatureIntervals:
-
-        # Compute the 2 enclosing tosion peaks (closest)
-        # Divide into upstream values and downstream values
-        upstreamTorsionPeaks = torsionPeaksAbscissas[
-                                   (torsionPeaksAbscissas <= max_abs) &
-                                   (torsionPeaksAbscissas >= centre)
-                               ]
-
-        downstreamTorsionPeaks = torsionPeaksAbscissas[
-                                     (torsionPeaksAbscissas <= centre) &
-                                     (torsionPeaksAbscissas >= min_abs)
-                                 ]
-
-        # Handle case where there is no torsion peaks between two
-        # curvature peaks
-        if downstreamTorsionPeaks.size == 0:
-            # Store the upstream value only
-            # Get upstream proximal value
-            saveValueForNext.append(
-                upstreamTorsionPeaks[
-                    abs(upstreamTorsionPeaks - centre).argmin()
-                ]
+    return tools.ProjectPointArray(
+                vascular_model,
+                npCenterlines.VTKObject,
+                names.BendsIdsFieldName
             )
-
-            continue
-
-        elif upstreamTorsionPeaks.size == 0:
-
-            # this case occurs when a donwtream was empty
-            # Get only downstream value to list
-
-            upstreamLimit = saveValueForNext[0]
-
-
-            downstreamLimit = downstreamTorsionPeaks[
-                                  abs(downstreamTorsionPeaks - centre).argmax()
-                              ]
-
-        else:
-            # Get upstream proximal value
-            upstreamLimit = upstreamTorsionPeaks[
-                                abs(upstreamTorsionPeaks - centre).argmin()
-                            ]
-
-            # Get downstream distal value
-            downstreamLimit = downstreamTorsionPeaks[
-                                  abs(downstreamTorsionPeaks - centre).argmax()
-                              ]
-
-        bendLimits.append((upstreamLimit, downstreamLimit))
-
-    return bendLimits
 
 def ClipVasculatureOffBifurcation(
         vascular_surface: names.polyDataType,
@@ -2721,7 +2552,7 @@ def ClipVasculatureOffBifurcation(
               )
 
     # Cretae dict to better storing of separate centerlines
-    individualCenterlines = _split_centerline_object(offsetCenterlines)
+    individualCenterlines = cl.SplitCenterlineObject(offsetCenterlines)
 
     # Get longest centerline
     # ID of ICA clip will be identified in this portion
