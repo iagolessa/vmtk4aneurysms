@@ -21,6 +21,8 @@ import vtk
 
 from vmtk import pypes
 
+from vmtk4aneurysms.lib import names
+from vmtk4aneurysms.lib import constants as const
 from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import foamtovtk as fvtk
@@ -44,9 +46,9 @@ class vmtkFoamComputeHemodynamics(pypes.pypeScript):
         self.PressureSurface = None
         self.TemporalDataFile = None
         self.FixedPoints = None
-        self.NearWallTransportWssName = "WSS_average"
+        self.NearWallTransportWssName = names.WSS + names.avg
 
-        self.BloodDensity = 1056.0
+        self.BloodDensity = const.bloodDensity
         self.ComputePressureStats = False
         self.ComputeGon = False
         self.ComputeAfi = False

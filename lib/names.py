@@ -50,6 +50,7 @@ yAxisSufx = "Y"
 zAxisSufx = "Z"
 
 avg = '_average'
+vec = '_vector'
 mag = '_magnitude'
 grad = '_gradient'
 div  = '_div'
@@ -100,7 +101,10 @@ vmtkReferenceSystemsNormalArrayName = "Normal"
 AneurysmNeckArrayName     = DistanceToNeckArrayName # old 'AneurysmNeckContourArray'
 
 # Attribute array names
-WSS = 'WSS'
+# This is the WSS vector field
+WSS = 'WSS' + vec
+
+# Derived
 OSI = 'OSI'
 RRT = 'RRT'
 AFI = 'AFI'
