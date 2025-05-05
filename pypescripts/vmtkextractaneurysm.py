@@ -25,6 +25,8 @@ from pprint import PrettyPrinter
 
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
+
+from vmtk4aneurysms.lib.polydatatools import GetPointArrays
 from vmtk4aneurysms.aneurysms import Aneurysm
 from vmtk4aneurysms.lib.polydatatools import RemeshSurface, ClipWithScalar
 
@@ -114,13 +116,14 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         # Only mark the aneurysm and compute the geodesic distance to it
         # (this code portion reproduces part of the functionality in
         # ClipAneurysmSacSurface, but here I need to keep the distance field)
-        self.Surface = ComputeGeodesicDistanceToAneurysmNeck(
-                           self.Surface,
-                           mode=self.ComputationMode,
-                           aneurysm_type=self.AneurysmType,
-                           aneurysm_point=self.DomePoint,
-                           parent_vascular_surface=self.ParentVesselSurface
-                       )
+        if names.DistanceToNeckArrayName not in GetPointArrays(self.Surface):
+            self.Surface = ComputeGeodesicDistanceToAneurysmNeck(
+                               self.Surface,
+                               mode=self.ComputationMode,
+                               aneurysm_type=self.AneurysmType,
+                               aneurysm_point=self.DomePoint,
+                               parent_vascular_surface=self.ParentVesselSurface
+                           )
 
         # Clip the aneurysm sac (aneurysm marked with negative values)
         self.AneurysmSurface = ClipWithScalar(
