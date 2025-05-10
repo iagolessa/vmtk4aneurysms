@@ -68,9 +68,30 @@ bloodDensity = 1056.0 # kg/m3
 
 # Dictionary holding the IDs of each wall type
 # See docstring of func vascular_operations.WallTypeClassification
-IaWallTypes = {"RegularWall": 0,
-               "AtheroscleroticWall": 1,
-               "RedWall": 2}
+IaWallTypes = {
+    "RegularWall"        : zero,
+    "AtheroscleroticWall": one,
+    "RedWall"            : two
+}
+
+IaSacRegionsTypes = {
+    "OutOfSac": zero,
+    "Neck"    : one,
+    "Body"    : two,
+    "Dome"    : three
+}
+
+SurfaceLocalShapes = {
+    'ellipticalConvex' : zero,
+    'ellipticalConcave': one,
+    'elliptical'       : two,
+    'hyperbolicConvex' : three,
+    'hyperbolicConcave': four,
+    'hyperbolic'       : five,
+    'cylindricConvex'  : six,
+    'cylindricConcave' : seven,
+    'planar'           : eight
+}
 
 # Average blood flow rates as measured by
 # L. Zarrinkoob, K. Ambarki, A. Wåhlin, R. Birgander, A. Eklund, e J. Malm,

@@ -66,6 +66,7 @@ AneurysmalRegionArrayName  = "AneurysmalRegionArray"
 GeodesicDistanceArrayName  = "GeodesicDistance"
 EuclideanDistanceArrayName = "EuclideanDistance"
 WallTypeArrayName          = "WallType"
+SacRegionsArrayName        = "SacRegions"
 DistanceToNeckArrayName    = 'DistanceToNeck'
 ThicknessArrayName         = 'Thickness'
 VascularRadiusArrayName    = "MaximumInscribedSphereRadius"
