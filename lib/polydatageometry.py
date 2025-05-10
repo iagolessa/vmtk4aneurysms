@@ -882,7 +882,8 @@ class Surface():
 
         The name of the generated arrays are: "Mean_Curvature"
         (names.MeanCurvatureArrayName), "Gauss_Curvature"
-        (names.GaussCurvatureArrayName), and "Local_Shape_Type".
+        (names.GaussCurvatureArrayName), and "Local_Shape_Type"
+        (names.LocalShapeTypeArrayName).
         """
         # Compute mean curvature
         meanCurvature = vtk.vtkCurvatures()
@@ -962,7 +963,10 @@ class Surface():
         for shape in surfaceLocalShapes.values():
             LocalShapeArray += where(shape.get('condition'), shape.get('id'), 0)
 
-        npCurvatures.CellData.append(LocalShapeArray, 'Local_Shape_Type')
+        npCurvatures.CellData.append(
+            LocalShapeArray,
+            names.LocalShapeTypeArrayName
+        )
 
         return npCurvatures.VTKObject
 
