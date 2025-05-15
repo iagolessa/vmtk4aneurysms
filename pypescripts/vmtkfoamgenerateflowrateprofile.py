@@ -33,7 +33,7 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
         pypes.pypeScript.__init__(self)
 
         self.NCycles = 3
-        self.ThresholdAge = 50
+        self.ThresholdAge = const.ThresholdAge
         self.TimeIncrement = 0.01
         self.BloodDensity = const.bloodDensity
         self.ScaledPressureByDensity = True
@@ -67,7 +67,7 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
                 'patient age'],
 
             ['InletLocation', 'inletlocation', 'str', 1, '',
-                'artery where the inlet flow is located (ica or basilar)'],
+                'artery where the inlet flow is located (ica, ba, mca, aca, pca, va, oa)'],
 
             ['BloodDensity', 'blooddensity', 'float', 1, '',
                 'the density of blood'],
@@ -87,73 +87,17 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
 
         self.SetOutputMembers([])
 
-    def _patient_is_older(self, age: int) -> bool:
-        """Return whether patine tis older.
-
-        Older patients are classified here based on Hoi et al. (2010) study whose
-        subjects had an average age of 68 +- 8 years and Ford et al. (2005) study
-        whose subjects had an average age of 28 +- 7 years. We classified, then,
-        young patients with age < 40 and older patients with age > 40, for
-        classification purposes.
-        """
-
-        return age >= self.ThresholdAge
-
-    def _patient_is_young(self, age: int) -> bool:
-        """Return whether patine is young.
-
-        Older patients are classified here based on Hoi et al. (2010) study whose
-        subjects had an average age of 68 +- 8 years and Ford et al. (2005) study
-        whose subjects had an average age of 28 +- 7 years. We classified, then,
-        young patients with age < 40 and older patients with age > 40, for
-        classification purposes.
-        """
-
-        return age < self.ThresholdAge
-
-    def _select_norm_flow_rate(
-            self,
-            patient_age,
-            ia_location
-        ):
-
-        if self._patient_is_older(patient_age) and ia_location == "basilar":
-            # Profile not avaible for older patients. Use the ICA one
-            profileType = "measured_ica_older"
-            Qavg = const.BfrAvgBAOlderAdults
-
-        elif self._patient_is_young(patient_age) and ia_location == "basilar":
-            profileType = "measured_va_young"
-            Qavg = const.BfrAvgBAYoungAdults
-
-        elif self._patient_is_older(patient_age) and ia_location != "basilar":
-            profileType = "measured_ica_older"
-            Qavg = const.BfrAvgICAOlderAdults
-
-        elif self._patient_is_young(patient_age) and ia_location != "basilar":
-            profileType = "measured_ica_young"
-            Qavg = const.BfrAvgICAYoungAdults
-
-        else:
-            raise ValueError("Patient age and aneurysm location not identified.")
-
-        return profileType, Qavg
-
     def Execute(self):
-
-        # Generate blood flow rate profile for the case
-        profileType, Qavg = self._select_norm_flow_rate(
-                                self.PatientAge,
-                                self.InletLocation
-                            )
 
         # Generate the inlet flow profile according to age and aneurysm location
         flowRateWaveform = hm.GenerateBloodFlowRateProfile(
-                              time_step=self.TimeIncrement,
-                              ncycles=self.NCycles,
-                              profile_type=profileType,
-                              Qavg=self.BloodDensity*Qavg if self.MassFlowRate else Qavg
-                          )
+                               self.PatientAge,
+                               self.InletLocation,
+                               time_step=self.TimeIncrement,
+                               ncycles=self.NCycles,
+                               mass_flow_rate=self.MassFlowRate,
+                               blood_density=self.BloodDensity
+                           )
 
         # Get pressure profile (for incompressible OF simulation)
         pressureProfile = hm.ResistanceOutflowPressure(
@@ -166,12 +110,11 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
             self.FlowRateDataFile,
             flowRateWaveform,
             fmt='\t(%5.3f\t%5.4e)',
-            header='//Flow rate profile at {} of {} patients dimensionalized by '\
-                   '{:.3e} {}\n{}FlowRate table\n('.format(
+            header='//Flow rate profile at {} of a patient with {} years,'\
+                   'measured in {}\n{}FlowRate table\n('.format(
                         self.InletLocation.upper(),
-                        "older" if self._patient_is_older(self.PatientAge) else "young",
-                        self.BloodDensity*Qavg if self.MassFlowRate else Qavg,
-                        "kg/s" if self.MassFlowRate else "m^3/s",
+                        str(self.PatientAge),
+                        "kg/s" if self.MassFlowRate else "m3/s",
                         "mass" if self.MassFlowRate else "volumetric"
                     ),
             footer=');',
@@ -182,10 +125,10 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
             self.OutflowPressureDataFile,
             pressureProfile,
             fmt='\t(%5.3f\t%5.4f)',
-            header='//Pressure profile at {} of {} patients [{}]\n'\
+            header='//Pressure profile at {} of a patient with {} years [{}]\n'\
                    'uniformValue table\n('.format(
                         self.InletLocation.upper(),
-                        "older" if self._patient_is_older(self.PatientAge) else "young",
+                        str(self.PatientAge),
                         "m^2/s^2" if self.ScaledPressureByDensity else "Pa"
                     ),
             footer=');',
@@ -194,11 +137,13 @@ class vmtkFoamGenerateFlowrateProfile(pypes.pypeScript):
 
         # Get cardiac period and peak systole and low diastole instants
         cardiacPeriod = hm.GetCardiacCyclePeriod(
-                            profile_type=profileType
+                           self.PatientAge,
+                           self.InletLocation,
                         )
 
         ldInstant, psInstant = hm.GetCardiacCyclePeakAndDiastoleInstants(
-                                   profile_type=profileType,
+                                   self.PatientAge,
+                                   self.InletLocation,
                                    ncycles=self.NCycles
                                )
 

@@ -99,11 +99,29 @@ SurfaceLocalShapes = {
 # Flow and Metabolism, vol. 35, p. 648–654, 2015, doi: 10.1038/jcbfm.2014.241.
 # Here only for the internal carotid artery and the basilar artery
 
+# Defualt threshold age for older adults or young adults
+ThresholdAge = 50
+
 # For the ICA, Ford and Hoi results are in agreement with measurements by
 # Zarrinkoob. Hoi's study (didn't measured the VA flow rate). Also, the meand
-# and sd. of Zarro=inkoobs subjects are within the mean and sd. of Ford and
+# and sd. of Zarrinkoobs subjects are within the mean and sd. of Ford and
 # Hoi's subjects.
-BfrAvgICAOlderAdults = 236.0*mLMinToM3Sec
-BfrAvgICAYoungAdults = 276.0*mLMinToM3Sec
-BfrAvgBAYoungAdults  = 162.0*mLMinToM3Sec
-BfrAvgBAOlderAdults  = 128.0*mLMinToM3Sec
+dictBloodFlowRatesOlder = {
+    "ica": 236.0*mLMinToM3Sec,
+    "va" : 90.0*mLMinToM3Sec,
+    "mca": 131.0*mLMinToM3Sec,
+    "aca": 75.0*mLMinToM3Sec,
+    "ba" : 128.0*mLMinToM3Sec,
+    "pca": 51.0*mLMinToM3Sec,
+    "oa" : 11.0*mLMinToM3Sec,
+}
+
+dictBloodFlowRatesYoung = {
+    "ica": 276.0*mLMinToM3Sec,
+    "va" : 109*mLMinToM3Sec,
+    "mca": 161.0*mLMinToM3Sec,
+    "aca": 88.0*mLMinToM3Sec,
+    "ba" : 162.0*mLMinToM3Sec,
+    "pca": 58.0*mLMinToM3Sec,
+    "oa" : 10.0*mLMinToM3Sec,
+}

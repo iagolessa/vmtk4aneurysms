@@ -162,21 +162,68 @@ def _folders_in(path_to_parent):
         if os.path.isdir(os.path.join(path_to_parent,fname)):
             yield fname
 
-def _select_norm_profile(type: str):
+def _patient_is_older(age: int) -> bool:
+    """Return whether patient is older.
 
-    if type == "measured_ica_older":
+    Older patients are classified here based on Hoi et al. (2010) study whose
+    subjects had an average age of 68 +- 8 years and Ford et al. (2005) study
+    whose subjects had an average age of 28 +- 7 years. We classified, then,
+    young patients with age < 50 and older patients with age >= 50, for
+    classification purposes.
+    """
+
+    return age >= const.ThresholdAge
+
+def _select_norm_profile(
+        patient_age: float,
+        artery_name: str
+    ):
+    """Select normalized blood flow rate profile based on age and artery."""
+
+    olderPatient = _patient_is_older(patient_age)
+
+    if olderPatient and artery_name == "basilar":
+
+        # Profile not avaible for older patients. Use the ICA one
         return names.GetHoiICAProfile()
 
-    elif type == "measured_ica_young":
-        return names.GetFordICAProfile()
+    elif not olderPatient and artery_name == "basilar":
 
-    elif type == "measured_va_young":
         return names.GetFordVAProfile()
 
+    elif olderPatient and artery_name != "basilar":
+
+        return names.GetHoiICAProfile()
+
+    elif not olderPatient and artery_name != "basilar":
+
+        return names.GetFordICAProfile()
+
     else:
+        raise ValueError("Patient age or aneurysm location not identified.")
+
+def _select_artery_avg_flowrate(
+        patient_age: float,
+        artery_name: str
+    ):
+    """Select average blood flow rate based on age and artery."""
+
+    olderPatient = _patient_is_older(patient_age)
+
+    try:
+        if olderPatient:
+            return const.dictBloodFlowRatesOlder[artery_name]
+
+        else:
+            return const.dictBloodFlowRatesYoung[artery_name]
+
+    except KeyError:
         raise ValueError(
-                    "'type' arg either 'measured_ica_older', 'measured_ica_young' or 'measured_va_young'"
-                )
+                  "Available cerebral arteries: {}. You passed '{}'.".format(
+                      const.dictBloodFlowRatesOlder.keys(),
+                      artery_name
+                  )
+              )
 
 def MeanBloodFlowRateICA(section_area: float) -> float:
     """Mean blood flow rate (in m3/s) as a function of the section area.
@@ -196,16 +243,21 @@ def MeanBloodFlowRateICA(section_area: float) -> float:
     return const.cm3PerSecToM3PerSec*(k*area**n)
 
 def GetCardiacCyclePeriod(
-        profile_type: str="measured_ica_older"
+        patient_age: float,
+        artery_name: str
     )   -> float:
     """Get cardiac cycle period."""
 
-    normProfile = _select_norm_profile(profile_type)
+    normProfile = _select_norm_profile(
+                      patient_age,
+                      artery_name
+                  )
 
     return normProfile[-1, 0]
 
 def GetCardiacCyclePeakAndDiastoleInstants(
-        profile_type: str="measured_ica_older",
+        patient_age: float,
+        artery_name: str,
         ncycles: int=3
     )   -> tuple:
     """Get peak and low diastole instants of aneurysm simulation by reading the
@@ -218,8 +270,15 @@ def GetCardiacCyclePeakAndDiastoleInstants(
     'measured_ica_young','measured_ica_older', and 'measured_va_young'.
     """
 
-    normProfile = _select_norm_profile(profile_type)
-    period      = GetCardiacCyclePeriod(profile_type=profile_type)
+    normProfile = _select_norm_profile(
+                      patient_age,
+                      artery_name
+                  )
+
+    period = GetCardiacCyclePeriod(
+                 patient_age,
+                 artery_name
+             )
 
     lowDiastoleInstant = normProfile[-1, 0]
     peakSystoleInstant = normProfile[normProfile[:, 1].argmax(), 0]
@@ -231,22 +290,25 @@ def GetCardiacCyclePeakAndDiastoleInstants(
     return lowDiastoleInstant, peakSystoleInstant
 
 def GenerateBloodFlowRateProfile(
+        patient_age: float,
+        artery_name: str,
         time_step: float=0.01,
         ncycles: int=3,
         t0: float=0.0,
-        profile_type: str="measured_ica_older",
-        Qavg: float=1.0
+        Qavg: float=None,
+        mass_flow_rate: bool=False,
+        blood_density: float=const.bloodDensity,
         # scale_cycle_period: bool=False,
         # heart_rate_frequency: float=None
     ):
     """Compute array with temporal variation of blood flow rate.
 
-    Given time-step, number of cycles, generate an array with the temporal
-    blood flow rate along a cardiac cycle as measured or predicted by diferent
-    studies and/or methods, as can be selected by the keyword argument
-    'profile_type', which takes the values:
+    Given the patient's age, the artery acronym, time-step, and number of
+    cycles, generates an array with the temporal blood flow rate along a
+    cardiac cycle as measured or predicted by diferent studies and/or methods,
+    according to patient age and artery location:
 
-        - 'measured_ica_older' (default): populational-averaged temporal
+        - For older (> threshold_age) adults: populational-averaged temporal
           profile measured by the study
 
           Y. Hoi et al., “Characterization of volumetric flow rate waveforms at
@@ -256,8 +318,8 @@ def GenerateBloodFlowRateProfile(
           for patients with average age 68 +- 8 years. This study only measured
           it at the ICA (and ECA and CCA).
 
-        - 'measured_ica_young' or 'measured_va_young: populational-averaged
-          temporal profiles measured by the study
+        - For young adults: populational-averaged temporal profiles measured by
+          the study
 
           M. D. Ford, N. Alperin, S. H. Lee, D. W. Holdsworth, e D. A.
           Steinman, “Characterization of volumetric flow rate waveforms in the
@@ -269,20 +331,44 @@ def GenerateBloodFlowRateProfile(
           respectively.
 
     The array is normalized, by default, as provided by the aforementioned
-    studies, but it can be dimensionalized back by providing an average or
-    patient-specific blood flow rate through the argument 'Qavg'.
+    studies, but it is dimensionalized back by the average blood flow rates
+    according to artery and patient age as measured by
 
-    In the study by Ford et al. (2005), the authors found a strong correlation
-    between peak-systolic blood flow rate (Qpeak) and the the cardic-cycle
-    average for a patient, in the form:
+        L. Zarrinkoob, K. Ambarki, A. Wåhlin, R. Birgander, A. Eklund, e J.
+        Malm, "Blood flow distribution in cerebral arteries", Journal of
+        Cerebral Blood Flow and Metabolism, vol. 35, p. 648–654, 2015, doi:
+        10.1038/jcbfm.2014.241.
+
+    You can also pass the argument 'Qavg' to use your own averaged blood flow
+    rate, if necessary. In the study by Ford et al. (2005), the authors found a
+    strong correlation between peak-systolic blood flow rate (Qpeak) and the
+    the cardic-cycle average for a patient, in the form:
 
         Qpeak = 1.6*Qavg + 15 mL/min
 
     which could be used to infer the Qavg from patient measurement of Qpeak.
+
+    The default unit of the blood flow rate is m3/s, but it can be changed to
+    kg/s by passing the argument 'mass_flow_rate' to True. The conversion
+    between volume and mass flow rate is done by the blood density, which can
+    be changed by passing the argument 'blood_density' to the function. The default
+    blood density is 1056 kg/m3.
     """
 
     # get the normlized prof. in case of experimental profiles
-    normProfile = _select_norm_profile(profile_type)
+    normProfile = _select_norm_profile(
+                      patient_age,
+                      artery_name
+                  )
+
+    Qavg = Qavg if Qavg else _select_artery_avg_flowrate(
+                      patient_age,
+                      artery_name
+                  )
+
+    if mass_flow_rate:
+        # Convert to volumetric flow rate
+        Qavg *= blood_density
 
     timeRange = normProfile[:, 0]
 
@@ -340,8 +426,8 @@ def ResistanceOutflowPressure(
     'scale_pressure_by_density'.
     """
 
-    minPressure = 80*const.mmHgToPa    # Pa
-    maxPressure = 120*const.mmHgToPa   # Pa
+    minPressure = 80*const.mmHgToPa
+    maxPressure = 120*const.mmHgToPa
 
     if scale_pressure_by_density:
         minPressure /= density
