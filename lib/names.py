@@ -136,22 +136,41 @@ foamWSS = 'wallShearComponent'
 wallPatchName = 'wall'
 
 # List containing the main hemodynamic wall parameters (HWP)
-hwpList = [TAWSS, OSI,
+listHWP = [TAWSS, OSI,
            RRT, AFI,
            GON, WSSPI,
            WSSTG, transWSS,
            peakSystoleWSS,
            lowDiastoleWSS]
 
+# Aneurysm metrics names
+iaMetricSurfaceArea        = "AneurysmSurfaceArea"
+iaMetricOstiumArea         = "OstiumArea"
+iaMetricVolume             = "AneurysmVolume"
+iaMetricSurfaceArea        = "AneurysmSurfaceArea"
+iaMetricHullSurfaceArea    = "AneurysmHullSurfaceArea"
+iaMetricHullVolume         = "AneurysmHullVolume"
+iaMetricNeckDiameter       = "Dn"
+iaMetricMaxNormalHeight    = "Hnmax"
+iaMetricMaxDiameter        = "Dmax"
+iaMetricAspectRatio        = "AR"
+iaMetricBottleneckFactor   = "BF"
+iaMetricConicityParameter  = "CP"
+iaMetricNonsphericityIndex = "NSI"
+iaMetricEllipticityIndex   = "EI"
+iaMetricUndulationIndex    = "UI"
+
 areaAvgGaussCurvature = "GAA"
 l2NormGaussCurvature  = "GLN"
 areaAvgMeanCurvature  = "MAA"
 l2NormMeanCurvature   = "MLN"
 
-curvMetricsList = [areaAvgGaussCurvature,
-                   areaAvgMeanCurvature,
-                   l2NormGaussCurvature,
-                   l2NormMeanCurvature]
+curvMetricsList = [
+    areaAvgGaussCurvature,
+    areaAvgMeanCurvature,
+    l2NormGaussCurvature,
+    l2NormMeanCurvature
+]
 
 # Normalized profiles data as published by Hoi et al. (2010) and Ford et al.
 # (2005) (see docstring of function hemodynamics.generateBloodFlorProfile)

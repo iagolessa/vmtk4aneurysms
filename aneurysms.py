@@ -59,39 +59,6 @@ def _simple_cap(surface):
                auto_orient_if_closed=True
            )
 
-def _compute_trial_curvature_metric(
-        surface_with_curvatures: names.polyDataType
-    )   -> dict:
-    """Returns experimental curvature metrics to indicate aneurysmal rupture.
-
-    The goal here is to encapsulate the procedure to test new curvature metrics
-    in a single function.
-    """
-    metricName = "HGLN"
-
-    # Computing the hyperbolic L2-norm
-    hyperbolicPatches = tools.ClipWithScalar(
-                            surface_with_curvatures,
-                            names.GaussCurvatureArrayName,
-                            const.zero
-                        )
-
-
-    # Check if there is any hyperbolic areas
-    if hyperbolicPatches is None:
-        HGLN = const.zero
-
-    else:
-        hyperbolicArea = geo.Surface.Area(hyperbolicPatches)
-
-        surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
-                                                    hyperbolicPatches,
-                                                    names.SqrGaussCurvatureArrayName
-                                                )
-
-        HGLN = np.sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
-
-    return {metricName: HGLN}
 
 def GenerateOstiumSurface(
         aneurysm_sac_surface: names.polyDataType,
@@ -339,9 +306,9 @@ class Aneurysm:
         status (str) -- rupture or unruptured (default '')
         label (str) -- an useful label (default '')
         """
-        self.type = aneurysm_type
-        self.label = label
-        self.status = status
+        self._type = aneurysm_type
+        self._label = label
+        self._status = status
         self._neck_index = int(const.zero)
 
         self._aneurysm_surface = tools.Cleaner(surface)
@@ -379,6 +346,25 @@ class Aneurysm:
         self._compute_max_normal_height_vector_and_dome_point()
 
         self._max_diameter, self._bulge_height = self._compute_max_diameter()
+
+        # Other metrics
+        self._aspect_ratio        = self._max_normal_height/self._neck_diameter
+        self._bottleneck_factor   = self._max_diameter/self._neck_diameter
+        self._conicity_parameter  = 0.5 - self._bulge_height/self._max_normal_height
+        self._nonsphericity_index = self._compute_non_sphericity_index()
+        self._ellipticity_index   = self._compute_ellipticity_index()
+        self._undulation_index    = 1.0 - self._volume/self._hull_volume
+
+        # Compute curvature metrics: GAA, MAA, MLN, GLN
+        self._compute_curvature_metrics()
+
+    def __repr__(self):
+
+        if self._label and self._type and self._status:
+            return f"Aneurysm {self._label} {self._status} and {self._type}."
+
+        else:
+            return f"Aneurysm surface representation."
 
     def _cap_aneurysm(self):
         """Cap aneurysm with the computed ostium surface.
@@ -627,9 +613,140 @@ class Aneurysm:
 
         return maxDiameter, bulgeHeight
 
+    def _compute_non_sphericity_index(self) -> float:
+
+        factor = (18*const.pi)**(1.0/3.0)
+
+        area = self._surface_area
+        volume = self._volume
+
+        return const.one - (factor/area)*(volume**(2./3.))
+
+    def _compute_ellipticity_index(self) -> float:
+
+        factor = (18*const.pi)**(1./3.)
+
+        area = self._hull_surface_area
+        volume = self._hull_volume
+
+        return const.one - (factor/area)*(volume**(2./3.))
+
+    def _compute_curvature_metrics(self):
+        # Get arrays on the aneurysm surface
+        arrayNames = tools.GetCellArrays(self._aneurysm_surface)
+
+        # Check if there is any curvature array on the aneurysm surface
+        if not all(array in arrayNames
+                   for array in [names.MeanCurvatureArrayName,
+                                 names.GaussCurvatureArrayName]):
+
+            # TODO: find a procedure to remove points close to boundary
+            # of the computation
+            warningMessage = "Warning! I did not find any of the necessary " \
+                             "curvature arrays on the surface.\nI will "     \
+                             "compute them for the aneurysm surface, but "   \
+                             "mind that the curvature values close to the "  \
+                             "surface boundary are not correct and may "     \
+                             "impact the curvature metrics.\n"
+
+            print(warningMessage)
+
+            # Compute curvature arrays for aneurysm surface
+            curvatureSurface = geo.Surface.Curvatures(self._aneurysm_surface)
+        else:
+            curvatureSurface = self._aneurysm_surface
+
+        # Get surface area
+        surfaceArea = geo.Surface.Area(curvatureSurface)
+
+        # Add the squares of Gauss and mean curvatures
+        npCurvSurface = dsa.WrapDataObject(curvatureSurface)
+
+        arrGaussCurv = npCurvSurface.CellData.GetArray(names.GaussCurvatureArrayName)
+        arrMeanCurv  = npCurvSurface.CellData.GetArray(names.MeanCurvatureArrayName)
+
+        npCurvSurface.CellData.append(
+            arrGaussCurv**2,
+            names.SqrGaussCurvatureArrayName
+        )
+
+        npCurvSurface.CellData.append(
+            arrMeanCurv**2,
+            names.SqrMeanCurvatureArrayName
+        )
+
+        curvatureSurface = npCurvSurface.VTKObject
+
+        self._GAA = pmath.SurfaceAverage(
+                    curvatureSurface,
+                    names.GaussCurvatureArrayName
+                )
+
+        self._MAA = pmath.SurfaceAverage(
+                    curvatureSurface,
+                    names.MeanCurvatureArrayName
+                )
+
+        surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface,
+                                names.SqrGaussCurvatureArrayName
+                            )
+        surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
+                                curvatureSurface,
+                                names.SqrMeanCurvatureArrayName
+                            )
+
+        self._GLN = np.sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
+        self._MLN = np.sqrt(surfIntSqrMeanCurv)/(4*const.pi)
+
+        # Trial with new curvature metric
+        # Computing the hyperbolic L2-norm
+        hyperbolicPatches = tools.ClipWithScalar(
+                                curvatureSurface,
+                                names.GaussCurvatureArrayName,
+                                const.zero
+                            )
+
+        # Check if there is any hyperbolic areas
+        if hyperbolicPatches is None:
+            self._HGLN = const.zero
+
+        else:
+            hyperbolicArea = geo.Surface.Area(hyperbolicPatches)
+
+            surfIntHypSqrGaussCurv = hyperbolicArea*pmath.SurfaceAverage(
+                                                        hyperbolicPatches,
+                                                        names.SqrGaussCurvatureArrayName
+                                                    )
+
+            self._HGLN = np.sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
+
+    def GetMorphologyMetrics(self) -> dict:
+        """Get dict of all morphology metrics."""
+
+        return {
+            names.iaMetricSurfaceArea       : self._surface_area,
+            names.iaMetricOstiumArea        : self._ostium_area,
+            names.iaMetricVolume            : self._volume,
+            names.iaMetricNeckDiameter      : self._neck_diameter,
+            names.iaMetricMaxNormalHeight   : self._max_normal_height,
+            names.iaMetricMaxDiameter       : self._max_diameter,
+            names.iaMetricAspectRatio       : self._aspect_ratio,
+            names.iaMetricBottleneckFactor  : self._bottleneck_factor,
+            names.iaMetricConicityParameter : self._conicity_parameter,
+            names.iaMetricNonsphericityIndex: self._nonsphericity_index,
+            names.iaMetricEllipticityIndex  : self._ellipticity_index,
+            names.iaMetricUndulationIndex   : self._undulation_index,
+            names.areaAvgGaussCurvature     : self._GAA,
+            names.areaAvgMeanCurvature      : self._MAA,
+            names.l2NormMeanCurvature       : self._MLN,
+            names.l2NormGaussCurvature      : self._GLN,
+            "HGLN": self._HGLN
+        }
+
     # Public interface
     def GetLabel(self) -> str:
-        return self.label
+        return self._label
 
     def GetDomeTipPoint(self) -> tuple:
         """Return the aneurysm surface."""
@@ -705,7 +822,7 @@ class Aneurysm:
         perpendicular height and the neck diameter.
         """
 
-        return self._max_normal_height/self._neck_diameter
+        return self._aspect_ratio
 
     def GetBottleneckFactor(self) -> float:
         """Return the bottleneck factor.
@@ -716,7 +833,7 @@ class Aneurysm:
         physiological function and to coils during endovascular procedures".
         """
 
-        return self._max_diameter/self._neck_diameter
+        return self._bottleneck_factor
 
     def GetConicityParameter(self) -> float:
         """Return the conicity parameter.
@@ -730,7 +847,7 @@ class Aneurysm:
         normal height.
         """
 
-        return 0.5 - self._bulge_height/self._max_normal_height
+        return self._conicity_parameter
 
     # 3D Shape indices
     def GetNonSphericityIndex(self) -> float:
@@ -744,12 +861,8 @@ class Aneurysm:
         where :math:`V_a` and :math:`S_a` are the volume and surface area of
         the aneurysm.
         """
-        factor = (18*const.pi)**(1./3.)
 
-        area = self._surface_area
-        volume = self._volume
-
-        return const.one - (factor/area)*(volume**(2./3.))
+        return self._nonsphericity_index
 
     def GetEllipticityIndex(self) -> float:
         """Return the ellipticity index.
@@ -763,12 +876,7 @@ class Aneurysm:
         of the convex hull.
         """
 
-        factor = (18*const.pi)**(1./3.)
-
-        area = self._hull_surface_area
-        volume = self._hull_volume
-
-        return const.one - (factor/area)*(volume**(2./3.))
+        return self._ellipticity_index
 
     def GetUndulationIndex(self) -> float:
         """Return the undulation index.
@@ -781,10 +889,10 @@ class Aneurysm:
         where :math:`V_a` is the aneurysm volume and :math:`V_{ch}` the volume
         of its convex hull.
         """
-        return 1.0 - self._volume/self._hull_volume
+        return self._undulation_index
 
     def GetCurvatureMetrics(self) -> dict:
-        """Compute the curvature-based metrics.
+        """Get the curvature-based metrics.
 
         Based on local mean and Gaussian curvatures, compute their
         area-averaged values (MAA and GAA, respectively) and their L2-norm (MLN
@@ -800,85 +908,13 @@ class Aneurysm:
             on the aneurysm surface for a more accurate calculation, avoiding
             border effects.
         """
-        # Get arrays on the aneurysm surface
-        arrayNames = tools.GetCellArrays(self._aneurysm_surface)
-
-        # Check if there is any curvature array on the aneurysm surface
-        if not all(array in arrayNames
-                   for array in [names.MeanCurvatureArrayName,
-                                 names.GaussCurvatureArrayName]):
-
-            # TODO: find a procedure to remove points close to boundary
-            # of the computation
-            warningMessage = "Warning! I did not find any of the necessary " \
-                             "curvature arrays on the surface.\nI will "     \
-                             "compute them for the aneurysm surface, but "   \
-                             "mind that the curvature values close to the "  \
-                             "surface boundary are not correct and may "     \
-                             "impact the curvature metrics.\n"
-
-            print(warningMessage)
-
-            # Compute curvature arrays for aneurysm surface
-            curvatureSurface = geo.Surface.Curvatures(self._aneurysm_surface)
-        else:
-            curvatureSurface = self._aneurysm_surface
-
-        # Get surface area
-        surfaceArea = geo.Surface.Area(curvatureSurface)
-
-        # Add the squares of Gauss and mean curvatures
-        npCurvSurface = dsa.WrapDataObject(curvatureSurface)
-
-        arrGaussCurv = npCurvSurface.CellData.GetArray(names.GaussCurvatureArrayName)
-        arrMeanCurv  = npCurvSurface.CellData.GetArray(names.MeanCurvatureArrayName)
-
-        npCurvSurface.CellData.append(
-            arrGaussCurv**2,
-            names.SqrGaussCurvatureArrayName
-        )
-
-        npCurvSurface.CellData.append(
-            arrMeanCurv**2,
-            names.SqrMeanCurvatureArrayName
-        )
-
-        curvatureSurface = npCurvSurface.VTKObject
-
-        GAA = pmath.SurfaceAverage(
-                    curvatureSurface,
-                    names.GaussCurvatureArrayName
-                )
-
-        MAA = pmath.SurfaceAverage(
-                    curvatureSurface,
-                    names.MeanCurvatureArrayName
-                )
-
-        surfIntSqrGaussCurv = surfaceArea*pmath.SurfaceAverage(
-                                curvatureSurface,
-                                names.SqrGaussCurvatureArrayName
-                            )
-        surfIntSqrMeanCurv = surfaceArea*pmath.SurfaceAverage(
-                                curvatureSurface,
-                                names.SqrMeanCurvatureArrayName
-                            )
-
-        GLN = np.sqrt(surfaceArea*surfIntSqrGaussCurv)/(4*const.pi)
-        MLN = np.sqrt(surfIntSqrMeanCurv)/(4*const.pi)
-
-        curvMetrics = {names.areaAvgMeanCurvature: MAA,
-                        names.areaAvgGaussCurvature: GAA,
-                        names.l2NormMeanCurvature: MLN,
-                        names.l2NormGaussCurvature: GLN}
-
-        curvMetrics.update(
-            _compute_trial_curvature_metric(
-                curvatureSurface
-            )
-        )
-
-        return curvMetrics
+        return {
+            names.areaAvgMeanCurvature : self._MAA,
+            names.areaAvgGaussCurvature: self._GAA,
+            names.l2NormMeanCurvature  : self._MLN,
+            names.l2NormGaussCurvature : self._GLN,
+            "HGLN": self._HGLN
+        }
 
     def GetHemodynamicStats(
             self,
@@ -893,13 +929,15 @@ class Aneurysm:
         aneurysm surface.
         """
 
-        return {hwp: pmath.SurfaceFieldStatistics(
-                         self._aneurysm_surface,
-                         hwp,
-                         n_percentile=n_percentile
-                     )
-                for hwp in names.hwpList
-                if hwp in tools.GetCellArrays(self._aneurysm_surface)}
+        return {
+            hwp: pmath.SurfaceFieldStatistics(
+                     self._aneurysm_surface,
+                     hwp,
+                     n_percentile=n_percentile
+                 )
+            for hwp in names.listHWP
+            if hwp in tools.GetCellArrays(self._aneurysm_surface)
+        }
 
     def GetLowTAWSSArea(
             self
@@ -920,5 +958,4 @@ class Aneurysm:
             return lsaArea/self._surface_area
 
         else:
-
             return None

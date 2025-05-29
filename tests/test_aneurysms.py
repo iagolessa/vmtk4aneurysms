@@ -144,6 +144,7 @@ class TestAneurysmModule(unittest.TestCase):
         methods.remove("GetLowTAWSSArea")
         methods.remove("GetDomeTipPoint")
         methods.remove("GetCurvatureMetrics")
+        methods.remove("GetMorphologyMetrics")
 
         # Get methods of each aneurysm model
         print("Computing metrics of aneurysm models.", end="\n")
@@ -181,7 +182,7 @@ class TestAneurysmModule(unittest.TestCase):
 
                 except:
                     print(
-                        'Error for case' + iaModel.label + ' in param ' + param
+                        'Error for case' + iaModel.GetLabel() + ' in param ' + method
                     )
 
             # Add the curvature metrics separately

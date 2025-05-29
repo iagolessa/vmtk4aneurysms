@@ -23,26 +23,13 @@ from vmtk import pypes
 from vmtk import vmtkscripts
 from pprint import PrettyPrinter
 
+from vmtk4aneurysms.lib.common import FlattenDict
 from vmtk4aneurysms.lib.names import DistanceToNeckArrayName
 from vmtk4aneurysms.lib.polydatatools import GetPointArrays
 from vmtk4aneurysms.vasculature import Vasculature
 from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
 
 vmtksurfacevasculatureinfo = 'vmtkSurfaceVasculatureInfo'
-
-def _flatten_dict(
-        pyobj,
-        keystring=''
-    ):
-
-    if type(pyobj) == dict:
-        keystring = keystring + '_' if keystring else keystring
-
-        for k in pyobj:
-            yield from _flatten_dict(pyobj[k], keystring + str(k))
-
-    else:
-        yield keystring, pyobj
 
 class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
@@ -52,7 +39,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
         self.Surface = None
         self.Aneurysm = True
-        self.ComputationMode = "automatic"
+        self.ComputationMode = "interactive"
         self.AneurysmType    = None
         self.AneurysmStatus  = None
         self.BifVectors = None
@@ -64,7 +51,6 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         self.VascularInfoFile    = None
 
         self.ShowVascularModel = False
-        self.AneurysmMetricsDataFrame = None
 
         self.SetScriptName('vmtksurfacevasculatureinfo')
         self.SetScriptDoc('extract vasculature metrics')
@@ -181,6 +167,12 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
             )
 
         nBifs = vascularModel.GetNumberOfBifurcations()
+
+        # Store the data into dict
+        dictArterialTreeAttributes = {
+            "nBifurcations": nBifs
+        }
+
         if nBifs > 1 and nBifs != 0:
 
             # If more than opne bifiurcation, we have to append all data
@@ -234,40 +226,20 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
             aneurysmModel = vascularModel.GetAneurysm()
 
             self.AneurysmSurface = aneurysmModel.GetSurface()
+            self.HullSurface     = aneurysmModel.GetHullSurface()
+            self.OstiumSurface   = aneurysmModel.GetOstiumSurface()
 
-            self.HullSurface = aneurysmModel.GetHullSurface()
-            self.OstiumSurface = aneurysmModel.GetOstiumSurface()
-
-            # Print aneurysm indices and metrics
-            methods = [param
-                       for param in dir(aneurysmModel)
-                       if param.startswith("Get")]
-
-            # Remove metrics that are not analyzed
-            methods.remove("GetSurface")
-            methods.remove("GetOstiumSurface")
-            methods.remove("GetHullSurface")
-
-            attributes = {
-                method.replace("Get",''): getattr(aneurysmModel, method)()
-                for method in methods
-            }
+            aneurysmAttributes = aneurysmModel.GetMorphologyMetrics()
 
             pp.pprint(
-                attributes
+                aneurysmAttributes
             )
 
-            # Flatten the attributes dict
-            self.AneurysmMetricsDataFrame = pd.DataFrame(
-                                                _flatten_dict(attributes)
-                                            )
+            hemodynamicAttributes = aneurysmModel.GetHemodynamicStats()
 
-            if self.VascularInfoFile is not None:
-
-                self.AneurysmMetricsDataFrame.to_csv(
-                    self.VascularInfoFile,
-                    index=False
-                )
+            pp.pprint(
+                hemodynamicAttributes
+            )
 
             if self.ShowVascularModel:
                 # Render surfaces
@@ -305,6 +277,29 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
                 surfaceViewer4.Color = [1.0, 1.0, 1.0]
                 surfaceViewer4.Display = 1
                 surfaceViewer4.BuildView()
+
+        if self.VascularInfoFile is not None:
+
+            dictArterialTreeAttributes.update(
+                aneurysmAttributes
+            )
+
+            dictArterialTreeAttributes.update(
+                dict(
+                    FlattenDict(
+                        aneurysmModel.GetHemodynamicStats()
+                    )
+                )
+            )
+
+            pd.DataFrame.from_dict(
+                dictArterialTreeAttributes,
+                orient="index",
+                # columns=["IaLabel"])
+            ).to_csv(
+                self.VascularInfoFile,
+                index=True
+            )
 
 if __name__ == '__main__':
     main = pypes.pypeMain()
