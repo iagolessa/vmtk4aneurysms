@@ -43,7 +43,7 @@ class TestHealthyVesselReconstructionModule(unittest.TestCase):
         vascularSurfaceLateralAneurysm = tools.ReadSurface(latSurfaceFile)
 
         bifDomePoint = (33.40, 0.1731, -0.1597)
-        latDomePoint = (25.04, 8.394, 0.160)
+        latDomePoint = (0.3626, 26.75, -0.1255)
 
         bifStrategy = BifurcationAneurysmReconstruction(
                           vascularSurfaceWithAneurysm,
