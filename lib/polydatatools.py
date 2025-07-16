@@ -1624,3 +1624,40 @@ def SmoothSurfacePointField(
             field.SetTuple1(i, newValue)
 
     return surface
+
+def SeamPlaneTubularStructureMarker(
+        surface: names.polyDataType,
+        plane_center: tuple,
+        plane_normal: tuple,
+        seed_point: tuple=None,
+        seam_scalar_array_name: str=names.SeamScalarsArrayName
+    )   -> names.polyDataType:
+    """Create a seam field on a tubular structure surface using a plane.
+
+    Given a surface of a tubular structure, create a seam field on it using a
+    plane defined by a point and its normal. The seam field is defined as a
+    scalar array on the surface, which is the distance to the plane. If the
+    seed_point is not provided, the closest point on the surface to the plane
+    center is used as the seed point for the seam creation.
+    """
+
+    if seed_point is None:
+        locator = vtk.vtkPointLocator()
+        locator.SetDataSet(surface)
+        locator.BuildLocator()
+
+        seedPointId = locator.FindClosestPoint(plane_center)
+        seed_point = surface.GetPoint(seedPointId)
+
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(plane_center)
+    plane.SetNormal(plane_normal)
+
+    seamFilter = vtkvmtk.vtkvmtkTopologicalSeamFilter()
+    seamFilter.SetInputData(surface)
+    seamFilter.SetClosestPoint(seed_point)
+    seamFilter.SetSeamScalarsArrayName(seam_scalar_array_name)
+    seamFilter.SetSeamFunction(plane)
+    seamFilter.Update()
+
+    return seamFilter.GetOutput()
