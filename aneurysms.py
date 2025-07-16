@@ -36,7 +36,11 @@ from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 
-from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
+from vmtk4aneurysms.vascular_classes import VascularTree
+from vmtk4aneurysms.vascular_operations import (
+        ClipAneurysmSacSurface,
+        ComputeGeodesicDistanceToAneurysmNeck
+)
 
 def _simple_cap(surface):
     """Cap a surface with an open profile with a simple centerpoint
@@ -727,6 +731,8 @@ class Aneurysm:
         return {
             names.iaMetricSurfaceArea       : self._surface_area,
             names.iaMetricOstiumArea        : self._ostium_area,
+            names.iaMetricHullSurfaceArea   : self._hull_surface_area,
+            names.iaMetricHullVolume        : self._hull_volume,
             names.iaMetricVolume            : self._volume,
             names.iaMetricNeckDiameter      : self._neck_diameter,
             names.iaMetricMaxNormalHeight   : self._max_normal_height,
@@ -929,7 +935,8 @@ class Aneurysm:
         aneurysm surface.
         """
 
-        return {
+        # Compute the statistis of the hemodynamics already on the surface
+        dictHemodynamics =  {
             hwp: pmath.SurfaceFieldStatistics(
                      self._aneurysm_surface,
                      hwp,
@@ -938,6 +945,13 @@ class Aneurysm:
             for hwp in names.listHWP
             if hwp in tools.GetCellArrays(self._aneurysm_surface)
         }
+
+        # Add the other ones defined here
+        dictHemodynamics.update({
+            names.LowShearArea: self.GetLowTAWSSArea()
+        })
+
+        return dictHemodynamics
 
     def GetLowTAWSSArea(
             self
@@ -959,3 +973,127 @@ class Aneurysm:
 
         else:
             return None
+
+class VascularTreeWithAneurysm(VascularTree):
+    """Representation of a vascular network tree model with an aneurysm.
+
+    Inherits from VascularTree and provides additional functionality for
+    handling aneurysms in the vascular model.
+
+    The vasculature may contain an aneurysm: this must be explicitly informed
+    by the user through the switch 'with_aneurysm'. If true, the user can also
+    determine whether the aneurysm surface will be detected automatically
+    (experimental yet) and a plane neck will be generated, or manually draw by
+    the user, in which case a window is open allowing the user to select the
+    aneurysm neck.
+    """
+
+    def __init__(
+            self,
+            vtk_poly_data: names.polyDataType,
+            clip_aneurysm_mode: str="interactive",
+            aneurysm_point: tuple=None,
+            parent_vascular_surface: names.polyDataType=None,
+            aneurysm_prop: dict={}
+        ):
+        """Initiate vascular model.
+
+        Given a vascular surface (vtkPolyData), automatically compute its
+        centerlines and bifurcations geometry. If the vasculature has an
+        aneurysm, the flag 'with_aneurysm' enables its selection.
+
+        Arguments:
+        vtk_poly_data -- the vtkPolyData vascular model (default None)
+
+        with_aneurysm -- bool to indicate that the vasculature
+        has an aneurysm (default False)
+
+        clip_aneurysm_mode (str, default: 'interactive') -- the method to clip
+        the aneurysm, if present. Use the function
+        'vascular_operations.ClipAneurysmSacSurface', hence the options are:
+        'interactive', 'automatic', or 'plane'.  Only enabled if the
+        'with_aneurysm' arguments is True.  (default False).
+
+        aneurysm_point (tuple, optional, default 'None') -- tuple with
+        coordinates of a point on the aneurysm dome (used only with the 'plane'
+        mode to extract the aneurysm).
+
+        aneurysm_prop -- optional dictionary with properties of the aneurysms:
+        type, status, label.
+        """
+
+        super().__init__(vtk_poly_data)
+
+        self._aneurysm_point  = aneurysm_point
+        self._aneurysm_model  = None
+        self._clip_aneurysm_mode = clip_aneurysm_mode
+
+        # If the vasculature has an aneurysm, allow to also input the parent
+        # vasculature
+        self._parent_vascular_surface = parent_vascular_surface
+
+        if self._clip_aneurysm_mode == "plane":
+            try:
+                aneurysmType = aneurysm_prop["aneurysm_type"]
+
+            except KeyError:
+
+                raise KeyError(
+                    "Aneurysm type must be provided in aneurysm_prop if "\
+                    "the aneurysm is clipped with the 'plane' mode."
+                )
+
+        else:
+            aneurysmType = ""
+
+        # Get aneurysm contour explicitly and clip the aneurysm and rest of
+        # the vessel
+        clippedSurfaceTuple = ClipAneurysmSacSurface(
+                                  self.GetVascularSurface(),
+                                  mode=self._clip_aneurysm_mode,
+                                  parent_vascular_surface=self._parent_vascular_surface,
+                                  aneurysm_type=aneurysmType,
+                                  aneurysm_point=self._aneurysm_point
+                              )
+
+        # Clip the aneurysm sac (aneurysm marked with negative values)
+        aneurysm_surface, self._vascular_surface_no_aneurysm = clippedSurfaceTuple
+
+        # Build aneurysm model
+        self._aneurysm_model = Aneurysm(
+                                    aneurysm_surface,
+                                    **aneurysm_prop
+                                )
+
+    @classmethod
+    def from_file(
+            cls,
+            file_name,
+            with_aneurysm=False,
+            clip_aneurysm_mode="interactive",
+            parent_vascular_surface=None,
+            aneurysm_prop={}
+        ):
+        """Initialize vasculature object from vasculature surface file."""
+
+        return cls(
+            tools.ReadSurface(file_name),
+            with_aneurysm=with_aneurysm,
+            clip_aneurysm_mode=clip_aneurysm_mode,
+            parent_vascular_surface=parent_vascular_surface,
+            aneurysm_prop=aneurysm_prop
+        )
+
+    # TODO: now that the branchingof the surfaces work, implement function to
+    # select the parent artery of the cases with an aneurysm and compute the
+    # normalized to the parent artery metrics (I can select a portion of it
+    # only for the computations based on the distance along the centerline
+    # array)
+
+    def GetAneurysm(self):
+        """Return the aneurysm model."""
+        return self._aneurysm_model
+
+    def GetAneurysmExtractionMode(self):
+        """Return the extraction model of the aneurysm."""
+        return self._clip_aneurysm_mode

@@ -90,6 +90,7 @@ SqrMeanCurvatureArrayName  = "SqrMeanCurvature"
 vmtkCenterlineIdsArrayName  = "CenterlineIds"
 vmtkGroupIdsArrayName       = "GroupIds"
 vmtkBlankingArrayName       = "Blanking"
+vmtkTractIdsArrayName       = "TractIds"
 vmtkLengthArrayName         = "Length"
 vmtkAbscissasArrayName      = "Abscissas"
 vmtkFrenetTangentArrayName  = "FrenetTangent"
@@ -97,6 +98,7 @@ vmtkFrenetNormalArrayName   = "FrenetNormal"
 vmtkFrenetBinormalArrayName = "FrenetBinormal"
 vmtkParallelTransportArrayName = "ParallelTransportNormals"
 vmtkReferenceSystemsNormalArrayName = "Normal"
+vmtkReferenceSystemsUpNormalArrayName = "UpNormal"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility
@@ -116,6 +118,7 @@ WSSPI = 'WSSPI'
 WSSTG = 'WSSTG'
 TAWSSG = 'TAWSSG'
 transWSS = 'transWSS'
+LowShearArea = 'LSA'
 
 WSSmag = WSS + mag
 peakSystoleWSS = 'PSWSS'

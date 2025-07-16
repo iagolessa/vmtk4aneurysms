@@ -38,6 +38,8 @@ from .lib import constants as const
 from .lib import polydatatools as tools
 from .lib import polydatageometry as geo
 
+from vmtk4aneurysms.vascular_classes import VascularCenterline
+
 def _bifurcation_aneurysm_clipping_points(
         vascular_surface: names.polyDataType,
         aneurysm_point: tuple,
@@ -78,7 +80,7 @@ def _bifurcation_aneurysm_clipping_points(
     # 3 -> centerline of the second outlet to the aneurysm and inlet
     relevantOutlets = outlets[0:2]
 
-    clWithoutAneurysm = cl.GenerateCenterlines(
+    clWithoutAneurysm = VascularCenterline.GenerateCenterlines(
                             vascular_surface,
                             inlets,
                             relevantOutlets
@@ -90,7 +92,7 @@ def _bifurcation_aneurysm_clipping_points(
                             )
 
     for cl_id, outlet in enumerate(relevantOutlets):
-        daughterCenterline = cl.GenerateCenterlines(
+        daughterCenterline = VascularCenterline.GenerateCenterlines(
                                  vascular_surface,
                                  [outlet],
                                  inlets + [aneurysm_point]
@@ -144,13 +146,13 @@ def _lateral_aneurysm_clipping_points(
 
     relevantOutlets = outlets[0:1]
 
-    forwardCenterline = cl.GenerateCenterlines(
+    forwardCenterline = VascularCenterline.GenerateCenterlines(
                             vascular_surface,
                             inlets,
                             relevantOutlets + [aneurysm_point]
                         )
 
-    backwardCenterline = cl.GenerateCenterlines(
+    backwardCenterline = VascularCenterline.GenerateCenterlines(
                             vascular_surface,
                             relevantOutlets,
                             inlets + [aneurysm_point]
@@ -318,7 +320,7 @@ def HealthyVesselReconstruction(
     outletCenters = list(outlet_ref_systems.keys())
 
     voronoi       = cl.ComputeVoronoiDiagram(vascular_surface)
-    centerlines   = cl.GenerateCenterlines(
+    centerlines   = VascularCenterline.GenerateCenterlines(
                         vascular_surface,
                         source_points=inletCenter,
                         target_points=outletCenters
@@ -509,7 +511,7 @@ def _bifurcation_aneurysm_influence_region(
     # 3 -> centerline of the second outlet to the aneurysm and inlet
     relevantOutlets = outlets[0:2]
 
-    clWithoutAneurysm = cl.GenerateCenterlines(
+    clWithoutAneurysm = VascularCenterline.GenerateCenterlines(
                             vascular_surface,
                             inlets,
                             relevantOutlets
@@ -519,7 +521,7 @@ def _bifurcation_aneurysm_influence_region(
 
     lines = []
     for cl_id, outlet in enumerate(relevantOutlets):
-        daughterCenterline = cl.GenerateCenterlines(
+        daughterCenterline = VascularCenterline.GenerateCenterlines(
                                  vascular_surface,
                                  [outlet],
                                  inlets + [aneurysm_point]
@@ -593,13 +595,13 @@ def _lateral_aneurysm_influence_region(
 
     relevantOutlets = outlets[0:1]
 
-    forwardCenterline = cl.GenerateCenterlines(
+    forwardCenterline = VascularCenterline.GenerateCenterlines(
                             vascular_surface,
                             inlets,
                             relevantOutlets + [aneurysm_point]
                         )
 
-    backwardCenterline = cl.GenerateCenterlines(
+    backwardCenterline = VascularCenterline.GenerateCenterlines(
                             vascular_surface,
                             relevantOutlets,
                             inlets + [aneurysm_point]
@@ -957,13 +959,13 @@ def _extract_aneurysmal_region(
                                       aneurysm_type
                                   )
 
-        parentCenterlines = cl.GenerateCenterlines(parent_vascular_surface)
+        parentCenterlines = VascularCenterline.GenerateCenterlines(parent_vascular_surface)
 
     elif parent_vascular_centerline is None and \
          parent_vascular_surface is not None:
 
         # Compute the centerline of the parent vascular surface
-        parentCenterlines = cl.GenerateCenterlines(parent_vascular_surface)
+        parentCenterlines = VascularCenterline.GenerateCenterlines(parent_vascular_surface)
 
     elif parent_vascular_centerline is not None:
         # The best alternative actually
@@ -1350,7 +1352,7 @@ def ClipVasculature(
     """
 
     if centerlines is None:
-        centerlines = cl.GenerateCenterlines(vascular_surface)
+        centerlines = VascularCenterline.GenerateCenterlines(vascular_surface)
 
     geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
 
@@ -1777,7 +1779,7 @@ def ComputeVasculatureThickness(
 
     # Compute centerlines
     if not centerlines:
-        centerlines = cl.GenerateCenterlines(vascular_surface)
+        centerlines = VascularCenterline.GenerateCenterlines(vascular_surface)
 
     # Compute distance to centerlines
     # It will hold the thickness field at the end
@@ -2375,57 +2377,24 @@ def ComputeVasculatureElasticityWithAneurysm(
 
     return vascular_surface
 
+# PUT THIS ONE INTP THE Vascular Surface or ICA Surface Class Class
 def SplitICAModelIntoBends(
         vascular_model: names.polyDataType,
         centerlines: names.polyDataType,
         bif_point: tuple
     )   -> names.polyDataType:
+    """Split ICA vascular surface model into bends based on curvature and 
+    torsion."""
 
-    smoothedCenterlines = cl.ComputeCenterlinePropertiesOffBifurcation(
-                              centerlines,
-                              bif_point
-                          )
-
-    bendLimits = cl.ComputeICABendsLimits(smoothedCenterlines)
-    individualCenterlines = cl.SplitCenterlineObject(smoothedCenterlines)
-
-    # Get longest centerline
-    idLongestCenterline = max(
-                          individualCenterlines,
-                          key=lambda idx: individualCenterlines[idx]["length"]
-                      )
-
-    longestCenterline = individualCenterlines[idLongestCenterline]["object"]
-    npCenterlines = dsa.WrapDataObject(longestCenterline)
-
-    bendIdsField = -dsa.VTKArray(
-                        np.ones(
-                            shape=longestCenterline.GetNumberOfPoints(),
-                            dtype=int
+    # Split centerlines into bends
+    bendsCenterlines = SplitICACenterlineIntoBends(
+                            centerlines,
+                            bif_point
                         )
-                    )
-
-    abscissasField = npCenterlines.PointData.GetArray(
-                        names.vmtkAbscissasArrayName
-                    )
-
-    for bend_id, (min_, max_) in enumerate(bendLimits):
-
-        bendIdsField[
-            (abscissasField <= min_) &
-            (abscissasField >  max_)
-        ] = bend_id
-
-    # When adding to the Numpy wrap object, it automatically
-    # adds to the underlying VTK object
-    npCenterlines.PointData.append(
-        bendIdsField,
-        names.BendsIdsFieldName
-    )
 
     return tools.ProjectPointArray(
                 vascular_model,
-                npCenterlines.VTKObject,
+                bendsCenterlines,
                 names.BendsIdsFieldName
             )
 

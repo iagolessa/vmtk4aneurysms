@@ -697,12 +697,10 @@ class Surface():
 
         Given a vtkPolyData characterizing a surface in the 3D Euclidean space,
         automatically computes its outwards unit normal fiels, stored as
-        'Normals' and its curvature type field based on the Gaussian and mean
-        curvatures.
+        'Normals'.
         """
 
         self._surface_object = Surface.Normals(vtk_poly_data)
-        self._surface_object = Surface.Curvatures(self._surface_object)
 
     @classmethod
     def from_file(cls, file_name):
@@ -762,7 +760,7 @@ class Surface():
                 "computation could be impaired."
             )
 
-        # TODO for tomorrow.
+        # TODO.
         # for the hull, this will occurs because in the real aneurysms
         # cases the hull procedure may leave complete holes on the surface.
         # Ideally I should pass the volume compute but add a warning
@@ -897,20 +895,20 @@ class Surface():
         gaussianCurvature.SetCurvatureTypeToGaussian()
         gaussianCurvature.Update()
 
-        # Compute Min and Max curvature
-        minCurvature = vtk.vtkCurvatures()
-        minCurvature.SetInputData(gaussianCurvature.GetOutput())
-        minCurvature.SetCurvatureTypeToMinimum()
-        minCurvature.Update()
+        # # Compute Min and Max curvature
+        # minCurvature = vtk.vtkCurvatures()
+        # minCurvature.SetInputData(gaussianCurvature.GetOutput())
+        # minCurvature.SetCurvatureTypeToMinimum()
+        # minCurvature.Update()
 
-        maxCurvature = vtk.vtkCurvatures()
-        maxCurvature.SetInputData(minCurvature.GetOutput())
-        maxCurvature.SetCurvatureTypeToMaximum()
-        maxCurvature.Update()
+        # maxCurvature = vtk.vtkCurvatures()
+        # maxCurvature.SetInputData(minCurvature.GetOutput())
+        # maxCurvature.SetCurvatureTypeToMaximum()
+        # maxCurvature.Update()
 
         # Convert Gauss and mean to cell data to compute local shape of cells
         cellCurvatures = tools.PointFieldToCellField(
-                            maxCurvature.GetOutput(),
+                            gaussianCurvature.GetOutput(),
                             point_field_name=names.GaussCurvatureArrayName
                         )
 
@@ -970,7 +968,7 @@ class Surface():
 
         return npCurvatures.VTKObject
 
-    def GetSurfaceObject(self):
+    def GetSurface(self):
         """Return the surface vtkPolyData object."""
         return self._surface_object
 
@@ -978,16 +976,16 @@ class Surface():
         """Return the surface total area."""
         return Surface.Area(self._surface_object)
 
-    def GetSurfaceVolume(self):
+    def GetVolume(self):
         """Return the surface total enclosed volume."""
         return Surface.Volume(self._surface_object)
 
-    def GetCellArrays(self):
-        """Return the names of arrays for a vtkPolyData."""
+    def GetCellFields(self):
+        """Return the names of cell fields defined on the surface."""
         return tools.GetCellArrays(self._surface_object)
 
-    def GetPointArrays(self):
-        """Return the names of point arrays for a vtkPolyData."""
+    def GetPointFields(self):
+        """Return the names of point fields defined on the surface."""
         return tools.GetPointArrays(self._surface_object)
 
 def GenerateSphereSurface(
