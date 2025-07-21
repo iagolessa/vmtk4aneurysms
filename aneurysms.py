@@ -37,7 +37,7 @@ from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 
 from vmtk4aneurysms.vascular_classes import VascularTree
-from vmtk4aneurysms.vascular_operations import (
+from vmtk4aneurysms.neck_extractor import (
         ClipAneurysmSacSurface,
         ComputeGeodesicDistanceToAneurysmNeck
 )
@@ -211,8 +211,7 @@ def AneurysmPulsatility2(
 
         lumenSurface = ComputeGeodesicDistanceToAneurysmNeck(
                            lumenSurface,
-                           mode="interactive",
-                           gdistance_to_neck_array_name=aneurysm_neck_array_name
+                           mode="interactive"
                        )
 
     else:
@@ -1051,9 +1050,9 @@ class VascularTreeWithAneurysm(VascularTree):
         clippedSurfaceTuple = ClipAneurysmSacSurface(
                                   self.GetVascularSurface(),
                                   mode=self._clip_aneurysm_mode,
-                                  parent_vascular_surface=self._parent_vascular_surface,
+                                  healthy_vessel_surface=self._healthy_vessel_surface,
                                   aneurysm_type=aneurysmType,
-                                  aneurysm_point=self._aneurysm_point
+                                  dome_point=self._dome_point
                               )
 
         # Clip the aneurysm sac (aneurysm marked with negative values)
@@ -1071,7 +1070,7 @@ class VascularTreeWithAneurysm(VascularTree):
             file_name,
             with_aneurysm=False,
             clip_aneurysm_mode="interactive",
-            parent_vascular_surface=None,
+            healthy_vessel_surface=None,
             aneurysm_prop={}
         ):
         """Initialize vasculature object from vasculature surface file."""
@@ -1080,7 +1079,7 @@ class VascularTreeWithAneurysm(VascularTree):
             tools.ReadSurface(file_name),
             with_aneurysm=with_aneurysm,
             clip_aneurysm_mode=clip_aneurysm_mode,
-            parent_vascular_surface=parent_vascular_surface,
+            healthy_vessel_surface=healthy_vessel_surface,
             aneurysm_prop=aneurysm_prop
         )
 

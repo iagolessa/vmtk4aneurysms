@@ -167,6 +167,8 @@ class HealthyVesselReconstructionStrategy(ABC):
         self.vascular_surface = vascular_surface
         self._inlet_ref_systems = inlet_ref_systems
         self._outlet_ref_systems = outlet_ref_systems
+        self._healthy_vessel_centerlines = None
+        self._healthy_vessel_surface = None
 
         self._dome_point = tools.SelectSurfacePoint(
                                self.vascular_surface,
@@ -276,7 +278,7 @@ class HealthyVesselReconstructionStrategy(ABC):
                            )
 
         # 2) Interpolate patch centerlines using splines
-        parentCenterlines = mplib.vessel_reconstruction_tools.interpolate_patch_centerlines(
+        self._healthy_vessel_centerlines = mplib.vessel_reconstruction_tools.interpolate_patch_centerlines(
                                 patchCenterlines,
                                 centerlines,
                                 additionalPoint=None,
@@ -314,7 +316,7 @@ class HealthyVesselReconstructionStrategy(ABC):
 
         # 4) Interpolate Voronoi diagram along interpolated centerline
         newVoronoi = mplib.vessel_reconstruction_tools.interpolate_voronoi_diagram(
-                         parentCenterlines,
+                         self._healthy_vessel_centerlines,
                          patchCenterlines,
                          clippedVoronoi,
                          [clippingPoints, clipPointsArray],
@@ -353,6 +355,10 @@ class HealthyVesselReconstructionStrategy(ABC):
 
         return healthyVessel
 
+    def GetHealthyVesselCenterlines(self) -> names.polyDataType:
+        """Return healthy vessel centerlines."""
+
+        return self._healthy_vessel_centerlines
 
 class BifurcationAneurysmReconstruction(HealthyVesselReconstructionStrategy):
     """ Concrete strategy for reconstructing a healthy vessel for a bifurcation

@@ -26,8 +26,8 @@ from pprint import PrettyPrinter
 from vmtk4aneurysms.lib.common import FlattenDict
 from vmtk4aneurysms.lib.names import DistanceToNeckArrayName
 from vmtk4aneurysms.lib.polydatatools import GetPointArrays
-from vmtk4aneurysms.vasculature import Vasculature
-from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
+from vmtk4aneurysms.aneurysms import VascularTreeWithAneurysm
+from vmtk4aneurysms.neck_extractor import ComputeGeodesicDistanceToAneurysmNeck
 
 vmtksurfacevasculatureinfo = 'vmtkSurfaceVasculatureInfo'
 
@@ -121,7 +121,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
                                self.Surface,
                                mode=self.ComputationMode,
                                aneurysm_type=self.AneurysmType,
-                               parent_vascular_surface=self.ParentVesselSurface
+                               healthy_vessel_surface=self.ParentVesselSurface
                            )
 
         # Generate an aneurysm object
@@ -129,7 +129,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
                             self.Surface,
                             with_aneurysm=self.Aneurysm,
                             clip_aneurysm_mode=self.ComputationMode,
-                            parent_vascular_surface=self.ParentVesselSurface,
+                            healthy_vessel_surface=self.ParentVesselSurface,
                             aneurysm_prop={
                                 "aneurysm_type": self.AneurysmType,
                                 "status": self.AneurysmStatus
