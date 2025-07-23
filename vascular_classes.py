@@ -1288,9 +1288,11 @@ class VascularTree:
         self._vascular_surface = self._vasc_surface_obj.GetSurface()
         self._centerlines = self._vasc_centerline_obj.GetCenterline()
 
+        self._Voronoi_diagram = None
+
         # Branches attributes
         self._branched_surface = None
-        self._branches = []
+        self._branches = {}
 
     @classmethod
     def from_file(
@@ -1309,7 +1311,7 @@ class VascularTree:
         has a field that identifies the branches and bifurcations.
         """
         if self._branched_surface is None:
-            # Using vtkvtmk lib class for better configuration 
+            # Using vtkvtmk lib class for better configuration
             # This scripts preserves all the fields on the input surface
             # for this class
             clipper = vtkvmtk.vtkvmtkPolyDataCenterlineGroupsClipper()
@@ -1330,22 +1332,35 @@ class VascularTree:
             clipper.ClipAllCenterlineGroupIdsOn()
             clipper.GenerateClippedOutputOff()
             clipper.Update()
-    
+
             # Get the clipped output
             self._branched_surface = clipper.GetOutput()
 
-    def GetBranches(self) -> list:
+    def ComputeVoronoiDiagram(self) -> names.polyDataType:
+        """Compute Voronoi diagram of a vascular surface."""
+
+        if self._Voronoi_diagram is None:
+            voronoiDiagram = vmtkscripts.vmtkDelaunayVoronoi()
+            voronoiDiagram.Surface = self._vascular_surface
+            voronoiDiagram.CheckNonManifold = True
+            voronoiDiagram.Execute()
+
+            self._Voronoi_diagram = voronoiDiagram.Surface
+
+        return self._Voronoi_diagram
+
+    def GetBranches(self) -> dict:
         """Split vascular tree into branch objects.
 
         Given the vasculature centerlines, slits it into its constituent
         branches. Generates a list of branch objects.
 
         Returns:
-            list: A list of Branch objects representing the branches of the
-                  vascular model.
+            dict: A dict of {GroupId: Branch...} objects representing the
+                branches of the vascular model.
         """
         if not self._branches:
-            
+
             # Compute branched surface if not already done
             self._compute_branched_surface()
 
@@ -1383,12 +1398,12 @@ class VascularTree:
                                     branchId
                                 )
 
-                self._branches.append(
-                    Branch(
-                        branch,
-                        surfaceBranch
-                    )
-                )
+                self._branches.update({
+                    branchId: Branch(
+                                  branch,
+                                  surfaceBranch
+                              )
+                })
 
                 # except(ValueError):
                 #     pass
