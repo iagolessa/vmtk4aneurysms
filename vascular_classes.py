@@ -242,6 +242,8 @@ class VascularCenterline:
         # Split centerline into its constituents
         self._individual_centerlines = self.split_centerline_object()
 
+        self._bifurcating_centerlines = {}
+
     @classmethod
     def from_file(
             cls,
@@ -658,6 +660,105 @@ class VascularCenterline:
                     Bifurcation(system, vectors)
                 )
 
+    def _compute_bifurcating_centerlines(self) -> dict:
+        """Given a centerline of a vascular tree, builds the connectivity
+        between bifurcation GroupIds and its daughter GroupIds.
+
+        This effectively allows for finding the two individual centerlines that
+        make up a particular bifurcation in the vascular tree.
+
+        The algorithm is as follows:
+        1) Identifies the bifurcation group ids
+        2) Compute the TractId of the daughter branches
+           that is equal to the Bif. Tract + 1
+        3) Identifies the individual centerlines that has
+           the bifurcation
+        4) Get the group ids of the two branches.
+
+        Returns:
+            dict: A dictionary containing the bifurcating centerlines with the
+            keys the bifurcation GroupId.
+        """
+
+        bifurcationsPortion = tools.ExtractPortion(
+                                  self._centerline_data,
+                                  names.vmtkBlankingArrayName,
+                                  const.one
+                              )
+
+        bifurcationGroupIds = self.GetBifurcationGroupIds()
+
+        for bif_id in bifurcationGroupIds:
+
+            # Get TractId of bifurcation
+            bifTract = tools.ExtractPortion(
+                            bifurcationsPortion,
+                            names.vmtkGroupIdsArrayName,
+                            bif_id
+                        )
+
+            tractId = int(set(
+                            bifTract.GetCellData().GetArray(
+                                names.vmtkTractIdsArrayName
+                            ).GetRange()
+                      ).pop())
+
+            clsWithBifId = {}
+
+            # Check each centerline and get the ones
+            # that have the particular bifurcation
+            for cl_id, cl_data in self._individual_centerlines.items():
+                cl = cl_data["object"]
+
+                npCl = dsa.WrapDataObject(cl)
+
+                # Get group ids on individual centerline
+                clGroupIds = set(
+                                npCl.GetCellData().GetArray(
+                                    names.vmtkGroupIdsArrayName
+                                )
+                            )
+
+                if bif_id in clGroupIds:
+                    clsWithBifId.update({cl_id: cl})
+
+            # Now, for each of the found centerlines, get the
+            # 2 only that have different GroupId at the
+            # branch where TractId == daughterTractId
+            groupIds = {}
+            for cl_id, cl in clsWithBifId.items():
+
+                # Get the group id of the portion of the daughter tract id
+                clTract = tools.ExtractPortion(
+                                cl,
+                                names.vmtkTractIdsArrayName,
+                                tractId + 1
+                            )
+
+                # Using a dict allows to keep a single centerline for each
+                # group id found.
+                # Hence, this will leave only two centerlines per bifurcation,
+                # as it doesnt matter which centerline is as long as its group
+                # id is the correct one
+                groupIds.update({
+                    int(set(
+                        clTract.GetCellData().GetArray(
+                            names.vmtkGroupIdsArrayName
+                        ).GetRange()
+                    ).pop()): cl
+                })
+
+            appendPolyData = vtk.vtkAppendPolyData()
+
+            for _, cl in groupIds.items():
+                appendPolyData.AddInputData(cl)
+
+            appendPolyData.Update()
+
+            self._bifurcating_centerlines.update({
+                bif_id: appendPolyData.GetOutput()
+            })
+
     def ChangePropertiesOffBifurcation(
             self,
             bif_point: tuple
@@ -729,6 +830,36 @@ class VascularCenterline:
     def GetNumberOfBifurcations(self):
         """Return the number of bifurcations."""
         return self._nbranching_points
+
+    def GetBifurcationGroupIds(self) -> list:
+        """Return the bifurcation group ids.
+
+        Returns:
+            list: A list of bifurcation group ids.
+        """
+        if not self._bifurcations:
+            self._compute_bifurcations_geometry()
+
+        return [
+            bif.GetBifurcationReferenceSystem().GetPointData().GetArray(
+                names.vmtkGroupIdsArrayName
+            ).GetValue(0) for bif in self._bifurcations
+        ]
+
+    def GetBifurcatingCenterline(
+            self,
+            bifurcation_id: int
+        ) -> names.polyDataType:
+        """Gets a bifurcating centerline of the vascular tree.
+
+        Returns:
+            names.polyDataType: The vtkPolyData object representing the
+                                bifurcating centerline.
+        """
+        if not self._bifurcating_centerlines:
+            self._compute_bifurcating_centerlines()
+
+        return self._bifurcating_centerlines.get(bifurcation_id, None)
 
     def GetPointFields(self):
         """Return the number of bifurcations."""

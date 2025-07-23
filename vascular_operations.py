@@ -725,7 +725,7 @@ def SplitICAModelIntoBends(
         centerlines: names.polyDataType,
         bif_point: tuple
     )   -> names.polyDataType:
-    """Split ICA vascular surface model into bends based on curvature and 
+    """Split ICA vascular surface model into bends based on curvature and
     torsion."""
 
     # Split centerlines into bends
