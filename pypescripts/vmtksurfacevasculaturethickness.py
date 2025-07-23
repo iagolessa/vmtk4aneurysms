@@ -22,7 +22,12 @@ from vmtk import pypes
 from vmtk import vmtkscripts
 from vmtk import vmtkrenderer
 
-from vmtk4aneurysms import vascular_operations as vscop
+from vmtk4aneurysms.vascular_classes import VascularTree
+from vmtk4aneurysms.aneurysms import (
+    VascularTreeWithLateralAneurysm,
+    VascularTreeWithBifurcationAneurysm
+)
+
 from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
@@ -263,37 +268,45 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         # Compute the thickness field
         if self.Aneurysm:
-            self.Surface = vscop.ComputeVasculatureThicknessWithAneurysm(
-                               self.Surface,
-                               self.Centerlines,
-                               thickness_field_name=self.ThicknessArrayName,
-                               set_uniform_wlr=self.UniformWallToLumenRatio,
-                               uniform_wlr_value=self.WallLumenRatio,
-                               neck_comp_mode=self.NeckComputationMode,
-                               gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
-                               aneurysm_type=self.AneurysmType,
-                               aneurysm_influence_dist=self.AneurysmInfluencedRegionDistance,
-                               scale_factor=self.GlobalScaleFactor,
-                               parent_vascular_surface=self.ParentVesselSurface,
-                               dome_point=self.DomePoint,
-                               abnormal_thickness=self.AbnormalHemodynamicsRegions,
-                               atherosclerotic_factor=self.AtheroscleroticFactor,
-                               red_regions_factor=self.RedRegionsFactor,
-                               nsmooth_iterations=self.SmoothingIterations
-                           )
+            if self.AneurysmType == "lateral":
+                vascularTreeModel = VascularTreeWithLateralAneurysm(
+                                        self.Surface
+                                    )
+
+            elif self.AneurysmType == "bifurcation":
+                vascularTreeModel = VascularTreeWithBifurcationAneurysm(
+                                        self.Surface
+                                    )
+            else:
+                raise ValueError(
+                    'Aneurysm type must be "lateral" or "bifurcation".'
+                )
+
+            vascularTreeModel.ComputeVascularWallThickness(
+                set_uniform_wlr=self.UniformWallToLumenRatio,
+                uniform_wlr_value=self.WallLumenRatio,
+                aneurysm_influence_dist=self.AneurysmInfluencedRegionDistance,
+                scale_factor=self.GlobalScaleFactor,
+                abnormal_thickness=self.AbnormalHemodynamicsRegions,
+                atherosclerotic_factor=self.AtheroscleroticFactor,
+                red_regions_factor=self.RedRegionsFactor
+            )
+
+            self.Surface = vascularTreeModel.GetVascularSurface()
 
             if self.OwnRenderer:
                 self.vmtkRenderer.Deallocate()
                 self.OwnRenderer = 0
 
         else:
-            self.Surface = vscop.ComputeVasculatureThickness(
-                              self.Surface,
-                              self.Centerlines,
-                              thickness_field_name=self.ThicknessArrayName,
-                              set_uniform_wlr=self.UniformWallToLumenRatio,
-                              uniform_wlr_value=self.WallLumenRatio
-                           )
+            vascularTreeModel = VascularTree(self.Surface)
+
+            vascularTreeModel.ComputeVascularWallThickness(
+                set_uniform_wlr=self.UniformWallToLumenRatio,
+                uniform_wlr_value=self.WallLumenRatio,
+            )
+
+            self.Surface = vascularTreeModel.GetVascularSurface()
 
         # Get all arrays
         newCellArrays  = [arr for arr in tools.GetCellArrays(self.Surface)

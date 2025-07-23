@@ -36,7 +36,11 @@ from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import polydatamath as pmath
 
-from vmtk4aneurysms.vascular_classes import VascularTree
+from vmtk4aneurysms.vascular_classes import (
+    VascularSurface,
+    VascularTree
+)
+
 from vmtk4aneurysms.neck_extractor import (
         ClipAneurysmSacSurface,
         ComputeGeodesicDistanceToAneurysmNeck
@@ -238,6 +242,173 @@ def AneurysmPulsatility2(
 
     # Compute pulsatility
     return psAneurysm.GetAneurysmVolume()/ldAneurysm.GetAneurysmVolume() - 1.0
+
+def WallTypeClassification(
+        surface: names.polyDataType,
+        low_wss: float=5.0,
+        high_wss: float=10.0,
+        low_osi: float=0.001,
+        high_osi: float=0.01,
+        distance_to_neck_array: str=names.DistanceToNeckArrayName,
+        neck_iso_value: float=const.NeckIsoValue
+    )   -> names.polyDataType:
+    """Based on the WSS hemodynamics, characterize an aneurysm wall morphology.
+
+    Based on the TAWSS and OSI fields, identifies the aneurysm regions prone to
+    atherosclerotic walls (thicker walls) and red wall (thinner) by adding a
+    new array on the passed surface name "WallType" with the following values:
+
+    .. table:: Local wall type characterization
+        :widths: auto
+
+        =====   ===============
+        Label   Wall Type
+        =====   ===============
+            0   Normal wall
+            1   Atherosclerotic
+            2   "Red" wall
+        =====   ===============
+
+    Classifications based on the references:
+
+        [1] Furukawa et al. "Hemodynamic characteristics of hyperplastic
+        remodeling lesions in cerebral aneurysms". PLoS ONE. 2018 Jan
+        16;13:1–11.
+
+        [2] Cebral et al. "Local hemodynamic conditions associated with focal
+        changes in the intracranial aneurysm wall". American Journal of
+        Neuroradiology.  2019; 40(3):510–6.
+    """
+    normalWall  = const.IaWallTypes["RegularWall"]
+    thickerWall = const.IaWallTypes["AtheroscleroticWall"]
+    thinnerWall = const.IaWallTypes["RedWall"]
+
+    # Maybe put this limiting values to be passed by the user
+    # for flexibility
+    limitHemodynamics = {names.TAWSS: {"low": low_wss, "high": high_wss},
+                         names.OSI  : {"low": low_osi, "high": high_osi}#,
+                         #names.RRT  : {"low": 0.25,  "high": 0.75}
+                        }
+
+    arraysInSurface = tools.GetPointArrays(surface) + \
+                      tools.GetCellArrays(surface)
+
+    if distance_to_neck_array not in arraysInSurface:
+        print("Distance to neck array name not in surface. Computing it.")
+
+        surface = ComputeGeodesicDistanceToAneurysmNeck(
+                    surface,
+                    mode="interactive"
+                )
+
+    elif names.TAWSS not in arraysInSurface:
+        raise ValueError("TAWSS array not in surface!")
+
+    elif names.OSI not in arraysInSurface:
+        raise ValueError("OSI array not in surface!")
+
+    fieldsDf = tools.vtkPolyDataToDataFrame(surface)
+
+    # Add int field which will indicate the thicker regions
+    # zero indicates normal wall... the aneuysm portion wil be updated
+    fieldsDf[names.WallTypeArrayName] = normalWall
+
+    # Groups of conditions
+    isAneurysm = fieldsDf[distance_to_neck_array] < const.NeckIsoValue
+
+    isHighWss = fieldsDf[names.TAWSS] > limitHemodynamics[names.TAWSS]["high"]
+    isLowWss  = fieldsDf[names.TAWSS] < limitHemodynamics[names.TAWSS]["low"]
+
+    isHighOsi = fieldsDf[names.OSI] > limitHemodynamics[names.OSI]["high"]
+    isLowOsi  = fieldsDf[names.OSI] < limitHemodynamics[names.OSI]["low"]
+
+    # isHighRrt = fieldsDf[names.RRT] > limitHemodynamics[names.RRT]["high"]
+    # isLowRrt = fieldsDf[names.RRT] < limitHemodynamics[names.RRT]["low"]
+
+    thickerWallCondition = (isAneurysm) & (isLowWss)  & (isHighOsi)# & (isHighRrt)
+    thinnerWallCondition = (isAneurysm) & (isHighWss) & (isLowOsi) # & (isLowRrt)
+
+    # Update wall type array
+    fieldsDf.loc[thickerWallCondition, names.WallTypeArrayName] = thickerWall
+    fieldsDf.loc[thinnerWallCondition, names.WallTypeArrayName] = thinnerWall
+
+    hemodynamicSurfaceNumpy = dsa.WrapDataObject(surface)
+
+    # Add new field to surface
+    hemodynamicSurfaceNumpy.CellData.append(
+        dsa.VTKArray(fieldsDf[names.WallTypeArrayName]),
+        names.WallTypeArrayName
+    )
+
+    return hemodynamicSurfaceNumpy.VTKObject
+
+def UpdateAbnormalHemodynamicsRegions(
+        vascular_surface: names.polyDataType,
+        field_name: str,
+        atherosclerotic_factor: float=1.20,
+        red_regions_factor: float=0.95
+    )   -> names.polyDataType:
+    """Update fields on an aneurysm surface based on adjacent hemodynamics."""
+
+    # Factor array: compute WallTypeArrayName if not yet on the surface
+    if names.WallTypeArrayName not in tools.GetCellArrays(vascular_surface):
+        vascular_surface = WallTypeClassification(vascular_surface)
+
+    npSurface = dsa.WrapDataObject(vascular_surface)
+
+    wallTypeArray = npSurface.GetCellData().GetArray(
+                        names.WallTypeArrayName
+                    )
+
+    # Add abnormal factor array
+    # This is important to have a smooth field to multiply with the
+    # thickness array (scale factor can be viewed as a continous
+    # distribution in contrast to the WallType array that is discrete)
+    abnormalFactorArray = dsa.VTKArray(
+                              np.ones(shape=wallTypeArray.shape)
+                          )
+
+    # update with scale factors
+    abnormalFactorArray[
+        wallTypeArray == const.IaWallTypes["AtheroscleroticWall"]
+    ] = atherosclerotic_factor
+
+    abnormalFactorArray[
+        wallTypeArray == const.IaWallTypes["RedWall"]
+    ] = red_regions_factor
+
+    npSurface.CellData.append(
+        abnormalFactorArray,
+        names.AbnormalFactorArrayName
+    )
+
+    vascular_surface = npSurface.VTKObject
+
+    # Interpolate AbnormalFactorArray cell data to point data
+    vascular_surface = tools.CellFieldToPointField(
+                           vascular_surface,
+                           names.AbnormalFactorArrayName
+                       )
+
+    npSurface = dsa.WrapDataObject(vascular_surface)
+
+    abnormalFactorArray = npSurface.GetPointData().GetArray(
+                              names.AbnormalFactorArrayName
+                          )
+
+    fieldToBeUpdated = npSurface.GetPointData().GetArray(
+                           field_name
+                       )
+
+    npSurface.PointData.append(
+        abnormalFactorArray*fieldToBeUpdated,
+        field_name
+    )
+
+    vascular_surface = npSurface.VTKObject
+    vascular_surface.GetCellData().RemoveArray(names.AbnormalFactorArrayName)
+
+    return vascular_surface
 
 class SaccularAneurysm:
     """Representation for saccular cerebral aneurysms.
@@ -1006,6 +1177,9 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
         self._dome_point  = dome_point
         self._clip_aneurysm_mode = clip_aneurysm_mode
 
+        self._aneurysm_thickness_computed = False
+        self._aneurysm_neck_computed = False
+
         # These will be filled at the concrete classes
         self._healthy_vessel_surface = None
         self._sac_surface = None
@@ -1041,6 +1215,18 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
     # array)
 
     @abstractmethod
+    def _mark_aneurysm_wall_influence_region(self):
+        """Mark the aneurysm influence region on the vascular surface.
+
+        This method should be implemented in the subclasses to mark the
+        aneurysm neck based on the specified clipping mode. This array is
+        designed to compute the Thickness field when an aneurysm exist on the
+        vascular tree. This region may be different from the different neck
+        extraction strategies.
+        """
+        pass
+
+    @abstractmethod
     def _clip_sac_surface(self):
         """Clip the aneurysm sac surface and initialize SaccularAneurysm.
 
@@ -1048,6 +1234,332 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
         aneurysm sac surface based on the specified clipping mode.
         """
         pass
+
+    def ComputeVascularWallThickness(
+            self,
+            set_uniform_wlr: bool = False,
+            uniform_wlr_value: float = const.WlrMedium,
+            aneurysm_influence_dist: float = 0.5,
+            scale_factor: float = 0.75,
+            abnormal_thickness: bool = False,
+            atherosclerotic_factor: float = 1.20,
+            red_regions_factor: float = 0.95,
+        ):
+        """Computes the vascular wall thickness, including aneurysm-specific
+        adjustments.
+
+        Based on the vasculature thickness distribution, defined as the outside
+        portion of the complete geometry from the neck selected by the user,
+        estimates an aneurysm thickness by averaging the vasculature thickness
+        using as weight function the inverse distance to the
+        "aneurysm-influenced" region line. The estimated aneurysm thickness is,
+        then, set on the aneurysm surface in the thickness array.
+
+        The aneurysm-influenced neck line is defined as the region between the
+        neck line (provided by the user or computed automatically) and the path
+        that is at a distance of 'AneurysmInfluencedRegionDistance' value (in
+        mm; default 0.5 mm) from the neck line. This strip around the aneurysm
+        is imagined as a region of the original vasculature that had its
+        thickness changed by the aneurysm growth.
+
+        The aneurysm sac thickness may be estimated as 'uniform', the default
+        behavior, or using the abnormal wall thickness based on the adjacent
+        hemodynamics to the aneurysm wall: the TAWSS and OSI fields (controlled
+        by setting the option 'abnormal_thickness' to True). In the latter, the
+        passed suface must have these two field from a CFD simulation.
+
+        The aneurysm abnormal thickness is computed based on a 'WallType'
+        field that acts a scaling factor by increasing or deacreasing the sac
+        thickness. The procedure is as follows: With a global thickness array
+        already defined on the surface from the base class, update the
+        thickness based on the wall type array created based on the
+        hemodynamics variables, by multiplying it by a factor defined below.
+        The three types of wall and the operation performed here for each are:
+
+        .. table:: Local wall type characterization
+            :widths: auto
+
+            =====   =============== =========
+            Label   Wall Type       Operation
+            =====   =============== =========
+                0   Normal wall     Nothing (default = 1)
+                1   Atherosclerotic Increase thickness (default factor = 1.20)
+                2   "Red" wall      Decrease thickness (default factor = 0.95)
+            =====   =============== =========
+
+        The multiplying factors for the atherosclerotic and red wall must be
+        provided, with default values given above. The function will look for
+        the array named "WallType" for defining its operation or compute it on
+        the fly.
+
+        Arguments:
+            set_uniform_wlr (bool): If True, use a uniform wall-to-lumen ratio
+                for initial computation.
+
+            uniform_wlr_value (float): The uniform wall-to-lumen ratio to use.
+
+            aneurysm_influence_dist (float): Distance defining the aneurysm
+                influenced region.
+
+            scale_factor (float): Scaling factor for aneurysm thickness
+                average. Default of 0.75.
+
+            abnormal_thickness (bool): If True, apply abnormal thickness
+                adjustments based on hemodynamics.
+
+            atherosclerotic_factor (float): Factor for atherosclerotic regions.
+
+            red_regions_factor (float): Factor for "red" regions.
+        """
+        if not self._aneurysm_thickness_computed:
+
+            # First, call the parent's general thickness computation
+            # This will add to the _vascular_surface the basic thickness
+            # field and set self._thickness_computed = True
+            super().ComputeVascularWallThickness(
+                set_uniform_wlr=set_uniform_wlr,
+                uniform_wlr_value=uniform_wlr_value
+            )
+
+            # Now, apply the aneurysm-specific adjustments
+            # Compute the distance to neck array if not already present
+            if  not self._aneurysm_neck_computed:
+                # TODO the computation of the thickness should depend only on
+                # the 3D neck or interactive neck approaches, as the plane one
+                # is not realistic
+                # hence, the computation here should be specific and not tied
+                # to the neck computation chosen by the user.
+                self._mark_aneurysm_wall_influence_region()
+
+            # Surface with thickness and distnce to neck
+            npDistanceSurface = dsa.WrapDataObject(self._vascular_surface)
+
+            # Update both fields with selection
+            thicknessArray = npDistanceSurface.GetPointData().GetArray(
+                                 names.ThicknessArrayName
+                             )
+
+            distanceToNeckArray = npDistanceSurface.GetPointData().GetArray(
+                                      names.DistanceToNeckArrayName
+                                  )
+
+            # First compute aneurysm thickness based on vasculature thickness
+            # the vasculature is selection value > 0
+            onVasculature = distanceToNeckArray > aneurysm_influence_dist
+
+            # Filter thickness and neckScalars
+            vasculatureThicknesses = onVasculature*thicknessArray
+            vasculatureDistances   = onVasculature*distanceToNeckArray
+
+            # Aneurysm thickness as weighted average
+            aneurysmThickness = scale_factor*np.average(
+                                    vasculatureThicknesses,
+                                    weights=np.array([
+                                        1.0/x if x != 0.0 else 0.0
+                                        for x in vasculatureDistances
+                                    ])
+                                )
+
+            print(
+                "Aneurysm thickness computed: {}".format(
+                    aneurysmThickness
+                ),
+                end="\n"
+            )
+
+            # Then, substitute thickness array by aneurysmThickness
+            thicknessArray[vasculatureThicknesses == 0.0] = aneurysmThickness
+
+            vascular_surface = npDistanceSurface.VTKObject
+
+            if abnormal_thickness:
+                vascular_surface = UpdateAbnormalHemodynamicsRegions(
+                                       vascular_surface,
+                                       field_name=names.ThicknessArrayName,
+                                       atherosclerotic_factor=atherosclerotic_factor,
+                                       red_regions_factor=red_regions_factor
+                                   )
+
+            # After array created, smooth it hard
+            vascular_surface = tools.SmoothSurfacePointField(
+                                   vascular_surface,
+                                   names.ThicknessArrayName,
+                                   niterations=5
+                               )
+
+            # Updates vascular surface OBJECT
+            self._vasc_surface_obj = VascularSurface(vascular_surface)
+            self._vascular_surface = self._vasc_surface_obj.GetSurface()
+            self._aneurysm_thickness_computed = True
+
+        else:
+            print("Aneurysm thickness field already computed. Skipping re-computation.")
+
+    def ComputeVascularElasticConstants(
+            self,
+            elastic_const_field_name: str=names.ElasticityArrayName,
+            aneurysm_elastic_const_mode: str="uniform",
+            arteries_elastic_const: float=5e6,
+            aneurysm_elastic_const: float=2e6,
+            abnormal_elasticity: bool=False,
+            atherosclerotic_factor: float=1.20,
+            red_regions_factor: float=0.95
+        )   -> names.polyDataType:
+        """Calculate and set aneurysm and vascular elastic constant field.
+
+        Based on a value for the aneurysm elasticity and the arterial
+        elasticity, set them on the vascular surface. The arterial elasticity
+        is considered to be uniform, whereas the aneurysm elasticity accepts
+        two modes:
+
+            * 'uniform': uniform elasticity;
+            * 'linear': elasticity linearly varying from the arterial value to
+                a value set by the user too.
+
+        The aneurysm influence region is either provided by the user or
+        computed automatically, through the array 'DistanceToNeck' that marks
+        the neck contour with zero values. If the surface does not already have
+        the 'DistanceToNeck' scalar array, then it will prompt the user to
+        select the neck line, which will be stored on the surface.
+
+        The option 'abnormal_elasticity' allows for the automatic update of the
+        aneurysm elasticity based on the adjacent hemodynamics to the aneurysm
+        wall: the TAWSS and OSI fields. In this last case, the passed surface
+        must have these two field from a CFD simulation.
+
+        The aneurysm abnormal elastic constant field is computed based on a
+        'WallType' field that acts a scaling factor by increasing or
+        deacreasing the sac elastic constant. The procedure is as follows: With
+        a global elasticity array already defined on the surface, update the
+        elasticity based on the wall type array created based on the
+        hemodynamics variables, by multiplying it by a factor defined below.
+        The three types of wall and the operation performed here for each are:
+
+        .. table:: Local wall type characterization
+            :widths: auto
+
+            =====   =============== =========
+            Label   Wall Type       Operation
+            =====   =============== =========
+                0   Normal wall     Nothing (default = 1)
+                1   Atherosclerotic Increase elasticity (default factor = 1.20)
+                2   "Red" wall      Decrease elasticity (default factor = 0.95)
+            =====   =============== =========
+
+        The multiplying factors for the atherosclerotic and red wall must be
+        provided, with default values given above. The function will look for
+        the array named "WallType" for defining its operation or compute it on
+        the fly.
+
+        The function can be called any times to compute different elastic
+        constant fields as necessary, as long as the name of the field changes.
+
+        Arguments:
+            elastic_const_field_name (str): Name of the elasticity field to be
+                created. Default is 'E'.
+
+            aneurysm_elastic_const_mode (str): Mode for aneurysm elasticity
+                definition. Either 'uniform' or 'linear'. Default is 'uniform'.
+
+            arteries_elastic_const (float): Elastic constant for the healthy
+                arteries. Default is 5e6.
+
+            aneurysm_elastic_const (float): Elastic constant for the aneurysm
+                sac. Default is 2e6.
+
+            abnormal_elasticity (bool): If True, apply abnormal elastic
+                constant adjustments based on hemodynamics.
+
+            atherosclerotic_factor (float): Factor for atherosclerotic regions.
+
+            red_regions_factor (float): Factor for "red" regions.
+        """
+        # Compute the distance to neck array if not already present
+        if not self._aneurysm_neck_computed:
+            # TODO the computation of the thickness should depend only on
+            # the 3D neck or interactive neck approaches, as the plane one
+            # is not realistic
+            # hence, the computation here should be specific and not tied
+            # to the neck computation chosen by the user.
+            self._mark_aneurysm_wall_influence_region()
+
+        # Surface with thickness and distnce to neck
+        npDistanceSurface = dsa.WrapDataObject(self._vascular_surface)
+
+        distanceArray = npDistanceSurface.PointData.GetArray(
+                            names.DistanceToNeckArrayName
+                        )
+
+        # Array to hold the actual elasticity array
+        elasticities = dsa.VTKArray(
+                            np.zeros(
+                                shape=self._vascular_surface.GetNumberOfPoints()
+                            )
+                        )
+
+        # Mark regions based on distance array values
+        onAneurysm  = distanceArray <= 0.0
+        outAneurysm = distanceArray > 0.0
+
+        elasticities[outAneurysm] = arteries_elastic_const
+
+        # One single aneurysm expected here
+        if aneurysm_elastic_const_mode == "uniform":
+
+            elasticities[onAneurysm] = aneurysm_elastic_const
+
+        elif aneurysm_elastic_const_mode == "linear":
+
+            # Fundus and neck elasticity
+            neckElasticity   = arteries_elastic_const
+            fundusElasticity = aneurysm_elastic_const
+
+            # Distances on the aneurysm are negative: max distance is actually min
+            maxDistance = -min(distanceArray)
+
+            # Angular coeff. for linear elasticity on the aneurysm sac
+            angCoeff = \
+                (neckElasticity - fundusElasticity)/maxDistance
+
+            elasticities[onAneurysm] = \
+                dsa.VTKArray([
+                    neckElasticity + angCoeff*distance
+                    for distance in distanceArray[onAneurysm]
+                ])
+
+        else:
+            raise ValueError(
+                      """Aneurysm elasticity mode either 'uniform'
+                      or 'linear'. {} passed.""".format(
+                          aneurysm_elastic_const_mode
+                      )
+                  )
+
+        npDistanceSurface.PointData.append(
+            elasticities,
+            elastic_const_field_name
+        )
+
+        vascular_surface = npDistanceSurface.VTKObject
+
+        if abnormal_elasticity:
+            vascular_surface = UpdateAbnormalHemodynamicsRegions(
+                                   vascular_surface,
+                                   field_name=elastic_const_field_name,
+                                   atherosclerotic_factor=atherosclerotic_factor,
+                                   red_regions_factor=red_regions_factor
+                               )
+
+        # After array created, smooth it hard to remove discontinuity
+        vascular_surface = tools.SmoothSurfacePointField(
+                               vascular_surface,
+                               elastic_const_field_name,
+                               niterations=5
+                           )
+
+        # Updates vascular surface OBJECT
+        self._vasc_surface_obj = VascularSurface(vascular_surface)
+        self._vascular_surface = self._vasc_surface_obj.GetSurface()
 
     def GetAneurysm(self):
         """Return the aneurysm model."""
@@ -1108,6 +1620,28 @@ class VascularTreeWithLateralAneurysm(VascularTreeWithAneurysm):
     # as the VascularTreeWithAneurysm is the only one that uses the
     # healthy_vessel_surface attribute. It should not be passed by the
     # user, but computed internally.
+
+    def _mark_aneurysm_wall_influence_region(self):
+        """Mark the aneurysm neck contour with an array called DistanceToNeck
+        with zero values at the neck and the negative-distance to it inside the
+        aneurysm sac."""
+
+        if not self._aneurysm_neck_computed:
+            # Use client function to mark the aneurysm sac surface
+            marked_neck_surface = ComputeGeodesicDistanceToAneurysmNeck(
+                                      self.GetVascularSurface(),
+                                      mode=self._clip_aneurysm_mode,
+                                      healthy_vessel_surface=self._healthy_vessel_surface,
+                                      aneurysm_type="lateral",
+                                      dome_point=self._dome_point
+                                  )
+
+            # Updates the vascular surface with the marked aneurysm neck
+            self._vasc_surface_obj = VascularSurface(marked_neck_surface)
+            self._vascular_surface = self._vasc_surface_obj.GetSurface()
+
+            self._aneurysm_neck_computed = True
+
 
     def _clip_sac_surface(self):
         """Clip the aneurysm sac surface and initialize SaccularAneurysm."""
@@ -1174,6 +1708,28 @@ class VascularTreeWithBifurcationAneurysm(VascularTreeWithAneurysm):
     # as the VascularTreeWithAneurysm is the only one that uses the
     # healthy_vessel_surface attribute. It should not be passed by the
     # user, but computed internally.
+
+    def _mark_aneurysm_wall_influence_region(self):
+        """Mark the aneurysm neck contour with an array called DistanceToNeck
+        with zero values at the neck and the negative-distance to it inside the
+        aneurysm sac."""
+
+        if not self._aneurysm_neck_computed:
+            # Use client function to mark the aneurysm sac surface
+            marked_neck_surface = ComputeGeodesicDistanceToAneurysmNeck(
+                                      self.GetVascularSurface(),
+                                      mode=self._clip_aneurysm_mode,
+                                      healthy_vessel_surface=self._healthy_vessel_surface,
+                                      aneurysm_type="bifurcation",
+                                      dome_point=self._dome_point
+                                  )
+
+            # Updates the vascular surface with the marked aneurysm neck
+            self._vasc_surface_obj = VascularSurface(marked_neck_surface)
+            self._vascular_surface = self._vasc_surface_obj.GetSurface()
+
+            self._aneurysm_neck_computed = True
+
 
     def _clip_sac_surface(self):
         """Clip the aneurysm sac surface and initialize SaccularAneurysm."""

@@ -29,7 +29,10 @@ from vmtk import pypes
 from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import names
 
-from vmtk4aneurysms import vascular_operations as vscop
+from vmtk4aneurysms.aneurysms import (
+    VascularTreeWithLateralAneurysm,
+    VascularTreeWithBifurcationAneurysm
+)
 
 vmtksurfaceaneurysmelasticity = 'vmtkSurfaceAneurysmelasticity'
 
@@ -149,6 +152,20 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
         self.Surface = triangulate.GetOutput()
 
+        if self.AneurysmType == "lateral":
+            vascularTreeModel = VascularTreeWithLateralAneurysm(
+                                    self.Surface
+                                )
+
+        elif self.AneurysmType == "bifurcation":
+            vascularTreeModel = VascularTreeWithBifurcationAneurysm(
+                                    self.Surface
+                                )
+        else:
+            raise ValueError(
+                'Aneurysm type must be "lateral" or "bifurcation".'
+            )
+
         elasticityValues = zip(
                                self.ElasticityArrayName,
                                self.AneurysmElasticity,
@@ -157,22 +174,17 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
         for fieldName, iaValue, bValue in elasticityValues:
 
-            self.Surface = vscop.ComputeVasculatureElasticityWithAneurysm(
-                               self.Surface,
-                               elasticity_field_name=fieldName,
-                               aneurysm_elasticity_mode=self.AneurysmElasticityMode,
-                               arteries_elasticity=bValue,
-                               aneurysm_elasticity=iaValue,
-                               neck_comp_mode=self.NeckComputationMode,
-                               gdistance_to_neck_array_name=self.DistanceToNeckArrayName,
-                               aneurysm_type=self.AneurysmType,
-                               parent_vascular_surface=self.ParentVesselSurface,
-                               dome_point=self.DomePoint,
-                               abnormal_elasticity=self.AbnormalHemodynamicsRegions,
-                               atherosclerotic_factor=self.AtheroscleroticFactor,
-                               red_regions_factor=self.RedRegionsFactor,
-                               nsmooth_iterations=self.SmoothingIterations
-                           )
+            vascularTreeModel.ComputeVascularElasticConstants(
+                elastic_const_field_name=fieldName,
+                aneurysm_elastic_const_mode=self.AneurysmElasticityMode,
+                arteries_elastic_const=bValue,
+                aneurysm_elastic_const=iaValue,
+                abnormal_elasticity=self.AbnormalHemodynamicsRegions,
+                atherosclerotic_factor=self.AtheroscleroticFactor,
+                red_regions_factor=self.RedRegionsFactor,
+            )
+
+            self.Surface = vascularTreeModel.GetVascularSurface()
 
         # Get all arrays
         newCellArrays  = [arr for arr in tools.GetCellArrays(self.Surface)

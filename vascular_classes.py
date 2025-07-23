@@ -1424,6 +1424,7 @@ class VascularTree:
         # Branches attributes
         self._branched_surface = None
         self._branches = {}
+        self._thickness_computed = False
 
     @classmethod
     def from_file(
@@ -1466,6 +1467,179 @@ class VascularTree:
 
             # Get the clipped output
             self._branched_surface = clipper.GetOutput()
+
+    def _compute_local_wlr(self, diameter):
+        if diameter > const.VesselLargeDiameter:
+            return const.WlrLarge
+
+        elif diameter < const.VesselMediumDiameter:
+            return const.WlrMedium
+
+        else:
+            # Linear threshold
+            deltaWlr = const.WlrLarge - const.WlrMedium
+            deltaDiameter = const.VesselLargeDiameter - const.VesselMediumDiameter
+            angCoeff = deltaWlr/deltaDiameter
+
+            return const.WlrMedium + angCoeff*(diameter - const.VesselMediumDiameter)
+
+    def _compute_vascular_thickness_internal(
+            self,
+            set_uniform_wlr: bool=False,
+            uniform_wlr_value: float=const.WlrMedium
+        ):
+        """
+        Internal method to compute thickness of the vascular surface
+        and add it as a point array. Modifies self._vascular_surface in place.
+        """
+        # Compute distance to centerlines
+        distanceToCenterlines = vtkvmtk.vtkvmtkPolyDataDistanceToCenterlines()
+        distanceToCenterlines.SetInputData(self._vascular_surface)
+        distanceToCenterlines.SetCenterlines(self._centerlines)
+
+        distanceToCenterlines.SetUseRadiusInformation(True)
+        distanceToCenterlines.SetEvaluateCenterlineRadius(True)
+        distanceToCenterlines.SetEvaluateTubeFunction(False)
+        distanceToCenterlines.SetProjectPointArrays(False)
+
+        distanceToCenterlines.SetDistanceToCenterlinesArrayName(
+            names.ThicknessArrayName
+        )
+
+        distanceToCenterlines.SetCenterlineRadiusArrayName(
+            names.VascularRadiusArrayName
+        )
+
+        distanceToCenterlines.Update()
+
+        # Update the internal _vascular_surface with the output of this filter
+        self._vascular_surface = distanceToCenterlines.GetOutput()
+
+        # Use numpy interface with VTK
+        npSurface = dsa.WrapDataObject(self._vascular_surface)
+
+        distanceArray = npSurface.GetPointData().GetArray(
+                            names.ThicknessArrayName
+                        )
+
+        radiusArray   = npSurface.GetPointData().GetArray(
+                            names.VascularRadiusArrayName
+                        )
+
+        # This portion evaluates if distance is much higher
+        # than the actual radius array
+        # This necessarily will need some smoothing
+
+        # Set high and low threshold factors
+        # Are they arbitrary?
+        highRadiusThresholdFactor = 1.4
+        lowRadiusThresholdFactor  = 0.9
+
+        npMaxRadiusLim = highRadiusThresholdFactor*radiusArray
+        npMinRadiusLim = lowRadiusThresholdFactor*radiusArray
+
+        distanceArray = np.where(
+                            distanceArray > npMaxRadiusLim,
+                            npMaxRadiusLim,
+                            distanceArray
+                        )
+
+        distanceArray = np.where(
+                            distanceArray < npMinRadiusLim,
+                            radiusArray,
+                            distanceArray
+                        )
+
+        # Smooth the distance to centerline array to avoid sudden changes of
+        # thickness in certain regions
+        self._vascular_surface = tools.SmoothSurfacePointField(
+                                    npSurface.VTKObject,
+                                    names.ThicknessArrayName,
+                                    niterations=5
+                                )
+
+        npSurface = dsa.WrapDataObject(self._vascular_surface)
+
+        # Multiply by WLR to have a prelimimar thickness array
+        # I assume that the WLR is the same for medium sized arteries
+        # but I can change this in a point-wise manner based on
+        # the local radius array by using the algorithm contained
+        # in the vmtksurfacearrayoperation script
+        distanceArray = npSurface.GetPointData().GetArray(
+                            names.ThicknessArrayName
+                        )
+
+        radiusArray   = npSurface.GetPointData().GetArray(
+                            names.VascularRadiusArrayName
+                        )
+
+        if set_uniform_wlr:
+
+            npSurface.PointData.append(
+                dsa.VTKArray([
+                    uniform_wlr_value*(2.0*r)
+                    for r in distanceArray
+                ]),
+                names.ThicknessArrayName
+            )
+
+        else:
+            # Compute are store local WLR for debug
+            localWLRArray = dsa.VTKArray([
+                                self._compute_local_wlr(2.0*r)
+                                for r in distanceArray
+                            ])
+
+            npSurface.PointData.append(
+                localWLRArray,
+                "LocalWLR"
+            )
+
+            # Compute thickness array and replace the thickness array
+            # (originally stored as the distance to neck array with a new one)
+            npSurface.PointData.append(
+                localWLRArray*(2.0*distanceArray),
+                names.ThicknessArrayName
+            )
+
+        # Remove the radius array from the vascular surface
+        vascular_surface = npSurface.VTKObject
+        vascular_surface.GetPointData().RemoveArray(
+            names.VascularRadiusArrayName
+        )
+
+        # Updates vascular surface OBJECT
+        self._vasc_surface_obj = VascularSurface(vascular_surface)
+        self._vascular_surface = self._vasc_surface_obj.GetSurface()
+
+    def ComputeVascularWallThickness(
+            self,
+            set_uniform_wlr: bool=False,
+            uniform_wlr_value: float=const.WlrMedium
+        ):
+        """Computes the vascular wall thickness and adds it as a point data
+        array to the internal vascular surface.
+
+        Given input surface with the radius array, computes the thickness by
+        multiplying by the wall-to-lumen ration. This method modifies the
+        internal _vascular_surface attribute in-place. It will only compute the
+        thickness once unless explicitly reset.
+
+        Arguments:
+            set_uniform_wlr (bool): If True, use a uniform wall-to-lumen ratio.
+
+            uniform_wlr_value (float): The uniform wall-to-lumen ratio to use.
+        """
+        if not self._thickness_computed:
+            self._compute_vascular_thickness_internal(
+                set_uniform_wlr=set_uniform_wlr,
+                uniform_wlr_value=uniform_wlr_value
+            )
+
+            self._thickness_computed = True
+
+        else:
+            print("Thickness field already computed. Skipping re-computation.")
 
     def ComputeVoronoiDiagram(self) -> names.polyDataType:
         """Compute Voronoi diagram of a vascular surface."""
