@@ -223,7 +223,7 @@ class VascularCenterline:
         if not isinstance(centerline_data, vtk.vtkPolyData):
             raise TypeError("centerline_data must be a vtkPolyData object.")
 
-        self._centerline_object = centerline_data
+        self._centerline_data = centerline_data
 
         # Compute centerline geometry arrays
         self.compute_geometry()
@@ -403,14 +403,14 @@ class VascularCenterline:
         """Computes the sections and geometry of the centerline."""
 
         calcGeometry = vmtkscripts.vmtkCenterlineGeometry()
-        calcGeometry.Centerlines = self._centerline_object
+        calcGeometry.Centerlines = self._centerline_data
         calcGeometry.Execute()
 
         calcAttributes = vmtkscripts.vmtkCenterlineAttributes()
         calcAttributes.Centerlines = calcGeometry.Centerlines
         calcAttributes.Execute()
 
-        self._centerline_object = calcAttributes.Centerlines
+        self._centerline_data = calcAttributes.Centerlines
 
     def get_max_length(self) -> float:
         """Calculates the maximum centerline length of the vascular tree.
@@ -418,7 +418,7 @@ class VascularCenterline:
         Returns:
             float: The maximum length.
         """
-        abscissasRange = self._centerline_object.GetPointData().GetArray(
+        abscissasRange = self._centerline_data.GetPointData().GetArray(
                              names.vmtkAbscissasArrayName
                          ).GetRange()
 
@@ -435,7 +435,7 @@ class VascularCenterline:
         """
 
         branches = vmtkscripts.vmtkBranchExtractor()
-        branches.Centerlines = self._centerline_object
+        branches.Centerlines = self._centerline_data
 
         # Use v4a default names
         branches.RadiusArrayName = names.VascularRadiusArrayName
@@ -445,7 +445,7 @@ class VascularCenterline:
         branches.CenterlineIdsArrayName = names.vmtkCenterlineIdsArrayName
         branches.Execute()
 
-        self._centerline_object = branches.Centerlines
+        self._centerline_data = branches.Centerlines
 
     def compute_reference_systems(self) -> names.polyDataType:
         """Computes the reference systems of centerlines bifurcations.
@@ -456,7 +456,7 @@ class VascularCenterline:
         """
         bifsRefSystem = vmtkscripts.vmtkBifurcationReferenceSystems()
 
-        bifsRefSystem.Centerlines = self._centerline_object
+        bifsRefSystem.Centerlines = self._centerline_data
         bifsRefSystem.RadiusArrayName = names.VascularRadiusArrayName
         bifsRefSystem.GroupIdsArrayName = names.vmtkGroupIdsArrayName
         bifsRefSystem.ReferenceSystemsNormalArrayName = \
@@ -482,7 +482,7 @@ class VascularCenterline:
                                 offset centerlines.
         """
         maxLength = self.get_max_length() # Calls a method of the class itself
-        centerlines = tools.CopyVtkObject(self._centerline_object)
+        centerlines = tools.CopyVtkObject(self._centerline_data)
 
         # TODO: How to better handle this?
         # Iterate to avoid spourious errors in offsert computation
@@ -538,7 +538,7 @@ class VascularCenterline:
         Returns:
             dict: A dictionary containing the centerline components.
         """
-        centerlines = self._centerline_object
+        centerlines = self._centerline_data
         npCenterlines = dsa.WrapDataObject(centerlines)
 
         centerlineIds = list(
@@ -611,7 +611,7 @@ class VascularCenterline:
             bifVectors = vmtkscripts.vmtkBifurcationVectors()
 
             bifVectors.ReferenceSystems  = self._bifurcation_ref_systems
-            bifVectors.Centerlines       = self._centerline_object
+            bifVectors.Centerlines       = self._centerline_data
 
             bifVectors.RadiusArrayName   = names.VascularRadiusArrayName
             bifVectors.GroupIdsArrayName = names.vmtkGroupIdsArrayName
@@ -678,7 +678,7 @@ class VascularCenterline:
                      )
 
         # Calls the private helper method for the offset
-        self._centerline_object = self._robust_offset_centerline(
+        self._centerline_data = self._robust_offset_centerline(
                                       self._bifurcation_ref_systems,
                                       bifGroupId
                                   )
@@ -694,7 +694,7 @@ class VascularCenterline:
             names.polyDataType: The vtkPolyData object representing the
                                 centerline.
         """
-        return self._centerline_object
+        return self._centerline_data
 
     def GetIndividualCenterlines(self) -> dict:
         """Gets the individual centerlines of the vascular tree.
@@ -732,7 +732,7 @@ class VascularCenterline:
 
     def GetPointFields(self):
         """Return the number of bifurcations."""
-        return tools.GetPointArrays(self._centerline_object)
+        return tools.GetPointArrays(self._centerline_data)
 
 class InternalCarotidCenterline(VascularCenterline):
     """Class to represent the centerline of the internal carotid artery.
