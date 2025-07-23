@@ -18,6 +18,7 @@ import re
 import sys
 import vtk
 import unittest
+from collections import Counter
 
 import lib.constants as const
 import lib.polydatatools as tools
@@ -33,8 +34,13 @@ from neck_extractor import (
     PlaneNeckIdentification
 )
 
-bifSurfaceFile = "./tests/example-data/bifurcation_model_with_aneurysm.stl"
+bifWithFieldsFile = "./tests/example-data/bifurcation_model_with_aneurysm.vtp"
 latSurfaceFile = "./tests/example-data/lateral_model_with_aneurysm.stl"
+
+def compareObjects(s, t):
+    """Compare hashable objects s and t."""
+
+    return Counter(s) == Counter(t)
 
 class TestNeckExtractorModule(unittest.TestCase):
 
@@ -89,7 +95,7 @@ class TestNeckExtractorModule(unittest.TestCase):
         surfaceViewer3.BuildView()
 
     def test_BifurcationAneurysmNeckExtractor(self):
-        vascularSurfaceWithAneurysm = tools.ReadSurface(bifSurfaceFile)
+        vascularSurfaceWithAneurysm = tools.ReadSurface(bifWithFieldsFile)
         bifDomePoint = (33.40, 0.1731, -0.1597)
 
         bifAneurysmExtractor = BifurcationAneurysmRegionExtractor(
@@ -209,29 +215,6 @@ class TestNeckExtractorModule(unittest.TestCase):
         self._view_distance_to_neck_field(markedNeckSurface)
         self._view_neck_clipped_surfaces(sacSurface, noSacSurface)
 
-    def test_BifurcationAneurysmAutomatic3DNeckStrategy(self):
-        print("\nTesting automatic 3D neck identification strategy: bifurcation aneurysm...")
-
-        vascularSurfaceWithAneurysm = tools.ReadSurface(bifSurfaceFile)
-        bifDomePoint = (33.40, 0.1731, -0.1597)
-
-        bifAneurysmExtractor = BifurcationAneurysmRegionExtractor(
-                                   vascularSurfaceWithAneurysm,
-                                   bifDomePoint#,
-                                   # healthyVessel -> test without healthy vessel
-                               )
-
-        automaticNeckStrat = Automatic3DNeckIdentification(
-                                   vascularSurfaceWithAneurysm,
-                                   bifAneurysmExtractor
-                               )
-
-        markedNeckSurface = automaticNeckStrat.MarkAneurysmNeck()
-        sacSurface, noSacSurface = automaticNeckStrat.ClipSac()
-
-        self._view_distance_to_neck_field(markedNeckSurface)
-        self._view_neck_clipped_surfaces(sacSurface, noSacSurface)
-
     def test_LateralAneurysmPlaneNeckStrategy(self):
         print("\nTesting plane neck identification strategy: lateral aneurysm...")
 
@@ -256,11 +239,90 @@ class TestNeckExtractorModule(unittest.TestCase):
         self._view_distance_to_neck_field(markedNeckSurface)
         self._view_neck_clipped_surfaces(sacSurface, noSacSurface)
 
+    def test_BifAneurysmWithFieldsInteractiveNeckStrategy(self):
+        vascularSurfaceBifAneurysm = tools.ReadSurface(bifWithFieldsFile)
+
+
+        # Get Fields before
+        fieldsOnSurface = tools.GetCellArrays(vascularSurfaceBifAneurysm) + \
+                          tools.GetPointArrays(vascularSurfaceBifAneurysm)
+
+        interactiveNeckStrat = InteractiveNeckIdentification(
+                                   vascularSurfaceBifAneurysm
+                               )
+
+        markedNeckSurface = interactiveNeckStrat.MarkAneurysmNeck()
+        sacSurface, noSacSurface = interactiveNeckStrat.ClipSac()
+
+        fieldsAfter = tools.GetCellArrays(markedNeckSurface) + \
+                      tools.GetPointArrays(markedNeckSurface)
+
+        print("Fields before: ", fieldsOnSurface)
+        print("Fields after: ", fieldsAfter)
+
+        self.assertEqual(
+            compareObjects(
+                fieldsOnSurface  + [names.DistanceToNeckArrayName],
+                fieldsAfter
+            ),
+            True,
+            "Number of fields before and after are correct."
+        )
+
+        self._view_distance_to_neck_field(markedNeckSurface)
+        self._view_neck_clipped_surfaces(sacSurface, noSacSurface)
+
     def test_BifurcationAneurysmAutomatic3DNeckStrategy(self):
+        print("\nTesting automatic 3D neck identification strategy: bifurcation aneurysm...")
+
+        vascularSurfaceWithAneurysm = tools.ReadSurface(bifWithFieldsFile)
+        bifDomePoint = (33.40, 0.1731, -0.1597)
+
+        # Get Fields before
+        fieldsOnSurface = tools.GetCellArrays(vascularSurfaceWithAneurysm) + \
+                          tools.GetPointArrays(vascularSurfaceWithAneurysm)
+
+        bifAneurysmExtractor = BifurcationAneurysmRegionExtractor(
+                                   vascularSurfaceWithAneurysm,
+                                   bifDomePoint#,
+                                   # healthyVessel -> test without healthy vessel
+                               )
+
+        automaticNeckStrat = Automatic3DNeckIdentification(
+                                   vascularSurfaceWithAneurysm,
+                                   bifAneurysmExtractor
+                               )
+
+        markedNeckSurface = automaticNeckStrat.MarkAneurysmNeck()
+        sacSurface, noSacSurface = automaticNeckStrat.ClipSac()
+
+        fieldsAfter = tools.GetCellArrays(markedNeckSurface) + \
+                      tools.GetPointArrays(markedNeckSurface)
+
+        print("Fields before: ", fieldsOnSurface)
+        print("Fields after: ", fieldsAfter)
+
+        self.assertEqual(
+            compareObjects(
+                fieldsOnSurface  + [names.DistanceToNeckArrayName],
+                fieldsAfter
+            ),
+            True,
+            "Number of fields before and after are correct."
+        )
+
+        self._view_distance_to_neck_field(markedNeckSurface)
+        self._view_neck_clipped_surfaces(sacSurface, noSacSurface)
+
+    def test_BifurcationAneurysmPlaneNeckStrategy(self):
         print("\nTesting plane neck identification strategy: bifurcation aneurysm...")
 
-        vascularSurfaceWithAneurysm = tools.ReadSurface(bifSurfaceFile)
+        vascularSurfaceWithAneurysm = tools.ReadSurface(bifWithFieldsFile)
         bifDomePoint = (33.40, 0.1731, -0.1597)
+
+        # Get Fields before
+        fieldsOnSurface = tools.GetCellArrays(vascularSurfaceWithAneurysm) + \
+                          tools.GetPointArrays(vascularSurfaceWithAneurysm)
 
         bifAneurysmExtractor = BifurcationAneurysmRegionExtractor(
                                    vascularSurfaceWithAneurysm,
@@ -276,8 +338,45 @@ class TestNeckExtractorModule(unittest.TestCase):
         markedNeckSurface = planeNeckStrat.MarkAneurysmNeck()
         sacSurface, noSacSurface = planeNeckStrat.ClipSac()
 
+        fieldsAfter = tools.GetCellArrays(markedNeckSurface) + \
+                      tools.GetPointArrays(markedNeckSurface)
+
+        print("Fields before: ", fieldsOnSurface)
+        print("Fields after: ", fieldsAfter)
+
+        self.assertEqual(
+            compareObjects(
+                fieldsOnSurface  + [names.DistanceToNeckArrayName],
+                fieldsAfter
+            ),
+            True,
+            "Number of fields before and after are correct."
+        )
+
         self._view_distance_to_neck_field(markedNeckSurface)
         self._view_neck_clipped_surfaces(sacSurface, noSacSurface)
 
 if __name__=='__main__':
-    unittest.main()
+    # Run all test methods
+    # unittest.main()
+
+    suite = unittest.TestSuite()
+    # suite.addTest(
+    #     TestNeckExtractorModule("test_AneurysmInteractiveNeckStrategy")
+    # )
+
+    suite.addTest(
+        TestNeckExtractorModule("test_BifurcationAneurysmNeckExtractor")
+    )
+    suite.addTest(
+        TestNeckExtractorModule("test_BifAneurysmWithFieldsInteractiveNeckStrategy")
+    )
+    suite.addTest(
+        TestNeckExtractorModule("test_BifurcationAneurysmAutomatic3DNeckStrategy")
+    )
+    suite.addTest(
+        TestNeckExtractorModule("test_BifurcationAneurysmPlaneNeckStrategy")
+    )
+
+    runner = unittest.TextTestRunner()
+    runner.run(suite)

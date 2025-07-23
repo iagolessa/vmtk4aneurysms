@@ -162,91 +162,6 @@ def _sac_centerline(
                   "No barycenters found for sac centerline construction."
               )
 
-def _search_neck_plane(
-        aneurysm_sac: names.polyDataType,
-        centers: np.ndarray,
-        normals: np.ndarray,
-        min_variable="area"
-    )   -> names.planeType:
-    """Search neck plane of aneurysm by minimizing a contour variable.
-
-    This function effectively searches for the aneurysm neck plane: it
-    interactively cuts the aneurysm surface with planes defined by the vertices
-    and normals to a spline travelling through the aneurysm sac.
-
-    The cut plane is further precessed by a tilt and azimuth angle and the
-    minimum search between them, as originally proposed by Piccinelli et al.
-    (2009).
-
-    It returns the local minimum solution: the neck plane as a vtkPlane object.
-    """
-
-    # For each center on the sac centerline (list), create the rotated and
-    # tilted plane normals (list) and compute its area (or min_variable)
-
-    # Rotation angles: from original work
-    tiltIncr = const.two
-    azimIncr = const.ten
-    tiltMax = 32
-    azimMax = 360
-
-    tilts = np.arange(const.zero, tiltMax, tiltIncr)*const.degToRad
-    azims = np.arange(const.zero, azimMax, azimIncr)*const.degToRad
-
-    globalMinimumAreas = {} # can be used for debug
-    previousArea = 0.0
-
-    # These normals point to the aneurysm direction
-    for center, normal in zip(map(tuple, centers), map(tuple, normals)):
-
-        # More readable option
-        planeContours = {(tilt, azim): tools.ContourCutWithPlane(
-                                          aneurysm_sac,
-                                          center,
-                                          _transf_normal(normal, tilt, azim)
-                                      )
-                         for tilt in tilts for azim in azims}
-
-        # Compute area of the closed contours for each normal direction
-        planeSectionAreas = {key: geo.ContourPerimeter(contour) \
-                                 if min_variable == "perimeter" \
-                                 else geo.ContourPlaneArea(contour)
-                             for key, contour in planeContours.items()
-                             if contour.GetNumberOfCells() > 0 and \
-                                geo.ContourIsClosed(contour)}
-
-        if planeSectionAreas:
-            # Get the normal direction of max. area
-            minCenter    = center
-            minDirection = min(planeSectionAreas, key=planeSectionAreas.get)
-            minPlaneArea = min(planeSectionAreas.values())
-            minPlaneNormal = _transf_normal(normal, *minDirection)
-
-            # Associate this with each center
-            # globalMinimumAreas.update({
-            #     center: {
-            #         "normal": minPlaneNormal,
-            #         "area"  : minPlaneArea
-            #     }
-            # })
-
-            if minPlaneArea <= previousArea:
-                previousArea = minPlaneArea
-                continue
-
-            else:
-                break
-
-        else:
-            continue
-
-    # Create plane
-    neckPlane = vtk.vtkPlane()
-    neckPlane.SetOrigin(minCenter)
-    neckPlane.SetNormal(minPlaneNormal)
-
-    return neckPlane
-
 class AneurysmRegionExtractor(ABC):
     """Abstract Base Class for extracting aneurysm-specific regions from the
     vascular surface.
@@ -727,12 +642,13 @@ class AneurysmNeckIdentificationStrategy(ABC):
 
     .. warning::
         Better results are expected if you "reduce" the vascular surface to
-        only the region where the aneurysm is, ie clip the surface so only the
-        parent vessel and the daughter branches are left.
+        only the region where the aneurysm is, ie to clip the surface so only
+        the parent vessel and the daughter branches are left.
 
     .. warning::
-        Any field defined on the input surface is destroyed and the class
-        returns only copies of the input surface.
+        The algorithms involved in this class computations are much faster if
+        triangular meshes are used. Hence, it is recommended to triangulate
+        the input vascular surface before using this class.
     """
     def __init__(
             self,
@@ -785,9 +701,7 @@ class InteractiveNeckIdentification(AneurysmNeckIdentificationStrategy):
         # For optimization, check whether the field was already computed
         if self._marked_surface is None:
             print("Executing InteractiveNeckIdentification strategy...")
-            surface = tools.CopyVtkObject(self._vascular_surface)
-            surface = tools.Cleaner(surface)
-            surface = tools.CleanupArrays(surface)
+            surface = tools.Cleaner(self._vascular_surface)
 
             getContour = tools.SelectContourPointsIds()
             getContour.Surface = surface
@@ -876,9 +790,6 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
         the contour of the aneurysmal region. The rest of the array is given by
         the geodesic distance of the point to the neck contour.
 
-        You may optionally pass a point located at the dome point of the
-        aneurysm so the algorithm more easily identifies the aneurysm region.
-
         .. warning::
             Negative distance values are used inside the aneurysm neck contour
             (i.e., it marks the aneurysm sac) and positive values elsewhere.
@@ -893,9 +804,7 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
         marking the aneurysm neck contour.
         """
         if self._marked_surface is None:
-            surface = tools.CopyVtkObject(self._vascular_surface)
-            surface = tools.Cleaner(surface)
-            surface = tools.CleanupArrays(surface)
+            surface = tools.Cleaner(self._vascular_surface)
 
             # Delegate aneurysm region extraction to the specific extractor strategy
             aneurysmalSurface = self._aneurysm_extractor.ExtractAneurysmalRegion()
@@ -909,11 +818,11 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
 
             # Add a little bit of smoothing to the Distance field to remove corner
             # discontnuities
-            vascular_surface = tools.SmoothSurfacePointField(
-                                   surface,
-                                   names.AneurysmalRegionArrayName,
-                                   niterations=5
-                               )
+            surface = tools.SmoothSurfacePointField(
+                           surface,
+                           names.AneurysmalRegionArrayName,
+                           niterations=5
+                       )
 
             # The best approach I found to extract the closest path with the
             # surface model points was through the clip: the clip used
@@ -926,10 +835,14 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
             # distance to neck array (note, the coumputation of the geodesic
             # distance per se did not require the points to be oriented).
             aneurysmalSurface = tools.ClipWithScalar(
-                                    vascular_surface,
+                                    surface,
                                     names.AneurysmalRegionArrayName,
                                     const.zero
                                 )
+
+            surface.GetPointData().RemoveArray(
+                names.AneurysmalRegionArrayName
+            )
 
             if self._aneurysm_extractor.GetDomePoint():
                 aneurysmalSurface = tools.ExtractConnectedRegion(
@@ -1043,12 +956,116 @@ class PlaneNeckIdentification(AneurysmNeckIdentificationStrategy):
         self._neck_center = None
         self._neck_normal = None
 
+    def _search_neck_plane(
+            self,
+            aneurysm_sac: names.polyDataType,
+            centers: np.ndarray,
+            normals: np.ndarray,
+            min_variable="area"
+        )   -> names.planeType:
+        """Search neck plane of aneurysm by minimizing a contour variable.
+
+        This function effectively searches for the aneurysm neck plane: it
+        interactively cuts the aneurysm surface with planes defined by the vertices
+        and normals to a spline travelling through the aneurysm sac.
+
+        The cut plane is further precessed by a tilt and azimuth angle and the
+        minimum search between them, as originally proposed by Piccinelli et al.
+        (2009).
+
+        It returns the local minimum solution: the neck plane as a vtkPlane object.
+        """
+
+        # For each center on the sac centerline (list), create the rotated and
+        # tilted plane normals (list) and compute its area (or min_variable)
+
+        # Rotation angles: from original work
+        tiltIncr = const.two
+        azimIncr = const.ten
+        tiltMax = 32
+        azimMax = 360
+
+        tilts = np.arange(const.zero, tiltMax, tiltIncr)*const.degToRad
+        azims = np.arange(const.zero, azimMax, azimIncr)*const.degToRad
+
+        globalMinimumAreas = {} # can be used for debug
+        previousArea = 0.0
+
+        # These normals point to the aneurysm direction
+        for center, normal in zip(map(tuple, centers), map(tuple, normals)):
+
+            # More readable option
+            planeContours = {(tilt, azim): tools.ContourCutWithPlane(
+                                              aneurysm_sac,
+                                              center,
+                                              _transf_normal(normal, tilt, azim)
+                                          )
+                             for tilt in tilts for azim in azims}
+
+            # Compute area of the closed contours for each normal direction
+            planeSectionAreas = {key: geo.ContourPerimeter(contour) \
+                                     if min_variable == "perimeter" \
+                                     else geo.ContourPlaneArea(contour)
+                                 for key, contour in planeContours.items()
+                                 if contour.GetNumberOfCells() > 0 and \
+                                    geo.ContourIsClosed(contour)}
+
+            if planeSectionAreas:
+                # Get the normal direction of max. area
+                minCenter    = center
+                minDirection = min(planeSectionAreas, key=planeSectionAreas.get)
+                minPlaneArea = min(planeSectionAreas.values())
+                minPlaneNormal = _transf_normal(normal, *minDirection)
+
+                # Associate this with each center
+                # globalMinimumAreas.update({
+                #     center: {
+                #         "normal": minPlaneNormal,
+                #         "area"  : minPlaneArea
+                #     }
+                # })
+
+                if minPlaneArea <= previousArea:
+                    previousArea = minPlaneArea
+                    continue
+
+                else:
+                    break
+
+            else:
+                continue
+
+        # Create plane
+        neckPlane = vtk.vtkPlane()
+        neckPlane.SetOrigin(minCenter)
+        neckPlane.SetNormal(minPlaneNormal)
+
+        return neckPlane
+
     def MarkAneurysmNeck(self) -> names.polyDataType:
+        """Automatically marks a plane neck of an aneurysm.
+
+        Based on the five first steps of Piccinelli's procedure, this function
+        marks the vascular model passed with an array whose zero value marks
+        the plane contour of the aneurysmal region. The rest of the array is
+        given by the geodesic distance of the point to the neck contour.
+
+        .. warning::
+            Negative distance values are used inside the aneurysm neck contour
+            (i.e., it marks the aneurysm sac) and positive values elsewhere.
+
+        .. warning::
+            Better results are expected if you "reduce" the vascular surface to
+            only the region where the aneurysm is, ie clip the surface so only
+            the parent vessel and the daughter branches are left.
+
+        Return
+        surface (vtkPolyData) -- vascular surface with an array defined on it
+        marking the aneurysm neck contour.
+        """
         if self._marked_surface is None:
 
-            surface = tools.CopyVtkObject(self._vascular_surface)
-            surface = tools.Cleaner(surface)
-            surface = tools.CleanupArrays(surface)
+            surface = tools.Cleaner(self._vascular_surface)
 
             # Delegate aneurysm region extraction to the specific extractor
             # strategy
@@ -1096,7 +1113,7 @@ class PlaneNeckIdentification(AneurysmNeckIdentificationStrategy):
             )
 
             # Search neck plane
-            self._neck_plane = _search_neck_plane(
+            self._neck_plane = self._search_neck_plane(
                                     aneurysmalSurface,
                                     barycenters,
                                     normals,
