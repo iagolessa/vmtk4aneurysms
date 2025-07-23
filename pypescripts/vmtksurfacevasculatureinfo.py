@@ -26,8 +26,15 @@ from pprint import PrettyPrinter
 from vmtk4aneurysms.lib.common import FlattenDict
 from vmtk4aneurysms.lib.names import DistanceToNeckArrayName
 from vmtk4aneurysms.lib.polydatatools import GetPointArrays
-from vmtk4aneurysms.aneurysms import VascularTreeWithAneurysm
-from vmtk4aneurysms.neck_extractor import ComputeGeodesicDistanceToAneurysmNeck
+
+from vmtk4aneurysms.vascular_classes import (
+    VascularTree
+)
+
+from vmtk4aneurysms.aneurysms import (
+    VascularTreeWithLateralAneurysm,
+    VascularTreeWithBifurcationAneurysm
+)
 
 vmtksurfacevasculatureinfo = 'vmtkSurfaceVasculatureInfo'
 
@@ -42,6 +49,8 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         self.ComputationMode = "interactive"
         self.AneurysmType    = None
         self.AneurysmStatus  = None
+        self.AneurysmLabel   = ""
+        self.DomePoint       = None
         self.BifVectors = None
 
         self.ParentVesselSurface = None
@@ -49,6 +58,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         self.OstiumSurface       = None
         self.HullSurface         = None
         self.VascularInfoFile    = None
+        self.VascularTreeAttributesDict = None
 
         self.ShowVascularModel = False
 
@@ -67,6 +77,12 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
             ['AneurysmStatus','status', 'str', 1, '["ruptured", "unruptured"]',
                 'rupture status'],
+
+            ['AneurysmLabel','label', 'str', 1, '',
+                'for larger studies, you can pass a label to the aneurysm'],
+
+            ['DomePoint', 'domepoint', 'tuple', -1, '',
+             'coordinates of aneurysm dome point'],
 
             ['ComputationMode','mode', 'str', 1,
                 '["interactive", "automatic", "plane"]',
@@ -106,6 +122,9 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         if not self.Surface:
             self.PrintError('Error: no Surface.')
 
+        if self.Aneurysm and not self.AneurysmType:
+            self.PrintError('Error: Aneurysm type must be defined.')
+
         # Filter input surface
         triangleFilter = vtk.vtkTriangleFilter()
         triangleFilter.SetInputData(self.Surface)
@@ -113,28 +132,32 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
         self.Surface = triangleFilter.GetOutput()
 
-        # Compute the geodesic distance to the aneurysm neck so the
-        # neck contour is kept into the surface before the Vasculature
-        # construction, which deletes it
-        if DistanceToNeckArrayName not in GetPointArrays(self.Surface):
-            self.Surface = ComputeGeodesicDistanceToAneurysmNeck(
-                               self.Surface,
-                               mode=self.ComputationMode,
-                               aneurysm_type=self.AneurysmType,
-                               healthy_vessel_surface=self.ParentVesselSurface
-                           )
+        # Check aneurysm type
+        if self.Aneurysm:
+            if self.AneurysmType == "lateral":
+                vascularClassWithAneurysm = VascularTreeWithLateralAneurysm
 
-        # Generate an aneurysm object
-        vascularModel = Vasculature(
-                            self.Surface,
-                            with_aneurysm=self.Aneurysm,
-                            clip_aneurysm_mode=self.ComputationMode,
-                            healthy_vessel_surface=self.ParentVesselSurface,
-                            aneurysm_prop={
-                                "aneurysm_type": self.AneurysmType,
-                                "status": self.AneurysmStatus
-                            }
-                        )
+            elif self.AneurysmType == "bifurcation":
+                vascularClassWithAneurysm = VascularTreeWithBifurcationAneurysm
+
+            else:
+                self.PrintError(
+                    'Error: Aneurysm type "{}" not recognized.'.format(
+                        self.AneurysmType
+                    )
+                )
+
+            # Generate an aneurysm object
+            vascularModel = vascularClassWithAneurysm(
+                                self.Surface,
+                                clip_aneurysm_mode=self.ComputationMode,
+                                dome_point=self.DomePoint
+                            )
+
+        else:
+            # If no aneurysm, we can use the VascularTree model class
+            vascularModel = VascularTree(self.Surface)
+
 
         pp = PrettyPrinter(depth=3)
 
@@ -156,7 +179,7 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
             )
         )
 
-        for bid, branch in enumerate(vascularModel.GetBranches()):
+        for bid, branch in enumerate(vascularModel.GetBranches().values()):
 
             pp.pprint(
                 "Branch {}: length {}| area {}".format(
@@ -215,11 +238,16 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
         else:
             pass
 
+        # Store the angle of first bifurcation
+        # dictArterialTreeAttributes.update({
+        #     "bifAngle": vascularModel.GetBifurcations()[0].GetDaugtherBranchesAngle()[0]
+        # })
+
         # Compute aneurysm properties
         self.OutputText("Computing metrics of aneurysm models.\n")
 
         # self.Surface = vascularModel.GetBranchedSurface()
-        self.Surface = vascularModel.GetSurface().GetSurfaceObject()
+        self.Surface = vascularModel.GetVascularSurface()
 
         if self.Aneurysm:
 
@@ -278,19 +306,21 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
                 surfaceViewer4.Display = 1
                 surfaceViewer4.BuildView()
 
-        if self.VascularInfoFile is not None:
+        dictArterialTreeAttributes.update(
+            aneurysmAttributes
+        )
 
-            dictArterialTreeAttributes.update(
-                aneurysmAttributes
-            )
-
-            dictArterialTreeAttributes.update(
-                dict(
-                    FlattenDict(
-                        aneurysmModel.GetHemodynamicStats()
-                    )
+        dictArterialTreeAttributes.update(
+            dict(
+                FlattenDict(
+                    aneurysmModel.GetHemodynamicStats()
                 )
             )
+        )
+
+        self.VascularTreeAttributesDict = dictArterialTreeAttributes
+
+        if self.VascularInfoFile is not None:
 
             pd.DataFrame.from_dict(
                 dictArterialTreeAttributes,

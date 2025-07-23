@@ -132,7 +132,7 @@ class TestAneurysmModule(unittest.TestCase):
                     for model in [iaModel1, iaModel2, iaModel3]}
 
         # Computation using vmtk4aneurysms
-        methods = [param for param in dir(ia.Aneurysm)
+        methods = [param for param in dir(ia.SaccularAneurysm)
                    if param.startswith("Get")]
 
         # Remove metrics that are not analyzed
@@ -154,7 +154,7 @@ class TestAneurysmModule(unittest.TestCase):
         for label, iaModel in iaModels.items():
 
             # Initiate aneurysm "measured" with the model surfaces
-            iaMeasured = ia.Aneurysm(
+            iaMeasured = ia.SaccularAneurysm(
                            addCurvatureArrays(
                                iaModel.GetSurface(),
                                label

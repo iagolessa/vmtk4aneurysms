@@ -25,7 +25,6 @@ from vmtk import pypes
 from vmtk import vmtkscripts
 from vmtk import vtkvmtk
 
-from vmtk4aneurysms.lib import centerlines as cl
 from vmtk4aneurysms.lib import polydatatools as tools
 
 vmtksurfacevasculaturesections = 'vmtkSurfaceVasculatureSections'
@@ -106,7 +105,9 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         self.Surface = triangulate.GetOutput()
 
         if not self.Centerlines:
-            self.Centerlines = cl.GenerateCenterlines(self.Surface)
+            self.PrintError(
+                'Error: no Centerlines provided. '
+            )
 
         # Computing centerlines Frenet system
         cntGeometry = vmtkscripts.vmtkCenterlineGeometry()

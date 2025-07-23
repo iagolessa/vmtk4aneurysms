@@ -26,11 +26,10 @@ from pprint import PrettyPrinter
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
 
-from vmtk4aneurysms.lib.polydatatools import GetPointArrays
-from vmtk4aneurysms.aneurysms import Aneurysm
 from vmtk4aneurysms.lib.polydatatools import RemeshSurface, ClipWithScalar
 
-from vmtk4aneurysms.vascular_operations import ComputeGeodesicDistanceToAneurysmNeck
+from vmtk4aneurysms.aneurysms import SaccularAneurysm
+from vmtk4aneurysms.neck_extractor import ClipAneurysmSacSurface
 
 vmtkextractaneurysm = 'vmtkExtractAneurysm'
 
@@ -84,7 +83,7 @@ class vmtkExtractAneurysm(pypes.pypeScript):
 
         self.SetOutputMembers([
             ['Surface','o','vtkPolyData',1,'',
-             'the vascular surface with the geodesic distance to the neck',
+             'the vascular surface',
              'vmtksurfacewriter'],
 
             ['AneurysmSurface','oaneurysm','vtkPolyData',1,'',
@@ -100,6 +99,11 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         ])
 
     def Execute(self):
+
+        raise DeprecationWarning(
+            'vmtkextractaneurysm is deprecated. Use vmtksurfacevasculatureinfo instead.'
+        )
+
         if not self.Surface:
             self.PrintError('Error: no Surface.')
 
@@ -113,34 +117,19 @@ class vmtkExtractAneurysm(pypes.pypeScript):
         # This first clip is to reduce the vasculature to a single bifurcation
         # self.Surface = vscop.ClipVasculature(self.Surface)
 
-        # Only mark the aneurysm and compute the geodesic distance to it
-        # (this code portion reproduces part of the functionality in
-        # ClipAneurysmSacSurface, but here I need to keep the distance field)
-        if names.DistanceToNeckArrayName not in GetPointArrays(self.Surface):
-            self.Surface = ComputeGeodesicDistanceToAneurysmNeck(
-                               self.Surface,
-                               mode=self.ComputationMode,
-                               aneurysm_type=self.AneurysmType,
-                               aneurysm_point=self.DomePoint,
-                               parent_vascular_surface=self.ParentVesselSurface
-                           )
-
-        # Clip the aneurysm sac (aneurysm marked with negative values)
-        self.AneurysmSurface = ClipWithScalar(
-                                   self.Surface,
-                                   names.DistanceToNeckArrayName,
-                                   const.zero
-                               )
+        self.AneurysmSurface, _ = ClipAneurysmSacSurface(
+                                       self.Surface,
+                                       aneurysm_type=self.AneurysmType,
+                                       mode=self.ComputationMode,
+                                       dome_point=self.DomePoint,
+                                       healthy_vessel_surface=self.ParentVesselSurface
+                                   )
 
         # Generate an aneurysm object
-        aneurysm = Aneurysm(
-                       self.AneurysmSurface,
-                       aneurysm_type=self.AneurysmType,
-                       status=self.AneurysmStatus
-                   )
+        aneurysm = SaccularAneurysm(self.AneurysmSurface)
 
         # Print aneurysm indices and metrics
-        methods = [param for param in dir(Aneurysm)
+        methods = [param for param in dir(SaccularAneurysm)
                    if param.startswith("Get")]
 
         # Remove metrics that are not analyzed

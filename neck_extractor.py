@@ -286,7 +286,7 @@ class AneurysmRegionExtractor(ABC):
         self._outlet_centers = outlet_centers
 
         self._dome_point = tools.SelectSurfacePoint(
-                               self.vascular_surface,
+                               self._vascular_surface,
                                input_text="Select point on the aneurysm surface\n"
                            ) if dome_point is None else dome_point
 
@@ -1257,25 +1257,27 @@ def ClipAneurysmSacSurface(
     aneurysm sac clipped from the vascular surface model and the vascular model
     surface clipped.
     """
-    # First, determine the AneurysmRegionExtractor strategy based on aneurysm_type
-    if aneurysm_type == "lateral":
-        region_extractor = LateralAneurysmRegionExtractor(
-                                vascular_surface,
-                                dome_point=dome_point,
-                                healthy_vessel_surface=healthy_vessel_surface
-                            )
+    # First, determine the AneurysmRegionExtractor strategy based on
+    # aneurysm_type
+    if mode != "interactive":
+        if aneurysm_type == "lateral":
+            region_extractor = LateralAneurysmRegionExtractor(
+                                    vascular_surface,
+                                    dome_point=dome_point,
+                                    healthy_vessel_surface=healthy_vessel_surface
+                                )
 
-    elif aneurysm_type == "bifurcation":
-        region_extractor = BifurcationAneurysmRegionExtractor(
-                                vascular_surface,
-                                dome_point=dome_point,
-                                healthy_vessel_surface=healthy_vessel_surface
-                            )
+        elif aneurysm_type == "bifurcation":
+            region_extractor = BifurcationAneurysmRegionExtractor(
+                                    vascular_surface,
+                                    dome_point=dome_point,
+                                    healthy_vessel_surface=healthy_vessel_surface
+                                )
 
-    else:
-        raise ValueError(
-                f"Aneurysm type must be 'lateral' or 'bifurcation'. '{aneurysm_type}' passed."
-            )
+        else:
+            raise ValueError(
+                    f"Aneurysm type must be 'lateral' or 'bifurcation'. '{aneurysm_type}' passed."
+                )
 
     # Then, determine the AneurysmNeckIdentificationStrategy based on mode
     if mode == "interactive":
@@ -1337,24 +1339,25 @@ def ComputeGeodesicDistanceToAneurysmNeck(
     """
     # First, determine the AneurysmRegionExtractor strategy based on
     # aneurysm_type
-    if aneurysm_type == "lateral":
-        region_extractor = LateralAneurysmRegionExtractor(
-                                vascular_surface,
-                                dome_point=dome_point,
-                                healthy_vessel_surface=healthy_vessel_surface
-                            )
+    if mode != "interactive":
+        if aneurysm_type == "lateral":
+            region_extractor = LateralAneurysmRegionExtractor(
+                                    vascular_surface,
+                                    dome_point=dome_point,
+                                    healthy_vessel_surface=healthy_vessel_surface
+                                )
 
-    elif aneurysm_type == "bifurcation":
-        region_extractor = BifurcationAneurysmRegionExtractor(
-                                vascular_surface,
-                                dome_point=dome_point,
-                                healthy_vessel_surface=healthy_vessel_surface
-                            )
+        elif aneurysm_type == "bifurcation":
+            region_extractor = BifurcationAneurysmRegionExtractor(
+                                    vascular_surface,
+                                    dome_point=dome_point,
+                                    healthy_vessel_surface=healthy_vessel_surface
+                                )
 
-    else:
-        raise ValueError(
-                f"Aneurysm type must be 'lateral' or 'bifurcation'. '{aneurysm_type}' passed."
-            )
+        else:
+            raise ValueError(
+                    f"Aneurysm type must be 'lateral' or 'bifurcation'. '{aneurysm_type}' passed."
+                )
 
     # Then, determine the AneurysmNeckIdentificationStrategy based on mode
     if mode == "interactive":
