@@ -653,11 +653,13 @@ class AneurysmNeckIdentificationStrategy(ABC):
     def __init__(
             self,
             vascular_surface: names.polyDataType,
-            aneurysm_extractor: AneurysmRegionExtractor=None
+            aneurysm_extractor: AneurysmRegionExtractor=None,
+            distance_to_neck_field_name: str=names.DistanceToNeckArrayName
         ):
 
         self._vascular_surface = vascular_surface
         self._aneurysm_extractor = aneurysm_extractor
+        self._distance_to_neck_field_name = distance_to_neck_field_name
 
         # These will be set by the concrete strategies
         self._marked_surface = None
@@ -691,10 +693,15 @@ class InteractiveNeckIdentification(AneurysmNeckIdentificationStrategy):
     """
     def __init__(
             self,
-            vascular_surface: names.polyDataType
+            vascular_surface: names.polyDataType,
+            distance_to_neck_field_name: str=names.DistanceToNeckArrayName
         ):
 
-        super().__init__(vascular_surface)
+        super().__init__(
+            vascular_surface,
+            aneurysm_extractor=None,
+            distance_to_neck_field_name=distance_to_neck_field_name
+        )
 
     def MarkAneurysmNeck(self) -> names.polyDataType:
 
@@ -710,13 +717,13 @@ class InteractiveNeckIdentification(AneurysmNeckIdentificationStrategy):
             surface = geo.SurfaceGeodesicDistanceToContour(
                           surface,
                           getContour.ContourIds,
-                          gdistance_array_name=names.DistanceToNeckArrayName
+                          gdistance_array_name=self._distance_to_neck_field_name
                       )
 
             # Smooth the computed distance field
             self._marked_surface = tools.SmoothSurfacePointField(
                                        surface,
-                                       names.DistanceToNeckArrayName,
+                                       self._distance_to_neck_field_name,
                                        niterations=10
                                    )
 
@@ -738,33 +745,26 @@ class InteractiveNeckIdentification(AneurysmNeckIdentificationStrategy):
             # Perform the actual clipping based on the 'DistanceToNeck' array
             self._sac_surface = tools.ClipWithScalar(
                                        marked_surface,
-                                       names.DistanceToNeckArrayName,
+                                       self._distance_to_neck_field_name,
                                        const.zero,
                                        inside_out=True
                                    )
 
             self._vascular_surface_no_aneurysm = tools.ClipWithScalar(
                                                      marked_surface,
-                                                     names.DistanceToNeckArrayName,
+                                                     self._distance_to_neck_field_name,
                                                      const.zero,
                                                      inside_out=False
                                                  )
 
-            # Clean up the temporary array from the output surfaces
-            if self._sac_surface.GetPointData().HasArray(
-                    names.DistanceToNeckArrayName
-                ):
-
-                self._sac_surface.GetPointData().RemoveArray(
-                    names.DistanceToNeckArrayName
-                )
-
+            # Clean up the temporary array from the clipped surface
+            # Leave it on the aneurysm surface
             if self._vascular_surface_no_aneurysm.GetPointData().HasArray(
-                    names.DistanceToNeckArrayName
+                    self._distance_to_neck_field_name
                 ):
 
                 self._vascular_surface_no_aneurysm.GetPointData().RemoveArray(
-                    names.DistanceToNeckArrayName
+                    self._distance_to_neck_field_name
                 )
 
         return self._sac_surface, self._vascular_surface_no_aneurysm
@@ -777,10 +777,15 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
     def __init__(
             self,
             vascular_surface: names.polyDataType,
-            aneurysm_extractor: AneurysmRegionExtractor
+            aneurysm_extractor: AneurysmRegionExtractor,
+            distance_to_neck_field_name: str=names.DistanceToNeckArrayName
         ):
 
-        super().__init__(vascular_surface, aneurysm_extractor)
+        super().__init__(
+            vascular_surface,
+            aneurysm_extractor,
+            distance_to_neck_field_name=distance_to_neck_field_name
+        )
 
     def MarkAneurysmNeck(self) -> names.polyDataType:
         """Automatically marks a 3D contour as the neck of an aneurysm.
@@ -876,13 +881,13 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
             surface = geo.SurfaceGeodesicDistanceToContour(
                            surface,
                            pointIds,
-                           gdistance_array_name=names.DistanceToNeckArrayName
+                           gdistance_array_name=self._distance_to_neck_field_name
                        )
 
             # Smooth the computed distance field
             self._marked_surface = tools.SmoothSurfacePointField(
                                        surface,
-                                       names.DistanceToNeckArrayName,
+                                       self._distance_to_neck_field_name,
                                        niterations=10
                                    )
 
@@ -904,33 +909,26 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
             # Perform the actual clipping based on the 'DistanceToNeck' array
             self._sac_surface = tools.ClipWithScalar(
                                        marked_surface,
-                                       names.DistanceToNeckArrayName,
+                                       self._distance_to_neck_field_name,
                                        const.zero,
                                        inside_out=True
                                    )
 
             self._vascular_surface_no_aneurysm = tools.ClipWithScalar(
                                                      marked_surface,
-                                                     names.DistanceToNeckArrayName,
+                                                     self._distance_to_neck_field_name,
                                                      const.zero,
                                                      inside_out=False
                                                  )
 
-            # Clean up the temporary array from the output surfaces
-            if self._sac_surface.GetPointData().HasArray(
-                    names.DistanceToNeckArrayName
-                ):
-
-                self._sac_surface.GetPointData().RemoveArray(
-                    names.DistanceToNeckArrayName
-                )
-
+            # Clean up the temporary array from the clipped surface
+            # Leave it on the aneurysm surface
             if self._vascular_surface_no_aneurysm.GetPointData().HasArray(
-                    names.DistanceToNeckArrayName
+                    self._distance_to_neck_field_name
                 ):
 
                 self._vascular_surface_no_aneurysm.GetPointData().RemoveArray(
-                    names.DistanceToNeckArrayName
+                    self._distance_to_neck_field_name
                 )
 
         return self._sac_surface, self._vascular_surface_no_aneurysm
@@ -944,12 +942,14 @@ class PlaneNeckIdentification(AneurysmNeckIdentificationStrategy):
     def __init__(
             self,
             vascular_surface: names.polyDataType,
-            aneurysm_extractor: AneurysmRegionExtractor
+            aneurysm_extractor: AneurysmRegionExtractor,
+            distance_to_neck_field_name: str=names.DistanceToNeckArrayName
         ):
 
         super().__init__(
             vascular_surface,
-            aneurysm_extractor
+            aneurysm_extractor,
+            distance_to_neck_field_name=distance_to_neck_field_name
         )
 
         self._neck_plane = None
@@ -1200,7 +1200,7 @@ class PlaneNeckIdentification(AneurysmNeckIdentificationStrategy):
             self._marked_surface = geo.SurfaceGeodesicDistanceToContour(
                                        surface,
                                        pointIds,
-                                       gdistance_array_name=names.DistanceToNeckArrayName
+                                       gdistance_array_name=self._distance_to_neck_field_name
                                    )
 
         return self._marked_surface
@@ -1217,21 +1217,14 @@ class PlaneNeckIdentification(AneurysmNeckIdentificationStrategy):
             # In this strategy, this method already clips the aneurysm
             marked_surface = self.MarkAneurysmNeck()
 
-        # Clean up the temporary array from the output surfaces
-        if self._sac_surface.GetPointData().HasArray(
-                names.DistanceToNeckArrayName
-            ):
-
-            self._sac_surface.GetPointData().RemoveArray(
-                names.DistanceToNeckArrayName
-            )
-
+        # Clean up the temporary array from the clipped surface
+        # Leave it on the aneurysm surface
         if self._vascular_surface_no_aneurysm.GetPointData().HasArray(
-                names.DistanceToNeckArrayName
+                self._distance_to_neck_field_name
             ):
 
             self._vascular_surface_no_aneurysm.GetPointData().RemoveArray(
-                names.DistanceToNeckArrayName
+                self._distance_to_neck_field_name
             )
 
         return self._sac_surface, self._vascular_surface_no_aneurysm
@@ -1326,8 +1319,7 @@ def ComputeGeodesicDistanceToAneurysmNeck(
         mode: str="automatic", # Changed default for demonstration
         healthy_vessel_surface: names.polyDataType=None,
         aneurysm_type: str="lateral", # Added default for demonstration
-        dome_point: tuple=None,
-        gdistance_to_neck_array_name: str=names.DistanceToNeckArrayName
+        dome_point: tuple=None
     ) -> names.polyDataType:
     """Mark the aneurysm neck contour and compute the geodesic distance to it.
 
