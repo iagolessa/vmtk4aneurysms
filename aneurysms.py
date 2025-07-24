@@ -889,6 +889,16 @@ class SaccularAneurysm:
 
             self._HGLN = np.sqrt(hyperbolicArea*surfIntHypSqrGaussCurv)/(4*const.pi)
 
+        # Remove temporary squared arrays of surface
+        curvatureSurface.GetCellData().RemoveArray(
+            names.SqrGaussCurvatureArrayName
+        )
+
+        curvatureSurface.GetCellData().RemoveArray(
+            names.SqrMeanCurvatureArrayName
+        )
+
+
     def GetMorphologyMetrics(self) -> dict:
         """Get dict of all morphology metrics."""
 
@@ -1134,6 +1144,132 @@ class SaccularAneurysm:
 
         else:
             return None
+
+    def ComputeSacRegionsField(
+            self,
+            neck_to_body_fraction: float=0.2,
+            body_to_dome_fraction: float=0.6
+        ):
+        """Compute the aneurysm sac regions based on the distance to neck
+        array.
+
+        This functions splits a saccular aneurysm sac surface into three
+        regions called "dome", "neck", and "body". These denominations are
+        typically employed by neurosurgeons to split an aneurysm sac into very
+        distinct patches. Although commonly employed in the medical practice,
+        no formal mathematical definition of it exists. Therefore, the one
+        proposed and used by Salimi Ashkezari et al. in their paper:
+
+            S. F. Salimi Ashkezari et al., “Blebs in intracranial aneurysms:
+            prevalence and general characteristics,” J NeuroIntervent Surg, vol.
+            13, no. 3, pp. 226–230, Mar. 2021, doi:
+            10.1136/neurintsurg-2020-016274.
+
+        is implemented here. It defines each region based on the geodesic
+        distance to the neck contour: given the maximum geodesic distance to
+        the aneurysm neck within the aneurysm, the neck is defined as the
+        region within 20% of this distance, the body is defined as the region
+        between 20% and 60% of this distance, and the dome is defined as the
+        region between 60% and 100% of this distance. The rest of the aneurysm
+        sac is considered out of the sac. These value can be adjusted by the
+        user through the arguments 'neck_to_body_value' and
+        'body_to_dome_value'.
+
+        The method updates the aneurysm sac surface with a new field called
+        "SacRegions" (module 'names.SacRegionsArrayName') where regions are
+        identified by the code:
+
+        .. table:: Aneurysm sac regions
+            :widths: auto
+
+            =====   ===============
+            Label   Regions
+            =====   ===============
+                0   Out of the sac
+                1   Neck
+                2   Body
+                3   Dome
+            =====   ===============
+
+        and these values are defined in the dictionary
+        'constants.IaSacRegionsTypes'.
+        """
+
+        # Update aneurysm model surface
+        # Interpolate the distance to neck aray to cell data
+        surface = tools.PointFieldToCellField(
+                      self._aneurysm_surface,
+                      names.DistanceToNeckArrayName
+                  )
+
+        # Use numpy interface
+        npSurface = dsa.WrapDataObject(surface)
+
+        distanceToNeckArray = npSurface.GetCellData().GetArray(
+                                  names.DistanceToNeckArrayName
+                              )
+
+        # Get the minimum value (negative values lie on the aneurysm sac)
+        iaMaxGeodesicDistance = min(distanceToNeckArray)
+
+        # Create new array on aneurysm based on:
+        # Define thresholds based on the negative iaMaxGeodesicDistance
+        threshold_body_dome = body_to_dome_fraction*iaMaxGeodesicDistance
+        threshold_neck_body = neck_to_body_fraction*iaMaxGeodesicDistance
+
+        # Using numpy.select for a cleaner and more robust assignment
+        # The order of conditions is important with np.select.
+        # We define them from "out of sac" inwards, or from "most specific" to
+        # "least specific".
+        # Given the description, "Out of Sac" is the most general "background".
+        # Then we define the regions within the sac from neck to dome.
+
+        # Conditions list, ordered logically
+        conditions = [
+            # Out of the sac
+            # > 0 -> out of sac -> 0
+            distanceToNeckArray > const.zero,
+            # Neck -> 0 <= distance <= abs(0.2*maxGeoDist)  -> 1
+            (distanceToNeckArray >= threshold_neck_body)
+            &
+            (distanceToNeckArray <= const.zero),
+            # Body -> abs(0.2*maxGeoDist) < distance <= abs(0.6*maxGeoDist) -> 2
+            (distanceToNeckArray >= threshold_body_dome)
+            &
+            (distanceToNeckArray < threshold_neck_body),
+            # Dome -> abs(0.6*maxGeoDist) < distance <= abs(maxGeoDist) -> 3
+            (distanceToNeckArray >= iaMaxGeodesicDistance)
+            &
+            (distanceToNeckArray < threshold_body_dome)
+        ]
+
+        # Corresponding choices (IDs) for each condition
+        choices = [
+            const.IaSacRegionsTypes["OutOfSac"],
+            const.IaSacRegionsTypes["Neck"],
+            const.IaSacRegionsTypes["Body"],
+            const.IaSacRegionsTypes["Dome"]
+        ]
+
+        # Create the sacRegionArray using numpy.select
+        sacRegionArray = np.select(
+                             conditions,
+                             choices,
+                             default=-const.one
+                         )
+
+        # Append the new array to CellData
+        npSurface.CellData.append(
+            sacRegionArray,
+            names.SacRegionsArrayName
+        )
+
+        npSurface.VTKObject.GetCellData().RemoveArray(
+            names.DistanceToNeckArrayName
+        )
+
+        # Updates object
+        self._aneurysm_surface = npSurface.VTKObject
 
 class VascularTreeWithAneurysm(VascularTree, ABC):
     """Abstract base class to represent a vascular network tree model with a
