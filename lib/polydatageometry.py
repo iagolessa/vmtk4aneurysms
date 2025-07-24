@@ -926,40 +926,61 @@ class Surface():
                             names.MeanCurvatureArrayName
                         )
 
-        surfaceLocalShapes = {
-            'ellipticalConvex' :
-                {'condition': (GaussCurvature >  0.0) & (meanCurvature >  0.0),
-                 'id': 0},
-            'ellipticalConcave':
-                {'condition': (GaussCurvature >  0.0) & (meanCurvature <  0.0),
-                 'id': 1},
-            'elliptical'       : # apparently, not possible
-                {'condition': (GaussCurvature >  0.0) & (meanCurvature == 0.0),
-                 'id': 2},
-            'hyperbolicConvex' :
-                {'condition': (GaussCurvature <  0.0) & (meanCurvature >  0.0),
-                 'id': 3},
-            'hyperboliConcave' :
-                {'condition': (GaussCurvature <  0.0) & (meanCurvature <  0.0),
-                 'id': 4},
-            'hyperbolic'       :
-                {'condition': (GaussCurvature <  0.0) & (meanCurvature == 0.0),
-                 'id': 5},
-            'cylindricConvex'  :
-                {'condition': (GaussCurvature == 0.0) & (meanCurvature >  0.0),
-                 'id': 6},
-            'cylindricConcave' :
-                {'condition': (GaussCurvature == 0.0) & (meanCurvature <  0.0),
-                 'id': 7},
-            'planar'           :
-                {'condition': (GaussCurvature == 0.0) & (meanCurvature == 0.0),
-                 'id': 8}
-        }
+        # Define a small epsilon for floating point comparisons to zero
+        # Curvatures very close to zero should be considered zero.
+        EPSILON = 1.0e-9
 
-        LocalShapeArray = zeros(shape=len(meanCurvature), dtype=int)
+        # Define conditions and corresponding choices (shape IDs)
+        # The order here matters for np.select. More specific conditions should
+        # come first or conditions should be ordered to reflect logical precedence
+        conditions = [
+            # Planar
+            (np.isclose(GaussCurvature, 0.0, atol=EPSILON))
+            &
+            (np.isclose(meanCurvature, 0.0, atol=EPSILON)),
+            # CylindricConvex
+            (np.isclose(GaussCurvature, 0.0, atol=EPSILON))
+            &
+            (meanCurvature > 0.0),
+            # CylindricConcave
+            (np.isclose(GaussCurvature, 0.0, atol=EPSILON))
+            &
+            (meanCurvature < 0.0),
+            # Hyperbolic
+            (GaussCurvature < 0.0)
+            &
+            (np.isclose(meanCurvature, 0.0, atol=EPSILON)),
+            # HyperbolicConvex
+            (GaussCurvature < 0.0) & (meanCurvature > 0.0),
+            # HyperbolicConcave
+            (GaussCurvature < 0.0) & (meanCurvature < 0.0),
+            # EllipticalConvex
+            (GaussCurvature > 0.0) & (meanCurvature > 0.0),
+            # EllipticalConcave
+            (GaussCurvature > 0.0) & (meanCurvature < 0.0),
+            # 'Elliptical' with meanCurvature == 0.0 is not possible
+        ]
 
-        for shape in surfaceLocalShapes.values():
-            LocalShapeArray += where(shape.get('condition'), shape.get('id'), 0)
+        choices = [
+            const.SurfaceLocalShapes['planar'],
+            const.SurfaceLocalShapes['cylindricConvex'],
+            const.SurfaceLocalShapes['cylindricConcave'],
+            const.SurfaceLocalShapes['hyperbolic'],
+            const.SurfaceLocalShapes['hyperbolicConvex'],
+            const.SurfaceLocalShapes['hyperbolicConcave'],
+            const.SurfaceLocalShapes['ellipticalConvex'],
+            const.SurfaceLocalShapes['ellipticalConcave']
+        ]
+
+        # The default value for LocalShapeArray if no condition is met.
+        # Use the not possible value
+        default_shape_id = const.SurfaceLocalShapes['elliptical']
+
+        LocalShapeArray = np.select(
+                              conditions,
+                              choices,
+                              default=default_shape_id
+                          )
 
         npCurvatures.CellData.append(
             LocalShapeArray,
