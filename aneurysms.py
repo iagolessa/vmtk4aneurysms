@@ -42,8 +42,10 @@ from vmtk4aneurysms.vascular_classes import (
 )
 
 from vmtk4aneurysms.neck_extractor import (
-        ClipAneurysmSacSurface,
-        ComputeGeodesicDistanceToAneurysmNeck
+    ClipAneurysmSacSurface,
+    ComputeGeodesicDistanceToAneurysmNeck,
+    InteractiveNeckIdentification,
+    Automatic3DNeckIdentification
 )
 
 from abc import ABC, abstractmethod
@@ -249,7 +251,7 @@ def WallTypeClassification(
         high_wss: float=10.0,
         low_osi: float=0.001,
         high_osi: float=0.01,
-        distance_to_neck_array: str=names.DistanceToNeckArrayName,
+        aneurysmal_region_field_name: str=names.AneurysmalRegionArrayName,
         neck_iso_value: float=const.NeckIsoValue
     )   -> names.polyDataType:
     """Based on the WSS hemodynamics, characterize an aneurysm wall morphology.
@@ -293,7 +295,7 @@ def WallTypeClassification(
     arraysInSurface = tools.GetPointArrays(surface) + \
                       tools.GetCellArrays(surface)
 
-    if distance_to_neck_array not in arraysInSurface:
+    if aneurysmal_region_field_name not in arraysInSurface:
         print("Distance to neck array name not in surface. Computing it.")
 
         surface = ComputeGeodesicDistanceToAneurysmNeck(
@@ -314,7 +316,7 @@ def WallTypeClassification(
     fieldsDf[names.WallTypeArrayName] = normalWall
 
     # Groups of conditions
-    isAneurysm = fieldsDf[distance_to_neck_array] < const.NeckIsoValue
+    isAneurysm = fieldsDf[aneurysmal_region_field_name] < const.NeckIsoValue
 
     isHighWss = fieldsDf[names.TAWSS] > limitHemodynamics[names.TAWSS]["high"]
     isLowWss  = fieldsDf[names.TAWSS] < limitHemodynamics[names.TAWSS]["low"]
@@ -1314,7 +1316,7 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
         self._clip_aneurysm_mode = clip_aneurysm_mode
 
         self._aneurysm_thickness_computed = False
-        self._aneurysm_neck_computed = False
+        self._aneurysmal_region_computed = False
 
         # These will be filled at the concrete classes
         self._healthy_vessel_surface = None
@@ -1350,17 +1352,35 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
     # only for the computations based on the distance along the centerline
     # array)
 
-    @abstractmethod
     def _mark_aneurysm_wall_influence_region(self):
-        """Mark the aneurysm influence region on the vascular surface.
+        """Mark the aneurysm neck contour with an array called DistanceToNeck
+        with zero values at the neck and the negative-distance to it inside the
+        aneurysm sac."""
 
-        This method should be implemented in the subclasses to mark the
-        aneurysm neck based on the specified clipping mode. This array is
-        designed to compute the Thickness field when an aneurysm exist on the
-        vascular tree. This region may be different from the different neck
-        extraction strategies.
-        """
-        pass
+        # TODO the computation of the thickness should depend only on
+        # the 3D neck or interactive neck approaches, as the plane one
+        # is not realistic
+        # hence, the computation here should be specific and not tied
+        # to the neck computation chosen by the user.
+        # When it become automatic, then it should become an abstract method
+        if not self._aneurysmal_region_computed:
+
+            # Create the neck identification strategy
+            # When working for all cases, use the automatic 3D strategy
+            neckClipperStrategy = InteractiveNeckIdentification(
+                                      self._vascular_surface,
+                                      distance_to_neck_field_name=names.AneurysmalRegionArrayName
+                                  )
+
+            marked_neck_surface = neckClipperStrategy.MarkAneurysmNeck()
+
+            # Use client function to mark the aneurysm sac surface
+            # Updates the vascular surface with the marked aneurysm neck
+            self._vasc_surface_obj = VascularSurface(marked_neck_surface)
+            self._vascular_surface = self._vasc_surface_obj.GetSurface()
+
+            self._aneurysmal_region_computed = True
+
 
     @abstractmethod
     def _clip_sac_surface(self):
@@ -1459,7 +1479,7 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
 
             # Now, apply the aneurysm-specific adjustments
             # Compute the distance to neck array if not already present
-            if  not self._aneurysm_neck_computed:
+            if  not self._aneurysmal_region_computed:
                 # TODO the computation of the thickness should depend only on
                 # the 3D neck or interactive neck approaches, as the plane one
                 # is not realistic
@@ -1476,7 +1496,7 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
                              )
 
             distanceToNeckArray = npDistanceSurface.GetPointData().GetArray(
-                                      names.DistanceToNeckArrayName
+                                      names.AneurysmalRegionArrayName
                                   )
 
             # First compute aneurysm thickness based on vasculature thickness
@@ -1611,19 +1631,14 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
             red_regions_factor (float): Factor for "red" regions.
         """
         # Compute the distance to neck array if not already present
-        if not self._aneurysm_neck_computed:
-            # TODO the computation of the thickness should depend only on
-            # the 3D neck or interactive neck approaches, as the plane one
-            # is not realistic
-            # hence, the computation here should be specific and not tied
-            # to the neck computation chosen by the user.
+        if not self._aneurysmal_region_computed:
             self._mark_aneurysm_wall_influence_region()
 
         # Surface with thickness and distnce to neck
         npDistanceSurface = dsa.WrapDataObject(self._vascular_surface)
 
         distanceArray = npDistanceSurface.PointData.GetArray(
-                            names.DistanceToNeckArrayName
+                            names.AneurysmalRegionArrayName
                         )
 
         # Array to hold the actual elasticity array
@@ -1757,28 +1772,6 @@ class VascularTreeWithLateralAneurysm(VascularTreeWithAneurysm):
     # healthy_vessel_surface attribute. It should not be passed by the
     # user, but computed internally.
 
-    def _mark_aneurysm_wall_influence_region(self):
-        """Mark the aneurysm neck contour with an array called DistanceToNeck
-        with zero values at the neck and the negative-distance to it inside the
-        aneurysm sac."""
-
-        if not self._aneurysm_neck_computed:
-            # Use client function to mark the aneurysm sac surface
-            marked_neck_surface = ComputeGeodesicDistanceToAneurysmNeck(
-                                      self.GetVascularSurface(),
-                                      mode=self._clip_aneurysm_mode,
-                                      healthy_vessel_surface=self._healthy_vessel_surface,
-                                      aneurysm_type="lateral",
-                                      dome_point=self._dome_point
-                                  )
-
-            # Updates the vascular surface with the marked aneurysm neck
-            self._vasc_surface_obj = VascularSurface(marked_neck_surface)
-            self._vascular_surface = self._vasc_surface_obj.GetSurface()
-
-            self._aneurysm_neck_computed = True
-
-
     def _clip_sac_surface(self):
         """Clip the aneurysm sac surface and initialize SaccularAneurysm."""
 
@@ -1844,28 +1837,6 @@ class VascularTreeWithBifurcationAneurysm(VascularTreeWithAneurysm):
     # as the VascularTreeWithAneurysm is the only one that uses the
     # healthy_vessel_surface attribute. It should not be passed by the
     # user, but computed internally.
-
-    def _mark_aneurysm_wall_influence_region(self):
-        """Mark the aneurysm neck contour with an array called DistanceToNeck
-        with zero values at the neck and the negative-distance to it inside the
-        aneurysm sac."""
-
-        if not self._aneurysm_neck_computed:
-            # Use client function to mark the aneurysm sac surface
-            marked_neck_surface = ComputeGeodesicDistanceToAneurysmNeck(
-                                      self.GetVascularSurface(),
-                                      mode=self._clip_aneurysm_mode,
-                                      healthy_vessel_surface=self._healthy_vessel_surface,
-                                      aneurysm_type="bifurcation",
-                                      dome_point=self._dome_point
-                                  )
-
-            # Updates the vascular surface with the marked aneurysm neck
-            self._vasc_surface_obj = VascularSurface(marked_neck_surface)
-            self._vascular_surface = self._vasc_surface_obj.GetSurface()
-
-            self._aneurysm_neck_computed = True
-
 
     def _clip_sac_surface(self):
         """Clip the aneurysm sac surface and initialize SaccularAneurysm."""
