@@ -15,7 +15,7 @@
 
 """Definitions of names and other variables."""
 
-from numpy import array
+from numpy import array, ndarray
 from vtk import (
     vtkPolyData,
     vtkUnstructuredGrid,
@@ -180,6 +180,12 @@ curvMetricsList = [
 # The coordinates were extracted directly from the data plots provided by the
 # study
 def GetHoiICAProfile():
+    """Returns the normalized ICA profile as published by Hoi et al. (2010).
+
+    The coordinates were extracted directly from the data plots provided by the
+    study (see docstring of function hemodynamics.GenerateBloodFlowRateProfile).
+    """
+
     HoiICAProfile = [
         [-0.06, 0.55],
         [-0.04, 0.62],
@@ -231,6 +237,11 @@ def GetHoiICAProfile():
     return npHoiICAProfile
 
 def GetFordICAProfile():
+    """Returns the normalized ICA profile as published by Ford et al. (2005).
+
+    The coordinates were extracted directly from the data plots provided by the
+    study (see docstring of function hemodynamics.GenerateBloodFlowRateProfile).
+    """
 
     FordICAProfile = [
         [-0.06000, 0.67371],
@@ -283,6 +294,12 @@ def GetFordICAProfile():
     return npFordICAProfile
 
 def GetFordVAProfile():
+    """Returns the normalized VA profile as published by Ford et al. (2005).
+
+    The coordinates were extracted directly from the data plots provided by the
+    study (see docstring of function hemodynamics.GenerateBloodFlowRateProfile).
+    """
+
     FordVAProfile = [
         [-0.064,0.636],
         [-0.049,0.665],
@@ -346,3 +363,129 @@ def GetFordVAProfile():
     npFordVAProfile[:, 0] += -npFordVAProfile[0,0]
 
     return npFordVAProfile
+
+def GetPoulinICAProfile(
+        activity_conditions: bool=True
+    )   -> ndarray:
+    """Returns the normalized ICA profile as published by Poulin et al. (1999).
+
+    The coordinates were extracted directly from the data plots provided by the
+    study:
+
+        M. J. Poulin, R. J. Syed, and P. A. Robbins, “Assessments of flow by
+        transcranial Doppler ultrasound in the middle cerebral artery during
+        exercise in humans,” Journal of Applied Physiology, vol. 86, no. 5, pp.
+        1632–1637, May 1999, doi: 10.1152/jappl.1999.86.5.1632.
+
+    Arguments:
+        rest: If True, returns the profile at rest, otherwise returns the
+            profile during exercise.
+
+    Returns:
+        np.ndarray: The normalized ICA profile as a 2D numpy array, where the
+        first column is the normalized time and the second column is the
+        normalized flow rate.
+    """
+
+    if not activity_conditions:
+
+        # Normalized ICA profile at rest
+        PoulinICAProfile = [
+            [0.0377,1.1612e-06],
+            [0.0554,1.5809e-06],
+            [0.0664,2.1002e-06],
+            [0.0709,2.4954e-06],
+            [0.0753,3.0147e-06],
+            [0.0797,3.5586e-06],
+            [0.0842,4.1759e-06],
+            [0.0908,4.6707e-06],
+            [0.0930,4.9680e-06],
+            [0.0997,5.3371e-06],
+            [0.0975,5.7323e-06],
+            [0.1019,6.1781e-06],
+            [0.1063,7.1417e-06],
+            [0.1107,7.6104e-06],
+            [0.1174,8.0317e-06],
+            [0.1262,8.4024e-06],
+            [0.1351,8.6735e-06],
+            [0.1506,8.2799e-06],
+            [0.1595,7.8586e-06],
+            [0.1639,7.4389e-06],
+            [0.1750,7.0437e-06],
+            [0.1816,6.6974e-06],
+            [0.1905,6.3512e-06],
+            [0.1971,5.9560e-06],
+            [0.2104,5.6098e-06],
+            [0.2237,5.3387e-06],
+            [0.2458,5.1411e-06],
+            [0.2680,4.9925e-06],
+            [0.2857,4.7197e-06],
+            [0.2990,4.3996e-06],
+            [0.3123,4.1024e-06],
+            [0.3256,3.9048e-06],
+            [0.3455,3.9048e-06],
+            [0.3676,4.1269e-06],
+            [0.3898,4.2755e-06],
+            [0.4141,4.3000e-06],
+            [0.4341,4.1269e-06],
+            [0.4496,3.8558e-06],
+            [0.4673,3.6337e-06],
+            [0.4828,3.4345e-06],
+            [0.4983,3.1389e-06],
+            [0.5205,2.8661e-06],
+            [0.5470,2.6195e-06],
+            [0.5758,2.3974e-06],
+            [0.6002,2.3484e-06],
+            [0.6290,2.2488e-06],
+            [0.6533,2.1002e-06],
+            [0.6799,1.9532e-06],
+            [0.7065,1.8046e-06],
+            [0.7330,1.7540e-06],
+            [0.7596,1.5825e-06],
+            [0.7973,1.5825e-06],
+            [0.8261,1.4584e-06],
+            [0.8526,1.2118e-06],
+            [0.8881,1.0877e-06]
+        ]
+
+    else:
+        # Normalized ICA profile at activity
+        PoulinICAProfile = [
+            [0.0360,9.2925e-07],
+            [0.0444,1.5629e-06],
+            [0.0503,2.4677e-06],
+            [0.0539,3.0360e-06],
+            [0.0599,3.9783e-06],
+            [0.0623,4.5858e-06],
+            [0.0647,5.4775e-06],
+            [0.0683,6.0589e-06],
+            [0.0695,6.9506e-06],
+            [0.0707,7.5842e-06],
+            [0.0755,8.5396e-06],
+            [0.0779,9.0965e-06],
+            [0.0839,1.0013e-05],
+            [0.0875,1.0594e-05],
+            [0.1043,1.1719e-05],
+            [0.1223,1.0530e-05],
+            [0.1271,9.9490e-06],
+            [0.1391,9.0181e-06],
+            [0.1474,8.4498e-06],
+            [0.1666,7.5189e-06],
+            [0.1798,7.0535e-06],
+            [0.2038,6.1242e-06],
+            [0.2158,5.6065e-06],
+            [0.2361,4.6773e-06],
+            [0.2457,4.1204e-06],
+            [0.2613,3.2042e-06],
+            [0.2733,2.5967e-06],
+            [0.3021,1.9238e-06],
+            [0.3392,2.2602e-06],
+            [0.3740,1.8993e-06],
+            [0.4136,1.1628e-06],
+            [0.4423,7.7410e-07]
+        ]
+
+    npPoulinICAProfile = array(PoulinICAProfile)
+    npPoulinICAProfile[:, 0] += -npPoulinICAProfile[0,0]
+
+    return npPoulinICAProfile

@@ -353,6 +353,28 @@ def GenerateBloodFlowRateProfile(
     between volume and mass flow rate is done by the blood density, which can
     be changed by passing the argument 'blood_density' to the function. The default
     blood density is 1056 kg/m3.
+
+    Arguments:
+        - patient_age (float) -- age of the patient in years;
+        - artery_name (str) -- acronym of the artery where the flow rate is
+            measured, e.g. 'ica', 'va', 'mca', 'aca', 'ba', 'pca', 'oa';
+        - time_step (float) -- time step of the temporal profile in seconds
+            (default 0.01 s);
+
+        - ncycles (int) -- number of cycles to be generated (default 3);
+        - t0 (float) -- initial time of the profile in seconds (default 0.0 s);
+        - Qavg (float) -- average blood flow rate in m3/s, if not None;
+        - mass_flow_rate (bool) -- whether to return the profile in mass flow
+            rate (default False, i.e. volumetric flow rate);
+        - blood_density (float) -- density of the blood in kg/m3 (default 1056
+            kg/m3, i.e. 1.056 g/cm3).
+
+    Returns:
+        - numpy.ndarray with the temporal profile of the blood flow rate
+            in the shape (N, 2), where N is the number of time samples, with
+            the first column being the time samples in seconds and the second
+            column being the blood flow rate in m3/s or kg/s, depending on the
+            value of the argument 'mass_flow_rate'.
     """
 
     # get the normlized prof. in case of experimental profiles
@@ -451,6 +473,102 @@ def ResistanceOutflowPressure(
     pressureProfile[:,1] = P0 + R*pressureProfile[:,1]
 
     return pressureProfile
+
+def GenerateBloodFlowRateActivityConditions(
+        activity_conditions: bool=True,
+        time_step: float=0.01,
+        ncycles: int=3,
+        t0: float=0.0,
+        Qavg: float=None,
+        mass_flow_rate: bool=False,
+        blood_density: float=const.bloodDensity,
+        # scale_cycle_period: bool=False,
+        # heart_rate_frequency: float=None
+    ):
+    """Compute array with temporal variation of blood flow rate.
+
+    Given time-step, and number of cycles, generates an array with the temporal
+    blood flow rate along a cardiac cycle as measured by the study:
+
+        M. J. Poulin, R. J. Syed, and P. A. Robbins, “Assessments of flow by
+        transcranial Doppler ultrasound in the middle cerebral artery during
+        exercise in humans,” Journal of Applied Physiology, vol. 86, no. 5, pp.
+        1632–1637, May 1999, doi: 10.1152/jappl.1999.86.5.1632.
+
+    The default unit of the blood flow rate is m3/s, but it can be changed to
+    kg/s by passing the argument 'mass_flow_rate' to True. The conversion
+    between volume and mass flow rate is done by the blood density, which can
+    be changed by passing the argument 'blood_density' to the function. The
+    default blood density is 1056 kg/m3.
+
+    Arguments:
+        - activity_conditions (bool) -- whether to generate the activity
+            conditions (default True);
+
+        - time_step (float) -- time step of the temporal profile in seconds
+            (default 0.01 s);
+
+        - ncycles (int) -- number of cycles to be generated (default 3);
+        - t0 (float) -- initial time of the profile in seconds (default 0.0 s);
+        - mass_flow_rate (bool) -- whether to return the profile in mass flow
+            rate (default False, i.e. volumetric flow rate);
+        - blood_density (float) -- density of the blood in kg/m3 (default 1056
+            kg/m3, i.e. 1.056 g/cm3).
+
+    Returns:
+        - numpy.ndarray with the temporal profile of the blood flow rate
+            in the shape (N, 2), where N is the number of time samples, with
+            the first column being the time samples in seconds and the second
+            column being the blood flow rate in m3/s or kg/s, depending on the
+            value of the argument 'mass_flow_rate'.
+    """
+
+    # get the normlized prof. in case of experimental profiles
+    normProfile = names.GetPoulinICAProfile(
+                        activity_conditions=activity_conditions
+                  )
+
+    # Flow rate is dimensionalized here
+    Qavg = 1.0
+
+    if mass_flow_rate:
+        # Convert to volumetric flow rate
+        Qavg *= blood_density
+
+    timeRange = normProfile[:, 0]
+
+    # Select time max
+    # TODO: scale the period to account for heart rate variability, as
+    # suggested by the authors
+    timeMax = ncycles*timeRange.max()
+
+    # Build new time samples
+    newTimeRange = np.linspace(
+                    t0,
+                    timeMax,
+                    int(
+                        np.round(
+                            (timeMax - t0)/time_step
+                        )
+                    )
+                )
+
+    # Generate function object
+    resample = interp1d(
+                    normProfile[:, 0],
+                    normProfile[:, 1],
+                    kind='cubic'
+                )
+
+    # Apply to transformed time sample to get pulsatile behaviour
+    normFlowRate = Qavg*resample(
+                        np.mod(newTimeRange,timeRange.max())
+                    )
+
+    return np.hstack(
+                (newTimeRange.reshape(len(newTimeRange), 1),
+                 normFlowRate.reshape(len(normFlowRate), 1))
+            )
 
 def Hemodynamics(
         foam_case: str,
