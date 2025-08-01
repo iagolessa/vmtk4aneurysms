@@ -26,7 +26,12 @@ from vmtk import vmtkscripts
 from vmtk import vtkvmtk
 from vmtk import pypes
 
-from vmtk4aneurysms import vascular_operations as vscop
+from vmtk4aneurysms.vascular_classes import VascularTree
+from vmtk4aneurysms.aneurysms import (
+    VascularTreeWithLateralAneurysm,
+    VascularTreeWithBifurcationAneurysm
+)
+
 from vmtk4aneurysms.lib import names
 
 vmtksurfacevasculatureremeshing = 'vmtkSurfaceVasculatureRemeshing'
@@ -40,8 +45,9 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
         # Public member
         self.Surface = None
         self.Centerlines = None
+        self.AneurysmType = None # in case only 1 aneurysm
         self.Aneurysm = True
-        self.Iterations = 10
+        self.Iterations = 5
 
         self.MinResolutionValue = 0.15
         self.MaxResolutionValue = 0.30
@@ -67,6 +73,10 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
 
             ['Aneurysm', 'aneurysm', 'bool', 1, '',
                 'to indicate presence of an aneurysm'],
+
+            ['AneurysmType','aneurysmtype', 'str' , 1,
+                '["lateral","bifurcation"]',
+                'if only one aneurysm, pass also its type'],
 
             ['Iterations', 'iterations', 'int', 1, '',
                 'number of iterations of the remeshing step'],
@@ -107,19 +117,28 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
         # finer cells where the diameter is smaller, whereas the aneruysms gets
         # an intermediate value
         if self.Aneurysm:
-            resolutionSurface = vscop.ComputeVasculatureThicknessWithAneurysm(
-                                     self.Surface,
-                                     self.Centerlines,
-                                     thickness_field_name=names.ThicknessArrayName,
-                                     neck_comp_mode="interactive",
-                                 )
+            if self.AneurysmType == "lateral":
+                vascularTreeModel = VascularTreeWithLateralAneurysm(
+                                        self.Surface
+                                    )
+
+            elif self.AneurysmType == "bifurcation":
+                vascularTreeModel = VascularTreeWithBifurcationAneurysm(
+                                        self.Surface
+                                    )
+            else:
+                raise ValueError(
+                    'Aneurysm type must be "lateral" or "bifurcation".'
+                )
+
+            vascularTreeModel.ComputeVascularWallThickness()
+            resolutionSurface = vascularTreeModel.GetVascularSurface()
 
         else:
-            resolutionSurface = vscop.ComputeVasculatureThickness(
-                                   self.Surface,
-                                   self.Centerlines,
-                                   thickness_field_name=names.ThicknessArrayName
-                                )
+            vascularTreeModel = VascularTree(self.Surface)
+            vascularTreeModel.ComputeVascularWallThickness()
+
+            resolutionSurface = vascularTreeModel.GetVascularSurface()
 
         # Map thickness array to resolution array between min and max resolution
         npResolutionSurface = dsa.WrapDataObject(resolutionSurface)
