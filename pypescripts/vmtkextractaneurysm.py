@@ -101,96 +101,9 @@ class vmtkExtractAneurysm(pypes.pypeScript):
     def Execute(self):
 
         raise DeprecationWarning(
-            'vmtkextractaneurysm is deprecated. Use vmtksurfacevasculatureinfo instead.'
+            self.__class__.__name__ + ' is deprecated and will be deleted '\
+            'soon. Use "vmtksurfacevasculatureinfo" instead.'
         )
-
-        if not self.Surface:
-            self.PrintError('Error: no Surface.')
-
-        # Filter input surface
-        triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInputData(self.Surface)
-        triangleFilter.Update()
-
-        self.Surface = triangleFilter.GetOutput()
-
-        # This first clip is to reduce the vasculature to a single bifurcation
-        # self.Surface = vscop.ClipVasculature(self.Surface)
-
-        self.AneurysmSurface, _ = ClipAneurysmSacSurface(
-                                       self.Surface,
-                                       aneurysm_type=self.AneurysmType,
-                                       mode=self.ComputationMode,
-                                       dome_point=self.DomePoint,
-                                       healthy_vessel_surface=self.ParentVesselSurface
-                                   )
-
-        # Generate an aneurysm object
-        aneurysm = SaccularAneurysm(self.AneurysmSurface)
-
-        # Print aneurysm indices and metrics
-        methods = [param for param in dir(SaccularAneurysm)
-                   if param.startswith("Get")]
-
-        # Remove metrics that are not analyzed
-        methods.remove("GetSurface")
-        methods.remove("GetOstiumSurface")
-        methods.remove("GetHullSurface")
-
-        # Get methods of each aneurysm model
-        self.OutputText("Computing metrics of aneurysm models.\n")
-
-        attributes = {}
-
-        for method in methods:
-
-            # Get only float (exclude surfaces)
-            attr = getattr(aneurysm, method)()
-            attributes.update(
-                {method.replace("Get", ''): attr}
-            )
-
-        pp = PrettyPrinter(depth=3)
-        pp.pprint(
-            attributes
-        )
-
-        # Get ostium surface
-        self.OstiumSurface = RemeshSurface(aneurysm.GetOstiumSurface())
-        self.HullSurface = aneurysm.GetHullSurface()
-
-        self.OutputText(
-            "Dome point {}".format(aneurysm.GetDomeTipPoint())
-        )
-
-        if self.ShowAneurysm:
-            # Render surfaces
-            self.vmtkRenderer = vmtkscripts.vmtkRenderer()
-            self.vmtkRenderer.Initialize()
-
-            surfaceViewer1 = vmtkscripts.vmtkSurfaceViewer()
-            surfaceViewer1.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer1.Surface = self.AneurysmSurface
-            surfaceViewer1.Opacity = 1.0
-            surfaceViewer1.Color = [1.0, 0.0, 0.0]
-            surfaceViewer1.Display = 0
-            surfaceViewer1.BuildView()
-
-            surfaceViewer2 = vmtkscripts.vmtkSurfaceViewer()
-            surfaceViewer2.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer2.Surface = self.OstiumSurface
-            surfaceViewer2.Opacity = 1
-            surfaceViewer2.Color = [0.0, 1.0, 0.0]
-            surfaceViewer2.Display = 0
-            surfaceViewer2.BuildView()
-
-            surfaceViewer3 = vmtkscripts.vmtkSurfaceViewer()
-            surfaceViewer3.vmtkRenderer = self.vmtkRenderer
-            surfaceViewer3.Surface = self.HullSurface
-            surfaceViewer3.Opacity = 0.4
-            surfaceViewer3.Color = [0.0, 0.0, 0.0]
-            surfaceViewer3.Display = 1
-            surfaceViewer3.BuildView()
 
 if __name__ == '__main__':
     main = pypes.pypeMain()

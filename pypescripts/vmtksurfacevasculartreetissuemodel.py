@@ -32,11 +32,9 @@ from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import names
 from vmtk4aneurysms.lib import constants as const
 
-vmtksurfacevasculaturethickness = 'vmtkSurfaceVasculatureThickness'
+vmtksurfacevasculartreetissuemodel = 'vmtkSurfaceVascularTreeTissueModel'
 
-class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
-
-    _SMALL = 1e-12
+class vmtkSurfaceVascularTreeTissueModel(pypes.pypeScript):
 
     # Constructor
     def __init__(self):
@@ -44,8 +42,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
         self.Surface = None
         self.Aneurysm = True
-        # self.NumberOfAneurysms = 1
-        self.AneurysmType = None # in case only 1 aneurysm
+        self.AneurysmType = None
         self.ParentVesselSurface = None
         self.DomePoint = []
 
@@ -89,7 +86,7 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
         self.Actor = None
         self.Interpolator = None
 
-        self.SetScriptName('vmtksurfacevasculaturethickness')
+        self.SetScriptName(self.__class__.__name__.lower())
         self.SetScriptDoc('')
 
         self.SetInputMembers([
@@ -235,10 +232,135 @@ class vmtkSurfaceVasculatureThickness(pypes.pypeScript):
 
     def Execute(self):
 
-        raise DeprecationWarning(
-            self.__class__.__name__ + ' is deprecated and will be deleted '\
-            'soon. Use "vmtksurfacevasculartreetissuemodel" instead.'
-        )
+        if self.Surface == None:
+            self.PrintError('Error: no Surface.')
+
+        # Store the point and cell array that were already on the surface
+        origCellArrays  = tools.GetCellArrays(self.Surface)
+        origPointArrays = tools.GetPointArrays(self.Surface)
+
+        # I had a bug with the 'select thinner regions' with polygonal meshes.
+        # So, operate on a triangulated surface and map final result to orignal
+        # surface
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputData(self.Surface)
+        cleaner.Update()
+
+        # Reference to original surface
+        polygonalSurface = cleaner.GetOutput()
+
+        # But will operate on this one
+        self.Surface = cleaner.GetOutput()
+
+        # Will operate on the triangulated one
+        triangulate = vtk.vtkTriangleFilter()
+        triangulate.SetInputData(self.Surface)
+        triangulate.Update()
+
+        self.Surface = triangulate.GetOutput()
+
+        # Initialize renderer
+        if not self.vmtkRenderer:
+            self.vmtkRenderer = vmtkrenderer.vmtkRenderer()
+            self.vmtkRenderer.Initialize()
+            self.OwnRenderer = 1
+
+        self.vmtkRenderer.RegisterScript(self)
+
+        # Compute the thickness field
+        if self.Aneurysm:
+            if self.AneurysmType == "lateral":
+                vascularTreeModel = VascularTreeWithLateralAneurysm(
+                                        self.Surface,
+                                        clip_aneurysm_mode=self.NeckComputationMode,
+                                        dome_point=self.DomePoint
+                                    )
+
+            elif self.AneurysmType == "bifurcation":
+                vascularTreeModel = VascularTreeWithBifurcationAneurysm(
+                                        self.Surface,
+                                        clip_aneurysm_mode=self.NeckComputationMode,
+                                        dome_point=self.DomePoint
+                                    )
+            else:
+                raise ValueError(
+                    'Aneurysm type must be "lateral" or "bifurcation".'
+                )
+
+            vascularTreeModel.ComputeVascularWallThickness(
+                set_uniform_wlr=self.UniformWallToLumenRatio,
+                uniform_wlr_value=self.WallLumenRatio,
+                aneurysm_influence_dist=self.AneurysmInfluencedRegionDistance,
+                scale_factor=self.GlobalScaleFactor,
+                abnormal_thickness=self.AbnormalHemodynamicsRegions,
+                atherosclerotic_factor=self.AtheroscleroticFactor,
+                red_regions_factor=self.RedRegionsFactor
+            )
+
+            # Compute elastic constants fields
+            elasticityValues = zip(
+                                   self.ElasticityArrayName,
+                                   self.AneurysmElasticity,
+                                   self.ArteriesElasticity
+                               )
+
+            for fieldName, iaValue, bValue in elasticityValues:
+
+                vascularTreeModel.ComputeVascularElasticConstants(
+                    elastic_const_field_name=fieldName,
+                    aneurysm_elastic_const_mode=self.AneurysmElasticityMode,
+                    arteries_elastic_const=bValue,
+                    aneurysm_elastic_const=iaValue,
+                    abnormal_elasticity=self.AbnormalHemodynamicsRegions,
+                    atherosclerotic_factor=self.AtheroscleroticFactor,
+                    red_regions_factor=self.RedRegionsFactor,
+                )
+
+            self.Surface = vascularTreeModel.GetVascularSurface()
+
+            if self.OwnRenderer:
+                self.vmtkRenderer.Deallocate()
+                self.OwnRenderer = 0
+
+        else:
+            vascularTreeModel = VascularTree(self.Surface)
+
+            vascularTreeModel.ComputeVascularWallThickness(
+                set_uniform_wlr=self.UniformWallToLumenRatio,
+                uniform_wlr_value=self.WallLumenRatio
+            )
+
+            self.Surface = vascularTreeModel.GetVascularSurface()
+
+        # Get all arrays
+        newCellArrays  = [arr for arr in tools.GetCellArrays(self.Surface)
+                          if arr not in origCellArrays]
+
+        newPointArrays = [arr for arr in tools.GetPointArrays(self.Surface)
+                          if arr not in origPointArrays]
+
+        # Project new arrays to original surface
+        for arr in newCellArrays:
+            polygonalSurface = tools.ProjectCellArray(
+                                   polygonalSurface,
+                                   self.Surface,
+                                   arr
+                               )
+
+        for arr in newPointArrays:
+            polygonalSurface = tools.ProjectPointArray(
+                                   polygonalSurface,
+                                   self.Surface,
+                                   arr
+                               )
+
+        self.Surface = polygonalSurface
+
+        if self.GenerateWallMesh:
+            self.ExtrudeWallMesh()
+
+        if self.OwnRenderer:
+            self.vmtkRenderer.Deallocate()
 
 if __name__ == '__main__':
     main = pypes.pypeMain()

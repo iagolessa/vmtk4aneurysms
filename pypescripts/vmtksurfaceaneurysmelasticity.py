@@ -125,90 +125,10 @@ class vmtkSurfaceAneurysmElasticity(pypes.pypeScript):
 
     def Execute(self):
 
-        if not self.Surface:
-            self.PrintError('Error: no Surface.')
-
-        # Store the point and cell array that were already on the surface
-        origCellArrays  = tools.GetCellArrays(self.Surface)
-        origPointArrays = tools.GetPointArrays(self.Surface)
-
-        # I had a bug with the 'select thinner regions' with
-        # polygonal meshes. So, operate on a triangulated surface
-        # and map final result to orignal surface
-        cleaner = vtk.vtkCleanPolyData()
-        cleaner.SetInputData(self.Surface)
-        cleaner.Update()
-
-        # Reference to original surface
-        polygonalSurface = cleaner.GetOutput()
-
-        # But will operate on this one
-        self.Surface = cleaner.GetOutput()
-
-        # Will operate on the triangulated one
-        triangulate = vtk.vtkTriangleFilter()
-        triangulate.SetInputData(self.Surface)
-        triangulate.Update()
-
-        self.Surface = triangulate.GetOutput()
-
-        if self.AneurysmType == "lateral":
-            vascularTreeModel = VascularTreeWithLateralAneurysm(
-                                    self.Surface
-                                )
-
-        elif self.AneurysmType == "bifurcation":
-            vascularTreeModel = VascularTreeWithBifurcationAneurysm(
-                                    self.Surface
-                                )
-        else:
-            raise ValueError(
-                'Aneurysm type must be "lateral" or "bifurcation".'
-            )
-
-        elasticityValues = zip(
-                               self.ElasticityArrayName,
-                               self.AneurysmElasticity,
-                               self.ArteriesElasticity
-                           )
-
-        for fieldName, iaValue, bValue in elasticityValues:
-
-            vascularTreeModel.ComputeVascularElasticConstants(
-                elastic_const_field_name=fieldName,
-                aneurysm_elastic_const_mode=self.AneurysmElasticityMode,
-                arteries_elastic_const=bValue,
-                aneurysm_elastic_const=iaValue,
-                abnormal_elasticity=self.AbnormalHemodynamicsRegions,
-                atherosclerotic_factor=self.AtheroscleroticFactor,
-                red_regions_factor=self.RedRegionsFactor,
-            )
-
-            self.Surface = vascularTreeModel.GetVascularSurface()
-
-        # Get all arrays
-        newCellArrays  = [arr for arr in tools.GetCellArrays(self.Surface)
-                          if arr not in origCellArrays]
-
-        newPointArrays = [arr for arr in tools.GetPointArrays(self.Surface)
-                          if arr not in origPointArrays]
-
-        # Project new arrays to original surface
-        for arr in newCellArrays:
-            polygonalSurface = tools.ProjectCellArray(
-                                   polygonalSurface,
-                                   self.Surface,
-                                   arr
-                               )
-
-        for arr in newPointArrays:
-            polygonalSurface = tools.ProjectPointArray(
-                                   polygonalSurface,
-                                   self.Surface,
-                                   arr
-                               )
-
-        self.Surface = polygonalSurface
+        raise DeprecationWarning(
+            self.__class__.__name__ + ' is deprecated and will be deleted '\
+            'soon. Use "vmtksurfacevasculartreetissuemodel" instead.'
+        )
 
 if __name__ == '__main__':
     main = pypes.pypeMain()

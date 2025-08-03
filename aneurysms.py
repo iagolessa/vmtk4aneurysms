@@ -1327,7 +1327,7 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
         if clip_aneurysm_mode == "automatic" or clip_aneurysm_mode == "plane":
             raise NotImplementedError(
                 "The automatic clipping mode is not implemented for " +
-                "VascularTreeWithLateralAneurysm. Use 'interactive' mode " +
+                "VascularTreeWithAneurysm. Use 'interactive' mode " +
                 "instead."
             )
 

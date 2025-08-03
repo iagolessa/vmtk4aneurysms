@@ -77,17 +77,16 @@ def ClipVasculature(
     """
 
     if centerlines is None:
-        centerlines = VascularCenterline.GenerateCenterlines(vascular_surface)
+        objCenterlines = VascularCenterline.from_vascular_surface(vascular_surface)
 
-    geoCenterlines = cl.ComputeCenterlineGeometry(centerlines)
-
-    FrenetTangentArrayName = "FrenetTangent"
+    else:
+        objCenterlines = VascularCenterline(centerlines)
 
     surfaceEndClipper = vmtkscripts.vmtkSurfaceEndClipper()
     surfaceEndClipper.Surface = vascular_surface
     surfaceEndClipper.CenterlineNormals = 1
-    surfaceEndClipper.Centerlines = geoCenterlines
-    surfaceEndClipper.FrenetTangentArrayName = FrenetTangentArrayName
+    surfaceEndClipper.Centerlines = objCenterlines.GetCenterline()
+    surfaceEndClipper.FrenetTangentArrayName = names.vmtkFrenetTangentArrayName
     surfaceEndClipper.Execute()
 
     return surfaceEndClipper.Surface

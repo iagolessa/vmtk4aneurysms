@@ -46,6 +46,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         self.InletClipValue = -40.0
         self.OutletRelativeClipValue = 8.0
         self.Aneurysm = True
+        self.AneurysmType = None # in case only 1 aneurysm
         self.FlowExtensionRatio = 2
         self.Interactive = False
         self.BifPoint = None
@@ -99,6 +100,10 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
             ['Aneurysm', 'aneurysm', 'bool', 1, '',
                 'to indicate presence of an aneurysm'],
 
+            ['AneurysmType','aneurysmtype', 'str' , 1,
+                '["lateral","bifurcation"]',
+                'if only one aneurysm, pass also its type'],
+
             ['MaxResolutionValue', 'maxresvalue', 'float', 1, '(0.0,)',
                 'the maximum resolution value, to avoid large triangles'],
 
@@ -147,6 +152,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         remesher.Surface = tools.Cleaner(self.Surface)
         remesher.Centerlines = self.Centerlines
         remesher.Aneurysm = has_aneurysm
+        remesher.AneurysmType = self.AneurysmType
         remesher.Iterations = iterations
         remesher.MinResolutionValue = self.MinResolutionValue
         remesher.MaxResolutionValue = self.MaxResolutionValue
