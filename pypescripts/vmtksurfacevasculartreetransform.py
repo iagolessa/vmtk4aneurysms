@@ -26,9 +26,9 @@ from vmtk import vmtkscripts
 from vmtk import pypes
 from vmtk import vtkvmtk
 
-vmtksurfacevasculaturetransform = 'vmtkSurfaceVasculatureTransform'
+vmtksurfacevasculatreetransform = 'vmtkSurfaceVasculaTreeTransform'
 
-class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
+class vmtkSurfaceVasculaTreeTransform(pypes.pypeScript):
 
     def __init__(self):
 
@@ -41,7 +41,7 @@ class vmtkSurfaceVasculatureTransform(pypes.pypeScript):
         self.Center = [0, 0, 0]
         self.Orientation = [0, 0, -1]
 
-        self.SetScriptName('vmtksurfacevasculaturetransform')
+        self.SetScriptName(self.__class__.__name__.lower())
         self.SetScriptDoc('Transform a vasculature surface by rotating and '
                           'translating it in such a way that the inlet '
                           'reference system coincides with the origin and '

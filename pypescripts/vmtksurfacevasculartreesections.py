@@ -27,9 +27,9 @@ from vmtk import vtkvmtk
 
 from vmtk4aneurysms.lib import polydatatools as tools
 
-vmtksurfacevasculaturesections = 'vmtkSurfaceVasculatureSections'
+vmtksurfacevasculartreesections = 'vmtkSurfaceVascularTreeSections'
 
-class vmtkSurfaceVasculatureSections(pypes.pypeScript):
+class vmtkSurfaceVascularTreeSections(pypes.pypeScript):
 
     def __init__(self):
 
@@ -46,7 +46,7 @@ class vmtkSurfaceVasculatureSections(pypes.pypeScript):
         self.Centerlines = None
         self.RadiusArrayName = "MaximumInscribedSphereRadius"
 
-        self.SetScriptName('vmtksurfacevasculaturesections')
+        self.SetScriptName(self.__class__.__name__.lower())
         self.SetScriptDoc("Build vasculature sections separated by a given "
                           "number of incribed spheres.")
 

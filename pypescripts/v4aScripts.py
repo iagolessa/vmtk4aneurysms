@@ -1,25 +1,27 @@
 from __future__ import absolute_import
 
 __all__ = [
-    '.vmtkextractaneurysm',
-    '.vmtkextractrawsurface',
     '.vmtkextractembolizedaneurysmsurface',
-    '.vmtkfoamcomputehemodynamics',
+    '.vmtkextractrawsurface',
+    '.vmtkfoambifurcationflow',
     '.vmtkfoamcomputeflowsections',
+    '.vmtkfoamcomputehemodynamics',
+    '.vmtkfoamgenerateflowrateprofile',
     '.vmtkfoamgetvolumefields',
+    '.vmtkfoamparticletracer',
+    '.vmtkgeodesicdistance',
     '.vmtkmeshpointdatatocelldata',
-    '.vmtksurfaceaneurysmelasticity',
     '.vmtksurfacehealthyvasculature',
     '.vmtksurfaceprojectcellfield',
     '.vmtksurfaceprojectpointfield',
-    '.vmtksurfacevasculatureforcfd',
-    '.vmtksurfacevasculatureinfo',
-    '.vmtksurfacevasculatureremeshing',
-    '.vmtksurfacevasculaturesections',
-    '.vmtksurfacevasculaturethickness',
-    '.vmtksurfacevasculaturetransform',
-    '.vmtksurfacevesselfixer',
-    '.vmtkgeodesicdistance'
+    '.vmtksurfacevasculartreeflowanimation',
+    '.vmtksurfacevasculartreeforcfd',
+    '.vmtksurfacevasculartreemetrics',
+    '.vmtksurfacevasculartreeremeshing',
+    '.vmtksurfacevasculartreesections',
+    '.vmtksurfacevasculartreetissuemodel',
+    '.vmtksurfacevasculartreetransform',
+    '.vmtksurfacevesselfixer'
 ]
 
 for item in __all__:

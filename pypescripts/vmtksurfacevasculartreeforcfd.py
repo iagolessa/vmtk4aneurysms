@@ -31,9 +31,9 @@ from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import centerlines as cl
 from vmtk4aneurysms.pypescripts import v4aScripts
 
-vmtksurfacevasculatureforcfd = 'vmtkSurfaceVasculatureForCFD'
+vmtksurfacevasculartreeforcfd = 'vmtkSurfaceVascularTreeForCFD'
 
-class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
+class vmtkSurfaceVascularTreeForCFD(pypes.pypeScript):
 
     def __init__(self):
 
@@ -63,7 +63,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         self.SnappyFilesExtension = ".stl"
         self.OpenProfilesCentersFile = None
 
-        self.SetScriptName('vmtksurfacevasculatureforcfd')
+        self.SetScriptName(self.__class__.__name__.lower())
         self.SetScriptDoc(
             "Treat a surface extracted from an DICOM image to be suitable for "
             "a CFD simulation. Remesh its structure with quality triangle "
@@ -148,7 +148,7 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
 
     def Remesh(self, iterations=10, has_aneurysm=True):
 
-        remesher = v4aScripts.vmtkSurfaceVasculatureRemeshing()
+        remesher = v4aScripts.vmtkSurfaceVascularTreeRemeshing()
         remesher.Surface = tools.Cleaner(self.Surface)
         remesher.Centerlines = self.Centerlines
         remesher.Aneurysm = has_aneurysm
@@ -191,10 +191,10 @@ class vmtkSurfaceVasculatureForCFD(pypes.pypeScript):
         # We will have to do 2 remeshings: one to get a better initial surface
         # First remesh: do not include aneurysm to avoid interactive screen
         # twice
-        self.Remesh(
-            iterations=5,
-            has_aneurysm=False
-        )
+        # self.Remesh(
+        #     iterations=5,
+        #     has_aneurysm=False
+        # )
 
         # Smooth surface with Taubin's algorithm: allow change of boundary
         # points

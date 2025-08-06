@@ -163,7 +163,7 @@ class vmtkFoamComputeFlowSections(pypes.pypeScript):
                           )
 
             # Compute the sections surface
-            computeSections = v4aScripts.vmtkSurfaceVasculatureSections()
+            computeSections = v4aScripts.vmtkSurfaceVascularTreeSections()
             computeSections.Surface = wallSurface
             computeSections.Remesh  = True
             computeSections.ClipBefore = False

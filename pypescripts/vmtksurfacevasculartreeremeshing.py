@@ -34,9 +34,9 @@ from vmtk4aneurysms.aneurysms import (
 
 from vmtk4aneurysms.lib import names
 
-vmtksurfacevasculatureremeshing = 'vmtkSurfaceVasculatureRemeshing'
+vmtksurfacevasculartreeremeshing = 'vmtkSurfaceVascularTreeRemeshing'
 
-class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
+class vmtkSurfaceVascularTreeRemeshing(pypes.pypeScript):
 
     def __init__(self):
 
@@ -52,7 +52,7 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
         self.MinResolutionValue = 0.15
         self.MaxResolutionValue = 0.30
 
-        self.SetScriptName('vmtksurfacevasculatureremeshing')
+        self.SetScriptName(self.__class__.__name__.lower())
         self.SetScriptDoc(
             "Script to remesh a surface based on a resolution array defined"
             "on it created based on the thickness array of a vascular"
@@ -119,12 +119,14 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
         if self.Aneurysm:
             if self.AneurysmType == "lateral":
                 vascularTreeModel = VascularTreeWithLateralAneurysm(
-                                        self.Surface
+                                        self.Surface,
+                                        self.Centerlines
                                     )
 
             elif self.AneurysmType == "bifurcation":
                 vascularTreeModel = VascularTreeWithBifurcationAneurysm(
-                                        self.Surface
+                                        self.Surface,
+                                        self.Centerlines
                                     )
             else:
                 raise ValueError(
@@ -135,7 +137,11 @@ class vmtkSurfaceVasculatureRemeshing(pypes.pypeScript):
             resolutionSurface = vascularTreeModel.GetVascularSurface()
 
         else:
-            vascularTreeModel = VascularTree(self.Surface)
+            vascularTreeModel = VascularTree(
+                                    self.Surface,
+                                    self.Centerlines
+                                )
+
             vascularTreeModel.ComputeVascularWallThickness()
 
             resolutionSurface = vascularTreeModel.GetVascularSurface()

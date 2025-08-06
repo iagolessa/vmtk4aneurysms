@@ -1398,7 +1398,8 @@ class VascularTree:
 
     def __init__(
             self,
-            vtk_poly_data: names.polyDataType
+            vtk_poly_data: names.polyDataType,
+            centerlines_data: names.polyDataType=None
         ):
         """Initiate vascular model.
 
@@ -1412,9 +1413,16 @@ class VascularTree:
         self._vasc_surface_obj = VascularSurface(vascular_surface)
 
         # Generate centerline object
-        self._vasc_centerline_obj = VascularCenterline.from_vascular_surface(
-                                        vascular_surface
-                                    )
+        if centerlines_data is None:
+            self._vasc_centerline_obj = VascularCenterline.from_vascular_surface(
+                                            vascular_surface
+                                        )
+
+        else:
+            # If centerline data is provided, use it
+            self._vasc_centerline_obj = VascularCenterline(
+                                            centerlines_data
+                                        )
 
         self._vascular_surface = self._vasc_surface_obj.GetSurface()
         self._centerlines = self._vasc_centerline_obj.GetCenterline()

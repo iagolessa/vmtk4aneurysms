@@ -24,9 +24,9 @@ from vmtk import vmtkscripts
 
 from vmtk4aneurysms.lib import polydatatools as tools
 
-vmtksurfacevasculatureflowanimation = 'vmtkSurfaceVasculatureFlowAnimation'
+vmtksurfacevasculartreeflowanimation = 'vmtkSurfaceVascularTreeFlowAnimation'
 
-class vmtkSurfaceVasculatureFlowAnimation(pypes.pypeScript):
+class vmtkSurfaceVascularTreeFlowAnimation(pypes.pypeScript):
 
     def __init__(self):
         pypes.pypeScript.__init__(self)
@@ -54,7 +54,7 @@ class vmtkSurfaceVasculatureFlowAnimation(pypes.pypeScript):
         self.VideoLoopCount = 3
         self.VideoFramesPerSec = 30
 
-        self.SetScriptName('vmtksurfacevasculatureflowanimation')
+        self.SetScriptName(self.__class__.__name__.lower())
         self.SetScriptDoc(
             """ render or store animation of vasculature flow, through
             streaklines, using traces previously computed and the vascular

@@ -29,7 +29,6 @@ from vmtk4aneurysms.lib import polydatatools as tools
 from vmtk4aneurysms.lib import polydatageometry as geo
 from vmtk4aneurysms.lib import centerlines as cl
 from vmtk4aneurysms import aneurysms as an
-from vmtk4aneurysms import vasculature as vsc
 from vmtk4aneurysms.lib import polydatamath as pmath
 
 from vtkmodules.numpy_interface import dataset_adapter as dsa

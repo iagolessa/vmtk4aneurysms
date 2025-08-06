@@ -1287,6 +1287,7 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
     def __init__(
             self,
             vtk_poly_data: names.polyDataType,
+            centerlines_data: names.polyDataType=None,
             clip_aneurysm_mode: str="interactive",
             dome_point: tuple=None
         ):
@@ -1310,7 +1311,10 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
             'plane' mode to extract the aneurysm).
         """
 
-        super().__init__(vtk_poly_data)
+        super().__init__(
+            vtk_poly_data,
+            centerlines_data=centerlines_data
+        )
 
         self._dome_point  = dome_point
         self._clip_aneurysm_mode = clip_aneurysm_mode
@@ -1335,6 +1339,7 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
     def from_file(
             cls,
             file_name,
+            centerlines_data=None,
             clip_aneurysm_mode="interactive",
             dome_point=None
         ):
@@ -1738,6 +1743,7 @@ class VascularTreeWithLateralAneurysm(VascularTreeWithAneurysm):
     def __init__(
             self,
             vtk_poly_data: names.polyDataType,
+            centerlines_data: names.polyDataType=None,
             clip_aneurysm_mode: str="interactive",
             dome_point: tuple=None
         ):
@@ -1763,6 +1769,7 @@ class VascularTreeWithLateralAneurysm(VascularTreeWithAneurysm):
 
         super().__init__(
             vtk_poly_data,
+            centerlines_data,
             clip_aneurysm_mode,
             dome_point
         )
@@ -1804,6 +1811,7 @@ class VascularTreeWithBifurcationAneurysm(VascularTreeWithAneurysm):
     def __init__(
             self,
             vtk_poly_data: names.polyDataType,
+            centerlines_data: names.polyDataType=None,
             clip_aneurysm_mode: str="interactive",
             dome_point: tuple=None
         ):
@@ -1829,6 +1837,7 @@ class VascularTreeWithBifurcationAneurysm(VascularTreeWithAneurysm):
 
         super().__init__(
             vtk_poly_data,
+            centerlines_data,
             clip_aneurysm_mode,
             dome_point
         )

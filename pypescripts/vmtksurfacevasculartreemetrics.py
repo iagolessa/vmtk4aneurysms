@@ -36,15 +36,16 @@ from vmtk4aneurysms.aneurysms import (
     VascularTreeWithBifurcationAneurysm
 )
 
-vmtksurfacevasculatureinfo = 'vmtkSurfaceVasculatureInfo'
+vmtksurfacevasculartreemetrics = 'vmtkSurfaceVascularTreeMetrics'
 
-class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
+class vmtkSurfaceVascularTreeMetrics(pypes.pypeScript):
 
     # Constructor
     def __init__(self):
         pypes.pypeScript.__init__(self)
 
         self.Surface = None
+        self.Centerlines = None
         self.Aneurysm = True
         self.ComputationMode = "interactive"
         self.AneurysmType    = None
@@ -62,12 +63,16 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
 
         self.ShowVascularModel = False
 
-        self.SetScriptName('vmtksurfacevasculatureinfo')
+        self.SetScriptName(self.__class__.__name__.lower())
         self.SetScriptDoc('extract vasculature metrics')
 
         self.SetInputMembers([
             ['Surface','i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
+
+            ['Centerlines', 'icenterline', 'vtkPolyData', 1, '',
+                'the centerlines of the input surface (optional; if not '\
+                'passed, it is calculated automatically)', 'vmtksurfacereader'],
 
             ['Aneurysm','aneurysm','bool', 1, '',
              'indicate an aneurysm on the vascular tree'],
@@ -150,13 +155,17 @@ class vmtkSurfaceVasculatureInfo(pypes.pypeScript):
             # Generate an aneurysm object
             vascularModel = vascularClassWithAneurysm(
                                 self.Surface,
+                                centerlines_data=self.Centerlines,
                                 clip_aneurysm_mode=self.ComputationMode,
                                 dome_point=self.DomePoint
                             )
 
         else:
             # If no aneurysm, we can use the VascularTree model class
-            vascularModel = VascularTree(self.Surface)
+            vascularModel = VascularTree(
+                                self.Surface,
+                                centerlines_data=self.Centerlines
+                            )
 
 
         pp = PrettyPrinter(depth=3)
