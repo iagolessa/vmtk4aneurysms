@@ -20,9 +20,8 @@ import sys
 import math
 import numpy as np
 import pandas as pd
-from typing import Union
+from typing import Union, List
 from copy import copy
-from numpy import ndarray, concatenate
 
 import vtk
 from vmtk import vtkvmtk
@@ -305,7 +304,7 @@ def WriteSpline(points, tangents, file_name):
     WriteSurface(spline, file_name)
 
 def BuildPolyDataPoints(
-        point_coords: Union[ndarray, list],
+        point_coords: Union[np.ndarray, list],
         point_fields: dict=None
     )   -> names.polyDataType:
     """Build VTK Polydata composed of points and fields.
@@ -346,8 +345,8 @@ def _make_vtk_id_list(it):
     return vil
 
 def BuildPolyData(
-        point_coords: Union[ndarray, list],
-        cells: Union[ndarray, list]
+        point_coords: Union[np.ndarray, list],
+        cells: Union[np.ndarray, list]
     )   -> names.polyDataType:
     """Build VTK Polydata based on its points and cells.
 
@@ -375,6 +374,62 @@ def BuildPolyData(
     polydata.SetPolys(cellDataArray)
 
     return polydata
+
+def Build3DCurvePolyData(
+        points: Union[List[List[float]], np.ndarray]
+    )   -> vtk.vtkPolyData:
+    """Creates a vtkPolyData object representing a curve from a list of 3D
+    points.
+
+    The curve is formed by connecting consecutive points with line segments.
+
+    Args:
+        points: A list of lists or a NumPy array of 3D coordinates. Each inner
+            list/row represents a point (e.g., [[x1, y1, z1], [x2, y2, z2],
+            ...]).
+
+    Returns:
+        A vtkPolyData object containing the points and the line cells that form
+        the curve.
+    """
+
+    # Ensure points are in a NumPy array for easier processing
+    npPoints = np.asarray(points, dtype=float)
+
+    if npPoints.ndim != 2 or npPoints.shape[1] != 3:
+        raise ValueError(
+                  "Input 'points' must be a list of 3D coordinates "\
+                  "or an Nx3 NumPy array."
+              )
+
+    # Create a vtkPoints object to store the coordinates
+    vtkPoints = vtk.vtkPoints()
+    for point in npPoints:
+        vtkPoints.InsertNextPoint(
+            point[0],
+            point[1],
+            point[2]
+        )
+
+    # Create a vtkCellArray to store the line segments
+    vtkLines = vtk.vtkCellArray()
+
+    # Create line segments by connecting consecutive points
+    for i in range(len(npPoints) - 1):
+        line = vtk.vtkLine()
+
+        # First point of the segment
+        line.GetPointIds().SetId(0, i)
+        # Second point of the segment
+        line.GetPointIds().SetId(1, i + 1)
+        vtkLines.InsertNextCell(line)
+
+    # Create the vtkPolyData object
+    polyData = vtk.vtkPolyData()
+    polyData.SetPoints(vtkPoints)
+    polyData.SetLines(vtkLines)
+
+    return polyData
 
 def SmoothSurface(
         surface: names.polyDataType,
@@ -698,7 +753,7 @@ def ProjectCellArray(
         npSurface = dsa.WrapDataObject(surface)
         cellData = npSurface.CellData
 
-        concatField = concatenate(
+        concatField = np.concatenate(
                           [cellData.GetArray(field_name + str(comp)).reshape((-1, 1))
                            for comp in range(nComps)],
                            axis=1
