@@ -34,6 +34,8 @@ from vascular_models import (
         ThreeFourthEllipsoidAneurysm
     )
 
+from aneurysms import VascularTreeWithBifurcationAneurysm
+
 _SMALL = 1e-6
 
 def addSpaceCapitals(word):
@@ -128,6 +130,7 @@ class TestAneurysmModule(unittest.TestCase):
                        surface_resolution=surfResolution
                    )
 
+        # The aneurysm models are build with a GetLabel method
         iaModels = {model.GetLabel(): model
                     for model in [iaModel1, iaModel2, iaModel3]}
 
@@ -137,7 +140,6 @@ class TestAneurysmModule(unittest.TestCase):
 
         # Remove metrics that are not analyzed
         methods.remove("GetSurface")
-        methods.remove("GetLabel")
         methods.remove("GetOstiumSurface")
         methods.remove("GetHullSurface")
         methods.remove("GetHemodynamicStats")
@@ -158,8 +160,7 @@ class TestAneurysmModule(unittest.TestCase):
                            addCurvatureArrays(
                                iaModel.GetSurface(),
                                label
-                           ),
-                           label=label + "-measured"
+                           )
                        )
 
             modelAttributes = {}
@@ -182,7 +183,7 @@ class TestAneurysmModule(unittest.TestCase):
 
                 except:
                     print(
-                        'Error for case' + iaModel.GetLabel() + ' in param ' + method
+                        'Error for case' + label + ' in param ' + method
                     )
 
             # Add the curvature metrics separately
@@ -197,8 +198,8 @@ class TestAneurysmModule(unittest.TestCase):
 
             # Store all cases
             dictMorphology.update({
-                iaModel.GetLabel() + "-model": modelAttributes,
-                iaMeasured.GetLabel(): measuredAttributes,
+                label + "-model": modelAttributes,
+                label + "-measured": measuredAttributes,
             })
 
         # Get metrics names
@@ -253,6 +254,116 @@ class TestAneurysmModule(unittest.TestCase):
 
                 self.assertTrue(diff < tol)
 
+    def test_VascularTreeWithBifurcationAneurysm(self):
+
+        expectedFieldsInCenterlines = [
+            names.VascularRadiusArrayName,
+            names.CurvatureArrayName,
+            names.TorsionArrayName,
+            names.vmtkFrenetTangentArrayName,
+            names.vmtkFrenetNormalArrayName,
+            names.vmtkFrenetBinormalArrayName,
+            names.vmtkAbscissasArrayName,
+            names.vmtkParallelTransportArrayName
+        ]
+
+        expectedFieldsInVascularSurface = [
+             names.ThicknessArrayName,
+             'LocalWLR',
+             names.AneurysmalRegionArrayName,
+             names.AbnormalFactorArrayName,
+             names.MeanCurvatureArrayName,
+             names.GaussCurvatureArrayName,
+             names.ElasticityArrayName,
+             names.normals
+        ]
+
+        # Build bifurcation vascular tree model
+        bifWithFieldsFile = "./tests/example-data/bifurcation_model_with_aneurysm.vtp"
+
+        # Generate a report on the vasculature being loaded
+        print(
+            "Loading bifurcation vascular tree with aneurysm from file: "
+            + bifWithFieldsFile
+        )
+        vascularTreeModel = VascularTreeWithBifurcationAneurysm.from_file(
+                                bifWithFieldsFile
+                            )
+
+        # Test abnormal wall fields as TAWSS and OSI are defined on surface
+        print(
+            "Computing vascular wall thickness and elasticity constants."
+        )
+        vascularTreeModel.ComputeVascularWallThickness(abnormal_thickness=True)
+        vascularTreeModel.ComputeVascularElasticConstants(
+            abnormal_elasticity=True
+        )
+
+        fieldsOnVascSurface = vascularTreeModel.GetVascularSurfaceObject().GetPointFields()
+
+        # Building aneurysm model
+        aneurysmModel = vascularTreeModel.GetAneurysm()
+
+        aneurysmModel.ComputeSacRegionsField(
+            neck_to_body_fraction=0.3,
+            body_to_dome_fraction=0.8
+        )
+
+        pfieldsOnAneurysmSac = tools.GetPointArrays(aneurysmModel.GetSurface())
+        cfieldsOnAneurysmSac = tools.GetCellArrays(aneurysmModel.GetSurface())
+
+        # # Inspection
+        # tools.ViewSurface(vascularModel.GetSurface().GetSurfaceObject(),
+        #                   array_name="Local_Shape_Type")
+
+        # tools.ViewSurface(vascularModel.GetCenterlines())
+
+        # gGet vascular objects
+        vascCenterlines = vascularTreeModel.GetCenterlinesObject()
+        nBifurcations = vascularTreeModel.GetNumberOfBifurcations()
+
+        # test fields on vascular surface
+        print(
+            "Testing fields on vascular surface."
+        )
+        self.assertTrue(
+            set(fieldsOnVascSurface) == set(expectedFieldsInVascularSurface)
+        )
+
+        # Check whether SacRegionsFields was computed (a cell array)
+        self.assertTrue(
+            (names.SacRegionsArrayName in cfieldsOnAneurysmSac) and
+            (names.WallTypeArrayName in cfieldsOnAneurysmSac)
+        )
+
+        # Check whether DistanceToNeck was computed (a cell array)
+        self.assertTrue(
+            names.DistanceToNeckArrayName in pfieldsOnAneurysmSac
+        )
+
+        self.assertTrue(
+            set(vascCenterlines.GetPointFields()) == set(expectedFieldsInCenterlines)
+        )
+
+        self.assertTrue(
+             nBifurcations == 1
+        )
+
+        self.assertTrue(
+            len(vascularTreeModel.GetBranches()) == 2*nBifurcations + 1
+        )
 
 if __name__=='__main__':
-    unittest.main()
+    # Run all test methods
+    # unittest.main()
+
+    suite = unittest.TestSuite()
+    # suite.addTest(
+    #     TestAneurysmModule("test_ComputeMetrics")
+    # )
+    suite.addTest(
+        TestAneurysmModule("test_VascularTreeWithBifurcationAneurysm")
+    )
+
+    runner = unittest.TextTestRunner()
+    runner.run(suite)

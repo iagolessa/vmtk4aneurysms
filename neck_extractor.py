@@ -922,7 +922,8 @@ class Automatic3DNeckIdentification(AneurysmNeckIdentificationStrategy):
                                                  )
 
             # Clean up the temporary array from the clipped surface
-            # Leave it on the aneurysm surface
+            # Leave it on the aneurysm surface to be used later for other
+            # calculations
             if self._vascular_surface_no_aneurysm.GetPointData().HasArray(
                     self._distance_to_neck_field_name
                 ):
@@ -1218,7 +1219,8 @@ class PlaneNeckIdentification(AneurysmNeckIdentificationStrategy):
             marked_surface = self.MarkAneurysmNeck()
 
         # Clean up the temporary array from the clipped surface
-        # Leave it on the aneurysm surface
+        # Leave it on the aneurysm surface to be used later for other
+        # calculations
         if self._vascular_surface_no_aneurysm.GetPointData().HasArray(
                 self._distance_to_neck_field_name
             ):
@@ -1241,7 +1243,9 @@ def ClipAneurysmSacSurface(
 
     Given the vascular model with an aneurysm, clip the aneurysm sac surface
     based on the neck contour computed via three alternative strategies.
-    Returns a tuple with the aneurysm and the rest of the surface clipped.
+    Returns a tuple with the aneurysm and the rest of the surface clipped. The
+    sac surface is clipped based on the 'names.DistanceToNeckArrayName' array,
+    which is kept on the surface polydata for later use.
 
     Arguments
     ---------
