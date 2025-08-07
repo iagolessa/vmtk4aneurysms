@@ -60,18 +60,19 @@ def _transf_normal(
 
     return tuple(np.dot(matrix, normal))
 
-def _sac_centerline(
+def ComputeSacCenterlinePoints(
         aneurysm_sac: names.polyDataType,
         distance_array: str
     )   -> tuple:
-    """Compute aneurysm sac centerline.
+    """Compute saccular aneurysm sac centerline.
 
     Compute spline that travels alongs the aneurysm sac from the intersection
-    with the pa- rent vessel tube. Its points are defined by the geometric
-    place of the barycenters of iso- contours of a distance_array defined on
-    the aneurysm surface.
+    with the parent vessel tube. Its points are defined by the geometric place
+    of the barycenters of iso-contours of a 'distance_array' defined on the
+    aneurysm surface.
 
-    The function returns the spline vertices in a Numpy nd-array.
+    The function returns a tuple with the spline vertices and tangents in a
+    Numpy nd-array.
     """
 
     # Get wrapper object of vtk numpy interface
@@ -142,7 +143,7 @@ def _sac_centerline(
         # noticed that for some cases the initial point of the spline might be
         # pretty inside the aneurysm, skipping the "neck region"
         minSplineDomain = min(u)
-        maxSplineDomain = limitFraction*max(u)
+        maxSplineDomain = max(u)
 
         domain = np.linspace(minSplineDomain, maxSplineDomain, 2*nPoints)
 
@@ -1104,7 +1105,7 @@ class PlaneNeckIdentification(AneurysmNeckIdentificationStrategy):
                                 )
 
             # Create sac centerline
-            barycenters, normals = _sac_centerline(
+            barycenters, normals = ComputeSacCenterlinePoints(
                                        aneurysmalSurface,
                                        tubeToAneurysmDistance
                                    )

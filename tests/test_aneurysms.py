@@ -147,6 +147,7 @@ class TestAneurysmModule(unittest.TestCase):
         methods.remove("GetDomeTipPoint")
         methods.remove("GetCurvatureMetrics")
         methods.remove("GetMorphologyMetrics")
+        methods.remove("GetSacCenterline")
 
         # Get methods of each aneurysm model
         print("Computing metrics of aneurysm models.", end="\n")
@@ -358,9 +359,9 @@ if __name__=='__main__':
     # unittest.main()
 
     suite = unittest.TestSuite()
-    # suite.addTest(
-    #     TestAneurysmModule("test_ComputeMetrics")
-    # )
+    suite.addTest(
+        TestAneurysmModule("test_ComputeMetrics")
+    )
     suite.addTest(
         TestAneurysmModule("test_VascularTreeWithBifurcationAneurysm")
     )

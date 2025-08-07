@@ -42,6 +42,7 @@ from vmtk4aneurysms.vascular_classes import (
 )
 
 from vmtk4aneurysms.neck_extractor import (
+    ComputeSacCenterlinePoints,
     ClipAneurysmSacSurface,
     ComputeGeodesicDistanceToAneurysmNeck,
     InteractiveNeckIdentification,
@@ -531,6 +532,9 @@ class SaccularAneurysm:
 
         # Compute curvature metrics: GAA, MAA, MLN, GLN
         self._compute_curvature_metrics()
+
+        # The sac centerline will be computed later
+        self._sac_centerline = None
 
     def __repr__(self):
 
@@ -1304,6 +1308,49 @@ class SaccularAneurysm:
 
         # Updates object
         self._aneurysm_surface = npSurface.VTKObject
+
+    def GetSacCenterline(self) -> names.polyDataType:
+        """Return the aneurysm sac centerline.
+
+        The centerline of an aneurysm is a 3D path that travels through the
+        center of its sac. It was defined in a procedure to compute the
+        aneurysm neck plane in the study:
+
+            M. Piccinelli, D. A. Steinman, Y. Hoi, F. Tong, A. Veneziani, and
+            L. Antiga, "Automatic neck plane detection and 3d geometric
+            characterization of aneurysmal sacs", Annals of Biomedical
+            Engineering, vol. 40, no. 10, pp. 2188–2211, 2012, doi:
+            10.1007/s10439-012-0577-5.
+
+        Based on the names.DistanceToNeckArrayName field, defined on the
+        aneurysm sac surface when it is segmented from the vascular model, the
+        algorithm computes the barycenter/centroid of the isocontours defined by
+        the names.DistanceToNeckArrayName field, and uses them to compute the
+        VTK polydata of the sac centerline.
+
+        Note that, therefore, the exact centerline of the aneurysm sac here
+        depends on the mode to compute the aneurysm neck.
+        """
+
+        if self._sac_centerline is None:
+            if names.DistanceToNeckArrayName not in tools.GetPointArrays(
+                    self._aneurysm_surface
+                ):
+
+                # Add distance to neck field
+                self._compute_distance_to_neck()
+
+            # Get centerline points from aneurysm model
+            sac_centerline_pts, _ = ComputeSacCenterlinePoints(
+                                        self._aneurysm_surface,
+                                        distance_array=names.DistanceToNeckArrayName
+                                    )
+
+            self._sac_centerline = tools.Build3DCurvePolyData(
+                                       sac_centerline_pts
+                                   )
+
+        return self._sac_centerline
 
 class VascularTreeWithAneurysm(VascularTree, ABC):
     """Abstract base class to represent a vascular network tree model with a

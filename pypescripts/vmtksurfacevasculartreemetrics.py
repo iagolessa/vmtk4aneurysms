@@ -59,6 +59,7 @@ class vmtkSurfaceVascularTreeMetrics(pypes.pypeScript):
         self.OstiumSurface       = None
         self.HullSurface         = None
         self.VascularInfoFile    = None
+        self.AneurysmSacCenterline = None
         self.VascularTreeAttributesDict = None
 
         self.ShowVascularModel = False
@@ -120,7 +121,10 @@ class vmtkSurfaceVascularTreeMetrics(pypes.pypeScript):
 
             ['HullSurface','ohull','vtkPolyData',1,'',
              'the ostium surface generated from the contour scalar neck',
-             'vmtksurfacewriter']
+             'vmtksurfacewriter'],
+
+            ['AneurysmSacCenterline','osaccenterline','vtkPolyData',1,'',
+             'the aneurysm sac centerline', 'vmtksurfacewriter']
         ])
 
     def Execute(self):
@@ -261,10 +265,12 @@ class vmtkSurfaceVascularTreeMetrics(pypes.pypeScript):
         if self.Aneurysm:
 
             aneurysmModel = vascularModel.GetAneurysm()
+            aneurysmModel.ComputeSacRegionsField()
 
             self.AneurysmSurface = aneurysmModel.GetSurface()
             self.HullSurface     = aneurysmModel.GetHullSurface()
             self.OstiumSurface   = aneurysmModel.GetOstiumSurface()
+            self.AneurysmSacCenterline = aneurysmModel.GetSacCenterline()
 
             aneurysmAttributes = aneurysmModel.GetMorphologyMetrics()
 
