@@ -900,7 +900,33 @@ class SaccularAneurysm:
             names.SqrMeanCurvatureArrayName
         )
 
+    def _compute_distance_to_neck(self):
+        """Based on neck contour, compute geodesic distance to neck field."""
 
+        pointIds = tools.GetClosestContourOnSurface(
+                       self._aneurysm_surface,
+                       self._neck_contour
+                   )
+
+        # Compute the geodesic distance  from the approximate neck contour
+        surface = geo.SurfaceGeodesicDistanceToContour(
+                      self._aneurysm_surface,
+                      pointIds,
+                      gdistance_array_name=names.DistanceToNeckArrayName
+                  )
+
+        # Change sign to conform with names.DistanceToNeckArrayName values
+        # from VascularTree models -> negative inside the aneurysm
+        npSurface = dsa.WrapDataObject(surface)
+
+        npSurface.PointData.append(
+            -npSurface.PointData.GetArray(names.DistanceToNeckArrayName),
+            names.DistanceToNeckArrayName
+        )
+
+        self._aneurysm_surface = npSurface.VTKObject
+
+    # Public interface
     def GetMorphologyMetrics(self) -> dict:
         """Get dict of all morphology metrics."""
 
@@ -926,7 +952,6 @@ class SaccularAneurysm:
             "HGLN": self._HGLN
         }
 
-    # Public interface
     def GetDomeTipPoint(self) -> tuple:
         """Return the aneurysm surface."""
         return tuple(self._dome_point)
@@ -1196,6 +1221,13 @@ class SaccularAneurysm:
         and these values are defined in the dictionary
         'constants.IaSacRegionsTypes'.
         """
+
+        if names.DistanceToNeckArrayName not in tools.GetPointArrays(
+                self._aneurysm_surface
+            ):
+
+            # Add distance to neck field
+            self._compute_distance_to_neck()
 
         # Update aneurysm model surface
         # Interpolate the distance to neck aray to cell data
