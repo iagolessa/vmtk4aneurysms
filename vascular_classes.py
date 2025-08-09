@@ -862,6 +862,7 @@ class VascularCenterline:
 
         # Updates splitted centerline dictionary
         self._individual_centerlines = self.split_centerline_object()
+        self._compute_bifurcating_centerlines()
 
     # Public Interface
     def GetCenterline(self):

@@ -1409,8 +1409,8 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
 
         if clip_aneurysm_mode == "automatic" or clip_aneurysm_mode == "plane":
             raise NotImplementedError(
-                "The automatic clipping mode is not implemented for " +
-                "VascularTreeWithAneurysm. Use 'interactive' mode " +
+                "The {clip_aneurysm_mode} clipping mode is not implemented "
+                "for 'VascularTreeWithAneurysm'. Use 'interactive' mode "
                 "instead."
             )
 
@@ -1426,6 +1426,7 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
 
         return cls(
             tools.ReadSurface(file_name),
+            centerlines_data=centerlines_data,
             clip_aneurysm_mode=clip_aneurysm_mode,
             dome_point=dome_point
         )
@@ -1480,6 +1481,18 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
         aneurysm sac surface based on the specified clipping mode.
         """
         pass
+
+    def GetAneurysm(self):
+        """Return the aneurysm model."""
+        if self._aneurysm_model is None:
+            # Clip the aneurysm sac surface
+            self._clip_sac_surface()
+
+        return self._aneurysm_model
+
+    def GetAneurysmExtractionMode(self):
+        """Return the extraction model of the aneurysm."""
+        return self._clip_aneurysm_mode
 
     # Overload GetBranches to handle branches with an aneurysm
     # Operates on the vascular_surface_no_aneurysm, which is the
@@ -1835,18 +1848,6 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
         # Updates vascular surface OBJECT
         self._vasc_surface_obj = VascularSurface(vascular_surface)
         self._vascular_surface = self._vasc_surface_obj.GetSurface()
-
-    def GetAneurysm(self):
-        """Return the aneurysm model."""
-        if self._aneurysm_model is None:
-            # Clip the aneurysm sac surface
-            self._clip_sac_surface()
-
-        return self._aneurysm_model
-
-    def GetAneurysmExtractionMode(self):
-        """Return the extraction model of the aneurysm."""
-        return self._clip_aneurysm_mode
 
 class VascularTreeWithLateralAneurysm(VascularTreeWithAneurysm):
     """Representation of a vascular network tree model with a lateral saccular
