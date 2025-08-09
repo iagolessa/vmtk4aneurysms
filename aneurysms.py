@@ -1456,7 +1456,13 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
                                       distance_to_neck_field_name=names.AneurysmalRegionArrayName
                                   )
 
-            marked_neck_surface = neckClipperStrategy.MarkAneurysmNeck()
+            # As it is interactive so far, send message to user
+            messageToUser = "Select the aneurysm influence region boundary "\
+                            "to compute thickness and elastic constant fields\n"
+
+            marked_neck_surface = neckClipperStrategy.MarkAneurysmNeck(
+                                      screen_msg=messageToUser
+                                  )
 
             # Use client function to mark the aneurysm sac surface
             # Updates the vascular surface with the marked aneurysm neck

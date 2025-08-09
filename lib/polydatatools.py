@@ -1512,6 +1512,7 @@ class SelectContourPointsIds():
 
         self.ContourIds = None
         self.ContourPoints = None
+        self.ScreenInfo = None
 
     def DeleteContourCallback(self, obj):
         self.ContourWidget.Initialize()
@@ -1583,6 +1584,10 @@ class SelectContourPointsIds():
             'd',
             'Delete contour',
             self.DeleteContourCallback
+        )
+
+        self.vmtkRenderer.InputInfo(
+            self.ScreenInfo
         )
 
         self.Display()

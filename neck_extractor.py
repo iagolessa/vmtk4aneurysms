@@ -704,7 +704,10 @@ class InteractiveNeckIdentification(AneurysmNeckIdentificationStrategy):
             distance_to_neck_field_name=distance_to_neck_field_name
         )
 
-    def MarkAneurysmNeck(self) -> names.polyDataType:
+    def MarkAneurysmNeck(
+            self,
+            screen_msg: str="Mark, interactively, the neck contour\n"
+        ) -> names.polyDataType:
 
         # For optimization, check whether the field was already computed
         if self._marked_surface is None:
@@ -713,6 +716,7 @@ class InteractiveNeckIdentification(AneurysmNeckIdentificationStrategy):
 
             getContour = tools.SelectContourPointsIds()
             getContour.Surface = surface
+            getContour.ScreenInfo = screen_msg
             getContour.Execute()
 
             surface = geo.SurfaceGeodesicDistanceToContour(
