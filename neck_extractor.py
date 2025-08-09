@@ -662,8 +662,15 @@ class AneurysmNeckIdentificationStrategy(ABC):
         self._aneurysm_extractor = aneurysm_extractor
         self._distance_to_neck_field_name = distance_to_neck_field_name
 
+        # If field to use to clip neck is already there, use it to mark the
+        # aneurysm surface, otherwise it will be computed by the strategy
+        if distance_to_neck_field_name in tools.GetPointArrays(vascular_surface):
+            self._marked_surface = vascular_surface
+
+        else:
+            self._marked_surface = None
+
         # These will be set by the concrete strategies
-        self._marked_surface = None
         self._sac_surface = None
         self._vascular_surface_no_aneurysm = None
 

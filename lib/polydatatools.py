@@ -1512,7 +1512,7 @@ class SelectContourPointsIds():
 
         self.ContourIds = None
         self.ContourPoints = None
-        self.ScreenInfo = None
+        self.ScreenInfo = ""
 
     def DeleteContourCallback(self, obj):
         self.ContourWidget.Initialize()
