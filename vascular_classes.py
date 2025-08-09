@@ -1523,19 +1523,22 @@ class VascularTree:
 
         return cls(tools.ReadSurface(file_name))
 
-    def _compute_branched_surface(self):
+    def _compute_branched_surface(
+            self,
+            surface_to_branch: names.polyDataType
+        ):
         """Split the vascular tree surface into branches.
 
         This method literally splits the vascular tree surface into its
-        constituent branches, generating a branched surface object that
-        has a field that identifies the branches and bifurcations.
+        constituent branches, generating a branched surface object that has a
+        field that identifies the branches and bifurcations.
         """
         if self._branched_surface is None:
             # Using vtkvtmk lib class for better configuration
             # This scripts preserves all the fields on the input surface
             # for this class
             clipper = vtkvmtk.vtkvmtkPolyDataCenterlineGroupsClipper()
-            clipper.SetInputData(self._vascular_surface)
+            clipper.SetInputData(surface_to_branch)
             clipper.SetCenterlines(self._centerlines)
             clipper.SetCenterlineGroupIdsArrayName(names.vmtkGroupIdsArrayName)
             clipper.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
@@ -1707,6 +1710,49 @@ class VascularTree:
             self._branched_surface.GetPointData().RemoveArray(
                 self._vmtk_branch_harmonic_map_name
             )
+
+    def _split_branch_objects(self):
+        """Split the vascular tree into branch objects."""
+        # Extract only the branches portion
+        # (the blanking array separates the branches from the bifurcations
+        # branches are identified with the value 1)
+        branchesId = 0
+        centerlineBranches = tools.ExtractPortion(
+                                 self._centerlines,
+                                 names.vmtkBlankingArrayName,
+                                 branchesId
+                             )
+
+        # Get only the branch group ids
+        npBranches = dsa.WrapDataObject(centerlineBranches)
+        branchesIds = set(
+                          npBranches.GetCellData().GetArray(
+                              names.vmtkGroupIdsArrayName
+                          )
+                      )
+
+        for branchId in branchesIds:
+            # try:
+            branch = tools.ExtractPortion(
+                         centerlineBranches,
+                         names.vmtkGroupIdsArrayName,
+                         branchId
+                     )
+
+            # The surface branches do not have a "bifurcation patch"
+            # Hence can use directly the branches id obtained above
+            surfaceBranch = tools.ExtractPortion(
+                                self._branched_surface,
+                                names.vmtkGroupIdsArrayName,
+                                branchId
+                            )
+
+            self._branches.update({
+                branchId: Branch(
+                              branch,
+                              surfaceBranch
+                          )
+            })
 
     def _compute_local_wlr(self, diameter):
         if diameter > const.VesselLargeDiameter:
@@ -1907,55 +1953,13 @@ class VascularTree:
         if not self._branches:
 
             # Compute branched surface if not already done
-            self._compute_branched_surface()
-
-            # Extract only the branches portion
-            # (the blanking array separates the branches from the bifurcations
-            # branches are identified with the value 1)
-            branchesId = 0
-            centerlineBranches = tools.ExtractPortion(
-                                     self._centerlines,
-                                     names.vmtkBlankingArrayName,
-                                     branchesId
-                                 )
-
-            # Get only the branch group ids
-            npBranches = dsa.WrapDataObject(centerlineBranches)
-            branchesIds = set(
-                              npBranches.GetCellData().GetArray(
-                                  names.vmtkGroupIdsArrayName
-                              )
-                          )
-
-            for branchId in branchesIds:
-                # try:
-                branch = tools.ExtractPortion(
-                             centerlineBranches,
-                             names.vmtkGroupIdsArrayName,
-                             branchId
-                         )
-
-                # The surface branches do not have a "bifurcation patch"
-                # Hence can use directly the branches id obtained above
-                surfaceBranch = tools.ExtractPortion(
-                                    self._branched_surface,
-                                    names.vmtkGroupIdsArrayName,
-                                    branchId
-                                )
-
-                self._branches.update({
-                    branchId: Branch(
-                                  branch,
-                                  surfaceBranch
-                              )
-                })
-
-                # except(ValueError):
-                #     pass
+            self._compute_branched_surface(
+                self._vascular_surface
+            )
+            self._split_branch_objects()
 
         return self._branches
 
-    # TODO: add automatic computation of vascular thickness here?
     def GetCenterlinesObject(self):
         """Return the vasculature's centerlines."""
         return self._vasc_centerline_obj

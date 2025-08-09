@@ -1475,6 +1475,40 @@ class VascularTreeWithAneurysm(VascularTree, ABC):
         """
         pass
 
+    # Overload GetBranches to handle branches with an aneurysm
+    # Operates on the vascular_surface_no_aneurysm, which is the
+    # vascular surface without the aneurysm sac
+    # TODO: for lateral aneurysms, it leads to a branch with a whole where the
+    # aneurysm was and, thus, the branch is not topologically a cylinder. It
+    # does not lead to errors in the calculations, but it is not the most
+    # elegant solution for lateral aneurysms. I should think of splitting the
+    # branch where an aneurysm is, similar to what is the case for bifurcation
+    # aneurysms.
+    def GetBranches(self) -> dict:
+        """Split vascular tree into branch objects, after excluding the
+        aneurysm.
+
+        Given the vasculature centerlines, slits it into its constituent
+        branches. Generates a list of branch objects.
+
+        Returns:
+            dict: A dict of {GroupId: Branch...} objects representing the
+                branches of the vascular model.
+        """
+        if not self._branches:
+
+            if self._vascular_surface_no_aneurysm is None:
+                # Clip sac surface to compute vascular surface without aneurysm
+                self._clip_sac_surface()
+
+            # Compute branched surface
+            self._compute_branched_surface(
+                self._vascular_surface_no_aneurysm
+            )
+            self._split_branch_objects()
+
+        return self._branches
+
     def ComputeVascularWallThickness(
             self,
             set_uniform_wlr: bool = False,
