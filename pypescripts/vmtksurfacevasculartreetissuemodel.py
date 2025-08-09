@@ -41,6 +41,7 @@ class vmtkSurfaceVascularTreeTissueModel(pypes.pypeScript):
         pypes.pypeScript.__init__(self)
 
         self.Surface = None
+        self.Centerlines = None
         self.Aneurysm = True
         self.AneurysmType = None
         self.ParentVesselSurface = None
@@ -92,6 +93,10 @@ class vmtkSurfaceVascularTreeTissueModel(pypes.pypeScript):
         self.SetInputMembers([
             ['Surface', 'i', 'vtkPolyData', 1, '',
                 'the input surface', 'vmtksurfacereader'],
+
+            ['Centerlines', 'icenterline', 'vtkPolyData', 1, '',
+                'the centerlines of the input surface (optional; if not '\
+                'passed, it is calculated automatically)', 'vmtksurfacereader'],
 
             ['RadiusArrayName', 'radiusarray', 'str', 1, '',
                 'centerline radius array name, if loaded externally'],
@@ -272,6 +277,7 @@ class vmtkSurfaceVascularTreeTissueModel(pypes.pypeScript):
             if self.AneurysmType == "lateral":
                 vascularTreeModel = VascularTreeWithLateralAneurysm(
                                         self.Surface,
+                                        self.Centerlines,
                                         clip_aneurysm_mode=self.NeckComputationMode,
                                         dome_point=self.DomePoint
                                     )
@@ -279,6 +285,7 @@ class vmtkSurfaceVascularTreeTissueModel(pypes.pypeScript):
             elif self.AneurysmType == "bifurcation":
                 vascularTreeModel = VascularTreeWithBifurcationAneurysm(
                                         self.Surface,
+                                        self.Centerlines,
                                         clip_aneurysm_mode=self.NeckComputationMode,
                                         dome_point=self.DomePoint
                                     )
