@@ -21,6 +21,7 @@ from vtk import (
     vtkUnstructuredGrid,
     vtkMultiBlockDataSet,
     vtkIdList,
+    vtkImageData,
     vtkPlane
 )
 
@@ -99,6 +100,10 @@ vmtkFrenetBinormalArrayName = "FrenetBinormal"
 vmtkParallelTransportArrayName = "ParallelTransportNormals"
 vmtkReferenceSystemsNormalArrayName = "Normal"
 vmtkReferenceSystemsUpNormalArrayName = "UpNormal"
+
+vmtkBranchAngularMetricArrayName = "AngularMetric"
+vmtkBranchStretchedMappingArrayName = "StretchedMapping"
+vmtkBranchAbscissasMetricArrayName = "AbscissasMetric"
 
 # this one is deprecated (using the distance to neck instead)
 # only here for backward compatibility

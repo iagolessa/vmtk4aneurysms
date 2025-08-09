@@ -40,6 +40,11 @@ class Branch():
         self._branch_length = self._compute_length()
         self._branch_area = geo.Surface.Area(self._branch_surface)
 
+        # Flag to indicate computation of branch patches
+        self._patching_computed = False
+        self._branch_patch_plane = None
+        self._branch_patch_surface = None
+
     def GetCenterline(self):
         """Return branch vtkPolyData."""
         return self._branch_centerline
@@ -77,6 +82,77 @@ class Branch():
         """Return the branch surface area."""
 
         return self._branch_area
+
+    def ComputeBranchPatching(
+            self,
+            longitudinal_patch_size: float,
+            circular_number_of_patches: int
+        ):
+
+        if not self._patching_computed:
+            # Apply patching filter
+            patchingFilter = vtkvmtk.vtkvmtkPolyDataPatchingFilter()
+            patchingFilter.SetInputData(self._branch_surface)
+            patchingFilter.SetCircularPatching(True)
+            patchingFilter.SetUseConnectivity(True)
+            patchingFilter.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
+            patchingFilter.SetLongitudinalMappingArrayName(
+                names.vmtkBranchAbscissasMetricArrayName
+            )
+            patchingFilter.SetCircularMappingArrayName(
+                names.vmtkBranchAngularMetricArrayName
+            )
+            patchingFilter.SetLongitudinalPatchNumberArrayName("BranchSlab")
+            patchingFilter.SetCircularPatchNumberArrayName("BranchSector")
+            patchingFilter.SetPatchAreaArrayName("PatchArea")
+            patchingFilter.SetPatchSize([
+                longitudinal_patch_size,
+                const.one/float(circular_number_of_patches)
+            ])
+            patchingFilter.Update()
+
+            # Updates branch surface and patching
+            self._branch_patch_surface = patchingFilter.GetOutput()
+            self._branch_patch_plane = patchingFilter.GetPatchedData()
+            self._patching_computed = True
+
+    def GetPatchedSurface(self) -> names.polyDataType:
+        """Return the patched branch surface.
+
+        Raises:
+            RuntimeError: If branch patches have not been computed yet.
+
+        Returns:
+            names.vtkPolyData: The patched branch surface with the
+            "BranchSlab", "BranchSector", and "PatchArea" fields.
+        """
+
+        if not self._patching_computed:
+            raise RuntimeError(
+                "Branch patches have not been computed yet. "
+                "Call 'ComputeBranchPatching' method first."
+            )
+
+        return self._branch_patch_surface
+
+    def GetPatchedPlane(self) -> names.vtkImageData:
+        """Return the patched branch mapped to a plane.
+
+        Raises:
+            RuntimeError: If branch patches have not been computed yet.
+
+        Returns:
+            names.vtkImageData: The patched branch mapped to a plane with the
+            "BranchSlab", "BranchSector", and "PatchArea" fields.
+        """
+
+        if not self._patching_computed:
+            raise RuntimeError(
+                "Branch patches have not been computed yet. "
+                "Call 'ComputeBranchPatching' method first."
+            )
+
+        return self._branch_patch_plane
 
 class Bifurcation:
     """Model of a bifurcation of a vascular centerline network.
@@ -1434,6 +1510,10 @@ class VascularTree:
         self._branches = {}
         self._thickness_computed = False
 
+        # Other internal attributtes
+        self._vmtk_branch_boundary_metric_name = "BoundaryMetric"
+        self._vmtk_branch_harmonic_map_name = "HarmonicMapping"
+
     @classmethod
     def from_file(
             cls,
@@ -1475,6 +1555,158 @@ class VascularTree:
 
             # Get the clipped output
             self._branched_surface = clipper.GetOutput()
+
+            # Add branch abscissas and angular metrics for patching
+            angularMetricFilter = vtkvmtk.vtkvmtkPolyDataCenterlineAngularMetricFilter()
+            angularMetricFilter.SetInputData(self._branched_surface)
+            angularMetricFilter.SetCenterlines(self._centerlines)
+
+            angularMetricFilter.SetMetricArrayName(
+                names.vmtkBranchAngularMetricArrayName
+            )
+            angularMetricFilter.SetGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            angularMetricFilter.SetRadiusArrayName(
+                names.VascularRadiusArrayName
+            )
+            angularMetricFilter.SetCenterlineNormalsArrayName(
+                names.vmtkParallelTransportArrayName
+            )
+            angularMetricFilter.SetCenterlineGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            angularMetricFilter.SetCenterlineTractIdsArrayName(
+                names.vmtkTractIdsArrayName
+            )
+            angularMetricFilter.SetBlankingArrayName(
+                names.vmtkBlankingArrayName
+            )
+            angularMetricFilter.SetCenterlineIdsArrayName(
+                names.vmtkCenterlineIdsArrayName
+            )
+
+            angularMetricFilter.UseRadiusInformationOff()
+            angularMetricFilter.IncludeBifurcationsOff()
+            angularMetricFilter.Update()
+
+            abscissaMetricFilter = vtkvmtk.vtkvmtkPolyDataCenterlineAbscissaMetricFilter()
+            abscissaMetricFilter.SetInputData(angularMetricFilter.GetOutput())
+            abscissaMetricFilter.SetCenterlines(
+                self._centerlines
+            )
+            abscissaMetricFilter.SetMetricArrayName(
+                names.vmtkBranchAbscissasMetricArrayName
+            )
+            abscissaMetricFilter.SetAbscissasArrayName(
+                names.vmtkAbscissasArrayName
+            )
+            abscissaMetricFilter.SetGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            abscissaMetricFilter.SetRadiusArrayName(
+                names.VascularRadiusArrayName
+            )
+            abscissaMetricFilter.SetCenterlineGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            abscissaMetricFilter.SetCenterlineTractIdsArrayName(
+                names.vmtkTractIdsArrayName
+            )
+            abscissaMetricFilter.SetBlankingArrayName(
+                names.vmtkBlankingArrayName
+            )
+            abscissaMetricFilter.SetCenterlineIdsArrayName(
+                names.vmtkCenterlineIdsArrayName
+            )
+
+            abscissaMetricFilter.UseRadiusInformationOff()
+            abscissaMetricFilter.IncludeBifurcationsOn()
+            abscissaMetricFilter.Update()
+
+            self._branched_surface = abscissaMetricFilter.GetOutput()
+
+            # Perform branch mapping for patching
+            # Computing boundary metric
+            boundaryMetricFilter = vtkvmtk.vtkvmtkPolyDataReferenceSystemBoundaryMetricFilter()
+            boundaryMetricFilter.SetInputData(abscissaMetricFilter.GetOutput())
+            boundaryMetricFilter.SetCenterlines(self._centerlines)
+
+            boundaryMetricFilter.SetBoundaryMetricArrayName(
+                self._vmtk_branch_boundary_metric_name
+            )
+
+            boundaryMetricFilter.SetCenterlineAbscissasArrayName(
+                names.vmtkAbscissasArrayName
+            )
+            boundaryMetricFilter.SetGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            boundaryMetricFilter.SetCenterlineRadiusArrayName(
+                names.VascularRadiusArrayName
+            )
+            boundaryMetricFilter.SetCenterlineGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            boundaryMetricFilter.SetCenterlineTractIdsArrayName(
+                names.vmtkTractIdsArrayName
+            )
+            boundaryMetricFilter.SetCenterlineIdsArrayName(
+                names.vmtkCenterlineIdsArrayName
+            )
+
+            boundaryMetricFilter.SetReferenceSystems(
+                self._vasc_centerline_obj.GetBifurcationReferenceSystem()
+            )
+            boundaryMetricFilter.SetReferenceSystemGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            boundaryMetricFilter.Update()
+
+            # Computing harmonic mapping
+            harmonicMappingFilter = vtkvmtk.vtkvmtkPolyDataMultipleCylinderHarmonicMappingFilter()
+            harmonicMappingFilter.SetInputConnection(
+                boundaryMetricFilter.GetOutputPort()
+            )
+            harmonicMappingFilter.SetHarmonicMappingArrayName(
+                self._vmtk_branch_harmonic_map_name
+            )
+            harmonicMappingFilter.SetGroupIdsArrayName(
+                names.vmtkGroupIdsArrayName
+            )
+            harmonicMappingFilter.Update()
+
+            # Stretching harmonic mapping
+            stretchFilter = vtkvmtk.vtkvmtkPolyDataStretchMappingFilter()
+            stretchFilter.SetInputConnection(
+                harmonicMappingFilter.GetOutputPort()
+            )
+            stretchFilter.SetStretchedMappingArrayName(
+                names.vmtkBranchStretchedMappingArrayName
+            )
+            stretchFilter.SetHarmonicMappingArrayName(
+                self._vmtk_branch_harmonic_map_name
+            )
+            stretchFilter.SetGroupIdsArrayName(names.vmtkGroupIdsArrayName)
+            stretchFilter.SetMetricArrayName(
+                names.vmtkBranchAbscissasMetricArrayName
+            )
+            stretchFilter.SetBoundaryMetricArrayName(
+                self._vmtk_branch_boundary_metric_name
+            )
+            stretchFilter.UseBoundaryMetricOn()
+            stretchFilter.Update()
+
+            self._branched_surface = stretchFilter.GetOutput()
+
+            # Delete internal fields that are not needed
+            self._branched_surface.GetPointData().RemoveArray(
+                self._vmtk_branch_boundary_metric_name
+            )
+
+            self._branched_surface.GetPointData().RemoveArray(
+                self._vmtk_branch_harmonic_map_name
+            )
 
     def _compute_local_wlr(self, diameter):
         if diameter > const.VesselLargeDiameter:

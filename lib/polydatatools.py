@@ -276,6 +276,17 @@ def WriteUnsGrid(
     writeGrid.SetFileName(file_name)
     writeGrid.Write()
 
+def WriteImage(
+        image: names.vtkImageData,
+        file_name: str
+    )   -> None:
+    """Write an image to .vti file."""
+
+    writer = vtk.vtkXMLImageDataWriter()
+    writer.SetInputData(image)
+    writer.SetFileName(file_name)
+    writer.Write()
+
 def WriteSpline(points, tangents, file_name):
     """Write spline from a set of points and tangents.
 
