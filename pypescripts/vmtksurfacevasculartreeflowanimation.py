@@ -101,7 +101,7 @@ class vmtkSurfaceVascularTreeFlowAnimation(pypes.pypeScript):
             ['ArrayMax', 'arraymax', 'float', 1, '(0.0,)'],
             ['LineWidth', 'linewidth', 'int', 1, '(1,)'],
 
-            ['ImageResize', 'imageresize', 'int', 1, '(100,0)',
+            ['ImageResize', 'imageresize', 'int', 1, '(0,100)',
                 "resize image by this percentage"],
 
             ['BackgroundColor', 'backgroundcolor', 'int', -1, '',
